@@ -395,6 +395,17 @@ test("unmatched VLM phrase remains unmapped", () => {
   assert.equal(result.nodeId, null);
 });
 
+test("unmapped visible buildings do not get forced into nearby curated Marina nodes", () => {
+  const result = matchClickPhraseToNode({
+    phrase: "The Fullerton Hotel building",
+    candidates: scrollScenes["marina-bay-scroll"].hotspots,
+    nodes: atlasNodes
+  });
+
+  assert.equal(result.status, "unmapped");
+  assert.equal(result.nodeId, null);
+});
+
 test("image prompt builder enforces planning-board style and avoids dense atlas cues", () => {
   const prompt = buildWanderImagePrompt({
     nodeTitle: "Marina Bay",
@@ -840,6 +851,14 @@ test("server VLM resolver marks the clicked point in the image", () => {
   assert.match(serverSource, /red crosshair with a white halo/);
   assert.match(serverSource, /imageMarked: Boolean\(markedImage\)/);
   assert.match(serverSource, /data:\$\{vlmMimeType\};base64/);
+});
+
+test("server semantic cache prefers the nearest cached click over confidence alone", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  assert.match(serverSource, /selectSemanticRegionForPoint/);
+  assert.match(serverSource, /semanticRegionClickDistance/);
+  assert.doesNotMatch(serverSource, /sort\(\(a, b\) => \(b\.confidenceScore \?\? 0\) - \(a\.confidenceScore \?\? 0\)\)/);
+  assert.match(serverSource, /matchedNodeId\s*\?\s*mergeBoxes\(existing\.bbox, nextRegion\.bbox\)\s*:\s*nextRegion\.bbox/);
 });
 
 test("runtime image job polling is not cached by the browser", () => {

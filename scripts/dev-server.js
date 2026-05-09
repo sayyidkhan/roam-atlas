@@ -255,9 +255,7 @@ async function resolveSemanticRegionHit({ currentPage, normalizedClick }) {
   if (!hasRuntimeGeneratedPage(currentPage) || !normalizedClick) return null;
 
   const understanding = await readPageUnderstanding(currentPage);
-  const region = understanding?.regions
-    ?.filter((item) => pointInBox(normalizedClick, item.bbox))
-    .sort((a, b) => (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0))[0];
+  const region = selectSemanticRegionForPoint(understanding?.regions ?? [], normalizedClick);
 
   return region ?? null;
 }
@@ -288,9 +286,11 @@ async function appendSemanticRegionFromResult({ currentPage, normalizedClick, re
   };
 
   if (existing) {
-    existing.bbox = mergeBoxes(existing.bbox, nextRegion.bbox);
+    existing.bbox = matchedNodeId
+      ? mergeBoxes(existing.bbox, nextRegion.bbox)
+      : nextRegion.bbox;
     existing.phrase = existing.phrase || nextRegion.phrase;
-    existing.cacheClick = existing.cacheClick ?? nextRegion.cacheClick;
+    existing.cacheClick = nextRegion.cacheClick ?? existing.cacheClick;
     existing.updatedAt = nextRegion.updatedAt;
     existing.confidenceScore = Math.max(existing.confidenceScore ?? 0, nextRegion.confidenceScore);
   } else {
@@ -298,6 +298,29 @@ async function appendSemanticRegionFromResult({ currentPage, normalizedClick, re
   }
 
   await writePageUnderstanding(currentPage, understanding);
+}
+
+function selectSemanticRegionForPoint(regions, point) {
+  return regions
+    .filter((item) => pointInBox(point, item.bbox))
+    .sort((a, b) => compareSemanticRegionHit(a, b, point))[0] ?? null;
+}
+
+function compareSemanticRegionHit(a, b, point) {
+  const distanceA = semanticRegionClickDistance(a, point);
+  const distanceB = semanticRegionClickDistance(b, point);
+  const distanceDifference = distanceA - distanceB;
+  if (Math.abs(distanceDifference) > 0.0004) {
+    return distanceDifference;
+  }
+
+  return (b.confidenceScore ?? 0) - (a.confidenceScore ?? 0);
+}
+
+function semanticRegionClickDistance(region, point) {
+  const anchor = region.cacheClick ?? centerOfBox(region.bbox);
+  if (!anchor || !point) return Number.POSITIVE_INFINITY;
+  return (anchor.x - point.x) ** 2 + (anchor.y - point.y) ** 2;
 }
 
 async function ensurePageUnderstanding(page) {
