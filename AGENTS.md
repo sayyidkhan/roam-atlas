@@ -161,6 +161,8 @@ Rules:
 - Read `PRODUCT.md` before major changes.
 - Keep AI calls behind typed interfaces.
 - Keep curated data separate from generated content.
+- Implement the visual world as tile-based dynamic scroll architecture, not as
+  a single giant image and not as true real-time pixel rendering.
 - Add tests for planner constraints and hallucination guardrails.
 - Do not hardcode machine-specific paths.
 - Keep the first product slice small and demoable.
@@ -195,6 +197,307 @@ Required confidence labels:
 - `likely`: plausible but not fully verified.
 - `general`: background knowledge, not specific to the attraction.
 - `unconfirmed`: not present in curated sources.
+
+## Tile-Based Dynamic Scroll Architecture
+
+Use option 2 for the visual system: a tile-based dynamic scroll.
+
+This means WanderSG should feel like an interactive Qingming-style long scroll,
+but the product should be built from generated scene tiles, deterministic
+hotspots, camera motion, and cached drill-down scenes. Do not build a true
+Flipbook-style real-time pixel browser for the first product slice.
+
+### Why This Architecture
+
+Tile-based dynamic scroll gives the product the right feeling without losing
+control of facts.
+
+Compared with true real-time pixel rendering:
+
+- It is faster because most images are pre-generated or cached.
+- It is cheaper because each click does not regenerate an entire screen.
+- It is more consistent because adjacent tiles can share prompts, anchors, and
+  style versions.
+- It is safer because clicks resolve to known scene graph nodes before factual
+  text is shown.
+- It is easier to test because hotspots, facts, and itinerary items are data.
+
+### Core Model
+
+Represent every explorable visual world as a `ScrollScene`.
+
+```ts
+type ScrollScene = {
+  id: string;
+  title: string;
+  rootNodeId: string;
+  coordinateSpace: {
+    width: number;
+    height: number;
+    unit: "virtual_px";
+  };
+  tileGrid: {
+    columns: number;
+    rows: number;
+    tileWidth: number;
+    tileHeight: number;
+    overlapPx: number;
+  };
+  tiles: SceneTile[];
+  hotspots: Hotspot[];
+  ambientLayers: AmbientLayer[];
+  cameraPresets: CameraPreset[];
+  styleVersion: string;
+  dataVersion: string;
+};
+
+type SceneTile = {
+  id: string;
+  sceneId: string;
+  row: number;
+  column: number;
+  bounds: Rect;
+  imageUrl?: string;
+  status: "missing" | "queued" | "generating" | "ready" | "failed";
+  prompt: string;
+  continuityPrompt: string;
+  cacheKey: string;
+  imageModel: string;
+  generatedAt?: string;
+};
+
+type Hotspot = {
+  id: string;
+  sceneId: string;
+  nodeId?: string;
+  kind: "region" | "poi" | "detail" | "animal" | "detour";
+  shape: Rect | Polygon;
+  zIndex: number;
+  label?: string;
+  confidence: "confirmed" | "general" | "unconfirmed" | "ai_imagined";
+  action:
+    | { type: "enter_scene"; sceneId: string }
+    | { type: "open_node"; nodeId: string }
+    | { type: "show_detour"; detourId: string };
+};
+
+type AmbientLayer = {
+  id: string;
+  kind: "water" | "cloud" | "light" | "crowd" | "foliage" | "traffic";
+  bounds: Rect;
+  intensity: "subtle" | "medium";
+};
+
+type CameraPreset = {
+  id: string;
+  label: string;
+  targetBounds: Rect;
+  zoom: number;
+};
+
+type Rect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type Polygon = {
+  points: Array<{ x: number; y: number }>;
+};
+```
+
+### Scene Hierarchy
+
+The first implementation should use a small set of scenes:
+
+```text
+singapore-overview
+  -> marina-bay-scroll
+  -> heritage-belt-scroll
+  -> sentosa-south-scroll
+  -> nature-wildlife-scroll
+       -> mandai-scroll
+          -> singapore-zoo-scroll
+             -> wild-africa-scroll
+                -> giraffe-anatomy-plate
+```
+
+Each scene owns its own coordinate space, tiles, hotspots, and camera presets.
+Do not try to make one infinite global coordinate system in the first version.
+
+### Tile Generation Flow
+
+The image agent should generate tiles through a queue.
+
+```text
+Scene plan
+  -> tile prompts
+  -> gpt-image-2 provider adapter
+  -> image artifact storage
+  -> tile cache record
+  -> frontend loads ready tiles
+```
+
+Every tile generation job must include:
+
+- `sceneId`
+- `tileId`
+- `row`
+- `column`
+- `bounds`
+- `styleVersion`
+- `dataVersion`
+- `promptVersion`
+- `imageModel`
+- `basePrompt`
+- `continuityPrompt`
+- Neighbor context for left, right, top, and bottom tiles when available.
+
+### Cache Key
+
+Cache keys must be deterministic.
+
+```text
+scene:{sceneId}:tile:{tileId}:style:{styleVersion}:data:{dataVersion}:prompt:{promptVersion}:model:{imageModel}
+```
+
+Changing factual data, prompt template, style direction, or image model should
+produce a new cache key. Do not overwrite old generated images without keeping
+metadata that explains the change.
+
+### Continuity Rules
+
+Adjacent tiles must feel like one scroll, not separate postcards.
+
+For each tile prompt, include:
+
+- Shared global scene description.
+- Tile position in the larger scroll.
+- Neighbor summaries.
+- Edge continuity notes.
+- Persistent anchors, such as river direction, skyline location, path direction,
+  forest edge, zoo habitat boundary, or MRT line.
+
+Continuity prompt template:
+
+```text
+This tile is part of a larger panoramic Singapore scroll.
+Scene: {{SCENE_TITLE}}
+Tile position: row {{ROW}}, column {{COLUMN}} of {{ROWS}} x {{COLUMNS}}.
+
+Global anchors:
+{{GLOBAL_ANCHORS}}
+
+Left edge should connect to:
+{{LEFT_NEIGHBOR_SUMMARY}}
+
+Right edge should connect to:
+{{RIGHT_NEIGHBOR_SUMMARY}}
+
+Top edge should connect to:
+{{TOP_NEIGHBOR_SUMMARY}}
+
+Bottom edge should connect to:
+{{BOTTOM_NEIGHBOR_SUMMARY}}
+
+Keep the same paper texture, line weight, lighting, perspective, and density.
+Do not add readable labels, fake signs, ticket prices, opening hours, or official
+logos.
+```
+
+### Frontend Rendering Layers
+
+Render the scroll as layered UI:
+
+```text
+Viewport camera
+  -> tile image layer
+  -> ambient motion layer
+  -> hotspot hit-test layer
+  -> factual label layer
+  -> selection and ripple layer
+  -> side panel / drill-down overlay
+```
+
+Recommended implementation path:
+
+- Use CSS transforms or a canvas stage for camera pan and zoom.
+- Use DOM or SVG overlays for hotspots and labels in the first version.
+- Use polygon hit testing for irregular regions.
+- Use lazy loading for tiles near the viewport.
+- Use prefetching for adjacent tiles and likely drill-down scenes.
+- Use Framer Motion or equivalent transition primitives for camera glide,
+  click ripple, fade, and zoom-through effects.
+
+The frontend should treat images as visual background only. Factual labels,
+badges, callouts, source links, itinerary actions, and animal names should come
+from structured data.
+
+### Click Resolution
+
+Click handling must be deterministic before using AI.
+
+```text
+User click in viewport coordinates
+  -> convert to scene coordinates
+  -> find topmost hotspot containing point
+  -> if known node: open node or enter scene
+  -> if ambiguous: show a choice menu
+  -> if no hotspot: show unmapped detour option
+```
+
+Only use an LLM for ambiguous clicks after providing the candidate hotspot list.
+The LLM may choose from candidates, return ambiguous, or return unmapped. It may
+not invent a new real node.
+
+### Motion Design
+
+The scroll should feel alive, but motion must not compromise readability.
+
+Allowed:
+
+- Slow water shimmer.
+- Soft cloud drift.
+- Slight foliage movement.
+- Lantern or city light glow.
+- Small crowd loops as overlay sprites.
+- Camera glide between scenes.
+- Click ripple and zoom-through transition.
+
+Avoid:
+
+- Constant full-screen motion.
+- Animation baked into factual labels.
+- Motion that changes the meaning of a place.
+- AI-generated text inside moving image content.
+
+### Fallback Behavior
+
+If a tile is missing:
+
+- Show a paper-texture placeholder with the scene title.
+- Keep hotspots usable if their geometry is already known.
+- Queue generation if allowed.
+- Show "illustration pending" rather than hiding factual content.
+
+If tile generation fails:
+
+- Keep the factual node accessible.
+- Surface retry metadata for developers.
+- Do not block itinerary generation.
+
+### Testing Requirements
+
+Test that:
+
+- Viewport clicks convert correctly into scene coordinates.
+- Hotspot priority works with overlapping shapes.
+- Unknown clicks produce unmapped detours.
+- Tile cache keys change when model, prompt, style, or data version changes.
+- Generated images are never used as fact sources.
+- Scene transitions preserve the selected node.
+- Missing tiles do not break itinerary or fact display.
 
 ## Prompting Rules
 
