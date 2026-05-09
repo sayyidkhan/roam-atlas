@@ -115,10 +115,12 @@ async function handleFlipbookClick(request, response) {
       })
     : null;
 
-  const semanticHit = await resolveSemanticRegionHit({
-    currentPage: body.currentPage,
-    normalizedClick
-  });
+  const semanticHit = !body.targetNodeId && !body.detourPhrase
+    ? await resolveSemanticRegionHit({
+        currentPage: body.currentPage,
+        normalizedClick
+      })
+    : null;
   if (semanticHit) {
     const semanticClick = semanticHit.cacheClick ?? centerOfBox(semanticHit.bbox) ?? normalizedClick;
     const result = resolveFlipbookClick({

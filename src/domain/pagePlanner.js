@@ -6,10 +6,17 @@ import {
 
 export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }) {
   if (!matchedNode) {
-    const zoomLevel = Math.min((currentNode?.zoomLevel ?? 0) + 1, 4);
+    const currentZoomLevel = inferZoomLevelForNode(currentNode);
+    const shouldUseDetailPlate =
+      currentZoomLevel >= 2 || isFineGrainedDetourPhrase(clickedPhrase);
+    const zoomLevel = shouldUseDetailPlate
+      ? Math.max(3, Math.min(currentZoomLevel + 1, 4))
+      : Math.min(currentZoomLevel + 1, 4);
     const pageType = "ai_detour";
     const title = clickedPhrase;
-    const visualContext = `An unverified imagined detail inspired by: ${clickedPhrase}.`;
+    const visualContext = shouldUseDetailPlate
+      ? `A focused unverified encyclopedia plate studying one clicked subject: ${clickedPhrase}. Show the subject as the main object with diagrammatic structure, optional cutaway or exploded-view details, blank callout anchors, and only minimal environmental context.`
+      : `An unverified imagined detail inspired by: ${clickedPhrase}.`;
     return {
       nextNodeId: null,
       pageType,
@@ -94,3 +101,34 @@ function visualContextForNode(node) {
 
   return `${node.title} as a restrained illustrated encyclopedia page.`;
 }
+
+function isFineGrainedDetourPhrase(phrase) {
+  const normalized = String(phrase ?? "").toLowerCase();
+  return FINE_GRAINED_DETOUR_TERMS.some((term) => normalized.includes(term));
+}
+
+const FINE_GRAINED_DETOUR_TERMS = [
+  "boat",
+  "ferry",
+  "ship",
+  "vessel",
+  "statue",
+  "building",
+  "hotel",
+  "facade",
+  "roof",
+  "tower",
+  "bridge",
+  "skytrain",
+  "train",
+  "terminal",
+  "pavilion",
+  "canopy",
+  "structure",
+  "spout",
+  "vehicle",
+  "airplane",
+  "plane",
+  "bus",
+  "tram"
+];

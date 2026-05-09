@@ -535,6 +535,22 @@ test("page planner keeps unmatched clicks as unverified detours", () => {
   assert.ok(plan.imagePrompt);
 });
 
+test("page planner turns fine-grained detours into encyclopedia plates", () => {
+  const plan = planNextFlipbookPage({
+    currentNode: atlasNodes["marina-bay-scroll"],
+    matchedNode: null,
+    clickedPhrase: "ferry boat"
+  });
+
+  assert.equal(plan.factMode, "unverified_detour");
+  assert.equal(plan.pageType, "ai_detour");
+  assert.equal(plan.zoomLevel, 3);
+  assert.match(plan.visualContext, /focused unverified encyclopedia plate/);
+  assert.match(plan.imagePrompt, /illustrated encyclopedia plate/);
+  assert.match(plan.imagePrompt, /One main subject only/);
+  assert.doesNotMatch(plan.imagePrompt, /one region only/);
+});
+
 test("scene artwork registry does not reuse old public generated images", () => {
   assert.deepEqual(sceneArtwork, {});
   assert.equal(getSceneArtwork("singapore-overview"), null);
@@ -837,6 +853,11 @@ test("server keeps deterministic fallback for non-runtime flipbook click handlin
   assert.doesNotMatch(serverSource, /canUseStaticHomepageFallback/);
   assert.doesNotMatch(serverSource, /isHomepagePage/);
   assert.doesNotMatch(serverSource, /resolvedPhrase:/);
+});
+
+test("server does not let semantic cache override explicit detour targets", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  assert.match(serverSource, /const semanticHit = !body\.targetNodeId && !body\.detourPhrase/);
 });
 
 test("server VLM resolver tolerates missing generated artwork", () => {
