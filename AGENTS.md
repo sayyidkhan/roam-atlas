@@ -89,30 +89,41 @@ Rules:
 
 Owns:
 
+- `gpt-image-2` image generation through the configured image provider.
 - Scene prompts.
 - Style consistency.
 - Image generation.
 - Image caching.
 - Visual safety.
+- Dynamic scroll scene continuity.
 
 Rules:
 
+- Use `gpt-image-2` as the preferred target model for image generation. If the
+  runtime does not support it, use only an explicitly configured fallback and
+  surface that fallback in logs or metadata.
+- Keep the image model behind a provider adapter. Do not scatter raw model names
+  through UI components or product logic.
 - Generate images from node facts, not the other way around.
 - Avoid embedding important text in images.
 - Use frontend-rendered labels for names, callouts, and factual notes.
-- Cache images with prompt and data version.
+- Cache images with prompt, data version, scene id, tile id, and image model.
 - Never use the image output as proof that a place, animal, route, or feature
   exists.
+- Preserve visual continuity between adjacent scroll tiles when generating a
+  Qingming-scroll style scene.
 
 Default visual language:
 
 - Illustrated travel atlas.
 - Natural history encyclopedia.
+- Dynamic Qingming-scroll inspired panorama.
 - Warm ivory paper.
 - Ink outlines.
 - Soft watercolor.
 - Numbered callouts.
 - Calm, detailed, readable scenes.
+- Dense lived-in micro-scenes that reward zooming and clicking.
 
 ### Itinerary Agent
 
@@ -270,13 +281,17 @@ Image prompts should describe style and visible scene, not factual labels.
 Template:
 
 ```text
-Illustrated travel atlas scene of {{NODE_TITLE}} in Singapore.
-Natural history encyclopedia style, warm ivory paper texture, clean ink
-outlines, soft watercolor shading, detailed but readable, calm editorial
-composition.
+Draw a panoramic illustrated travel-atlas scene of {{NODE_TITLE}} in Singapore.
+The experience should feel like an interactive modern Qingming scroll: dense
+micro-scenes, lived-in details, readable paths, warm ivory paper texture, clean
+ink outlines, soft watercolor shading, natural history encyclopedia precision,
+and calm editorial composition.
 
 Include visible context:
 {{VISUAL_CONTEXT}}
+
+Continuity constraints:
+{{SCENE_CONTINUITY}}
 
 Do not include long readable text. Do not invent signage, opening hours,
 official logos, animal names, ticket prices, or exact route labels.

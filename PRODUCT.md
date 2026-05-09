@@ -258,6 +258,8 @@ The visual style should feel like:
 
 - Illustrated natural history encyclopedia.
 - Vintage travel atlas.
+- Dynamic scroll painting inspired by "Along the River During the Qingming
+  Festival": dense, lived-in, panoramic, and explorable.
 - Warm paper texture.
 - Ink outlines.
 - Soft watercolor shading.
@@ -267,7 +269,54 @@ The visual style should feel like:
 Text labels should be rendered by the frontend whenever possible. Generated
 images often misspell labels or invent details.
 
+## Dynamic Scroll Experience
+
+WanderSG should feel closer to an interactive moving scroll than a normal travel
+website.
+
+The target interaction model:
+
+- The user enters a panoramic Singapore scroll, not a static card grid.
+- The scene contains many small moments: commuters, food stalls, wildlife,
+  skyline landmarks, garden paths, zoo habitats, boats, rain shelters, families,
+  and hidden details.
+- The user can pan across the world, zoom into dense areas, and click details.
+- Clicks create a feeling of being pulled deeper into the painted world.
+- Confirmed nodes become factual drill-downs.
+- Unmapped details become clearly labeled AI-imagined detours.
+- Saved discoveries are collected from the scroll into a practical itinerary.
+
+This should feel like Flipbook in spirit: visual, alive, clickable, and
+surprising. It should not depend on a true pixel-stream browser architecture for
+the first version. The MVP should simulate that feeling with scene tiles, camera
+motion, layered hotspots, generated illustrations, and cached drill-down scenes.
+
+### Scene Structure
+
+Use a multi-layer scroll instead of a single flat image:
+
+- Background: large panoramic Singapore scene.
+- Region layer: district and attraction hit zones.
+- Detail layer: small interactive moments and POIs.
+- Annotation layer: frontend-rendered labels, confidence badges, and callouts.
+- Motion layer: subtle ambient animation, camera movement, click ripples, and
+  transition effects.
+
+### Interaction Rules
+
+- Pan and zoom should work on the main scroll.
+- Clicking a known region should zoom or glide into that region.
+- Clicking a known detail should open a node detail or deep-dive scene.
+- Clicking an unknown detail should show an unmapped detour choice.
+- Generated visuals should never silently change the factual graph.
+
 ## Image Generation Strategy
+
+Use `gpt-image-2` as the preferred target image model for WanderSG image
+generation. Because image model availability can vary by environment, implement
+this through a configurable image provider adapter instead of scattering the
+model string through product code. If the runtime cannot access `gpt-image-2`,
+the app must fail clearly or use an explicitly configured fallback model.
 
 Use a hybrid strategy.
 
@@ -276,6 +325,7 @@ Pre-generate:
 - Singapore overview.
 - 4 major district or theme scenes.
 - Core deep-dive scenes for the demo path.
+- The first panoramic scroll tiles required for a smooth demo.
 
 Generate on demand:
 
@@ -283,15 +333,18 @@ Generate on demand:
 - Less common POI scenes.
 - Anatomy plate variants.
 - Unmapped detour illustrations.
+- Additional scroll tiles or close-up scenes after user interaction.
 
 Cache every generated image by:
 
 - Node id.
+- Tile id or scene segment id.
 - Style version.
 - Vibe.
 - Locale.
 - Data version.
 - Prompt version.
+- Image model.
 
 Images must not be treated as sources of truth.
 
