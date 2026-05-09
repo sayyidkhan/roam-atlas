@@ -310,6 +310,36 @@ Use a multi-layer scroll instead of a single flat image:
 - Clicking an unknown detail should show an unmapped detour choice.
 - Generated visuals should never silently change the factual graph.
 
+## Adaption Labs Design Reference
+
+Adaption Labs should be treated as a product design and interaction reference
+for WanderSG, not as the core image-generation backend.
+
+Use it to guide:
+
+- Human-factors review of the dynamic scroll: where users look, where they get
+  lost, how they recover, and how much visual density they can handle.
+- Prototype critique for the Qingming-scroll interaction model: pan, zoom,
+  click, drill-down, return, save discovery, and generate itinerary.
+- UX validation for the hardest product transition: moving from playful visual
+  exploration into trusted factual planning.
+- Design language refinement so the product feels like an explorable illustrated
+  encyclopedia, not a normal map app with decorative images.
+
+Why it fits WanderSG:
+
+- WanderSG is about adaptation between user, product, and environment. The user
+  is learning a city through a living visual interface, then turning that
+  exploration into decisions.
+- The product has high cognitive load: places, animals, routes, facts, sources,
+  and AI-generated visuals all compete for attention.
+- The biggest design risk is not whether the image looks good. It is whether the
+  user understands what is real, what is explorable, and what can become part of
+  their itinerary.
+
+If implementation requires paid Adaption Labs credits, account access, or export
+limits, the agent must ask the user before using them.
+
 ## Image Generation Strategy
 
 Use `gpt-image-2` as the preferred target image model for WanderSG image

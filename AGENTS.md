@@ -40,6 +40,31 @@ Rules:
 - Protect the core thesis: visual encyclopedia plus practical itinerary.
 - Do not expand scope without naming the user value.
 
+### Design Agent
+
+Owns:
+
+- Adaption Labs-informed design critique.
+- Human-factors review.
+- Interaction prototype feedback.
+- Visual density and wayfinding checks.
+- UX handoff notes for coding agents.
+
+Rules:
+
+- Treat Adaption Labs as a design reference and validation layer, not as the
+  primary image-generation backend.
+- Use the Adaption Labs lens when judging whether the dynamic scroll is usable:
+  where users look first, how they know what is clickable, how they recover from
+  getting lost, and whether they understand what is factual.
+- Review the full exploration loop: pan, zoom, click, drill down, return, save
+  discovery, and generate itinerary.
+- Protect the product from becoming a pretty but confusing demo. If the visual
+  scroll hides facts, sources, or itinerary actions, call that out.
+- If a task needs paid Adaption Labs credits, account access, exports, or
+  external workspace actions, ask the user before using them. The user has
+  credits and can approve usage.
+
 ### Research Agent
 
 Owns:
