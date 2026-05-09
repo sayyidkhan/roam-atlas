@@ -110,6 +110,28 @@ Rules:
   response instead of pretending it exists in the attraction.
 - If sources conflict, show the safer claim and flag the conflict for review.
 
+### Click Resolver Agent
+
+Owns:
+
+- Turning image clicks into semantic intent.
+- Using a vision-language model to describe clicked regions.
+- Matching clicked regions to known scene graph nodes.
+- Returning an unmapped detour state when no verified node matches.
+- Precomputing the 3 to 4 most likely click regions for each generated page.
+
+Rules:
+
+- The VLM may describe what appears in the image.
+- The VLM cannot confirm factual travel claims.
+- A click result must pass through the curated node matcher before becoming a
+  verified node.
+- If confidence is low, ask the user to choose from 2 to 3 likely nodes.
+- If no curated node matches, return an AI-imagined detour and label it
+  unverified.
+- Never add a VLM-described place, animal, route, or attraction to the confirmed
+  graph without human/source review.
+
 ### Image Agent
 
 Owns:
@@ -140,15 +162,31 @@ Rules:
 
 Default visual language:
 
-- Illustrated travel atlas.
-- Natural history encyclopedia.
-- Dynamic Qingming-scroll inspired panorama.
-- Warm ivory paper.
-- Ink outlines.
-- Soft watercolor.
-- Numbered callouts.
-- Calm, detailed, readable scenes.
-- Dense lived-in micro-scenes that reward zooming and clicking.
+- One generated image per flipbook page.
+- Sparse homepage as a visual table of contents.
+- Focused region pages as chapter pages.
+- Deep pages as visual encyclopedia plates.
+- Clean isometric or lightly axonometric hand-drawn illustration.
+- Thin grey ink outlines.
+- Muted pastel colors.
+- Pale blue water.
+- Desaturated greens.
+- Light beige roads and paths.
+- Low visual noise.
+- Generous spacing.
+- Numbered anchors, blank callouts, leader lines, or inset diagrams when useful.
+
+Depth rules:
+
+- Homepage prompts must be restrained and must not ask for a full detailed
+  Singapore poster.
+- Region prompts must focus on one region only.
+- Encyclopedia prompts should stop looking like maps and become study plates.
+- Image generation may include short readable labels, page titles, curated node
+  names, numbered anchors, and one- to three-word callout headings.
+- Image generation must not produce prices, opening hours, exact route times,
+  source citations, official claims, or long factual captions.
+- Exact factual content and source badges remain curated data.
 
 ### Itinerary Agent
 

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WanderSG</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="immersive-shell">
+      <section class="scroll-viewport" id="scroll-viewport" aria-label="WanderSG visual explorer">
+        <header class="scene-hud">
+          <div>
+            <p class="eyebrow">WanderSG</p>
+            <h1 id="scene-title">Singapore Overview Scroll</h1>
+            <p id="breadcrumb">Curated facts. Generated-style visuals.</p>
+          </div>
+        </header>
+
+        <div class="corner-actions">
+          <button id="back-button" type="button" class="ghost-button">Back</button>
+        </div>
+
+        <div class="scroll-stage" id="scroll-stage"></div>
+
+        <aside class="detail-sheet" id="detail-sheet" aria-label="Selected detail">
+          <button class="sheet-close" id="close-detail" type="button" aria-label="Close detail">×</button>
+          <section id="node-detail"></section>
+        </aside>
+
+      </section>
+    </main>
+
+    <script type="module" src="./src/ui/app.js"></script>
+  </body>
+</html>

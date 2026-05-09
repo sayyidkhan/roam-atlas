@@ -70,6 +70,21 @@ Scope:
 
 ## Core Experience
 
+### Flipbook Prompt Depth
+
+WanderSG uses separate image prompt builders by page depth:
+
+- `homepage_overview` is sparse and acts as a visual table of contents.
+- Region pages are focused chapter pages for one Singapore area.
+- Deep pages are visual study plates: cutaways, exploded views, museum-style
+  interpretation diagrams, or natural-history plates.
+- Generated images may include short readable titles, curated node names,
+  numbered anchors, callout labels, leader lines, and inset diagrams.
+- Generated images must not contain invented official facts, prices, opening
+  hours, route times, exact routes, source citations, or long captions.
+- Exact factual content and source badges remain curated data, even when the
+  generated image contains short guide labels.
+
 ### 1. Start With Intent
 
 The user enters:
@@ -309,6 +324,41 @@ Use a multi-layer scroll instead of a single flat image:
 - Clicking a known detail should open a node detail or deep-dive scene.
 - Clicking an unknown detail should show an unmapped detour choice.
 - Generated visuals should never silently change the factual graph.
+
+## Flipbook Page Interaction Model
+
+WanderSG follows an image-is-the-UI interaction model inspired by
+flipbook.page and openflipbook.
+
+Each exploration state is represented by one generated illustrated page. The
+user can click anywhere on the image. The system sends the current image, click
+coordinates, and scene metadata to a click resolver. In production, that resolver
+may use a vision-language model to return a short phrase describing what the
+user clicked.
+
+That phrase is then matched against WanderSG's curated Singapore scene graph.
+
+If matched:
+
+- Transition into the verified node.
+- Generate or load the next illustrated page.
+- Show source-backed facts in UI overlays.
+- Let the user save the verified node for itinerary planning.
+
+If not matched:
+
+- Create an AI-imagined detour.
+- Label it as unverified.
+- Do not use it as confirmed itinerary data.
+
+The VLM can describe pixels. It cannot create travel facts. The curated graph is
+the authority.
+
+For speed, generated pages should precompute a small set of likely click regions
+in the background. Most taps should resolve from these cached candidates before
+falling back to a live VLM resolve. Future implementations may use progressive
+rendering, where a fast draft image appears before the final high-quality image
+replaces it.
 
 ## Adaption Labs Design Reference
 
