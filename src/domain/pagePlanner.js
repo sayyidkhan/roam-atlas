@@ -47,6 +47,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
   const pageType = inferPageTypeForNode(matchedNode);
   const zoomLevel = inferZoomLevelForNode(matchedNode);
   const visualContext = visualContextForNode(matchedNode);
+  const isUnconfirmedNode = hasUnconfirmedNodeFacts(matchedNode);
 
   return {
     nextNodeId: matchedNode.id,
@@ -60,7 +61,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
       visualContext,
       pageType,
       zoomLevel,
-      density: zoomLevel === 0 ? "minimal" : "balanced",
+      density: isUnconfirmedNode || zoomLevel === 0 ? "minimal" : "balanced",
       parentNodeTitle: currentNode?.title
     }),
     frontendOverlays: [
@@ -73,15 +74,25 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
     clickTargetsToPrecompute: matchedNode.childIds.map((nodeId) => ({
       targetName: nodeId,
       likelyNodeId: nodeId,
-      whyClickable: "Child node in the curated WanderSG scene graph."
+      whyClickable: "Child node in the mapped WanderSG scene graph."
     })),
-    factMode: "verified"
+    factMode: isUnconfirmedNode ? "unconfirmed" : "verified"
   };
 }
 
 function visualContextForNode(node) {
+  if (hasUnconfirmedNodeFacts(node)) {
+    return [
+      `${node.title} as an unconfirmed WanderSG starter-map page.`,
+      "Show a generic atlas composition with terrain, water, paths, trees, transit hints, and anonymous city or landscape forms.",
+      `Use the supplied page title "${node.title}" only.`,
+      "Do not invent named attractions, street names, walk names, districts, official signs, opening hours, prices, routes, citations, rankings, or factual captions.",
+      "If labels are needed, use only generic labels such as city core, waterfront, green space, old town texture, island area, forest, hills, coast, or transit hint."
+    ].join(" ");
+  }
+
   if (node.type === "country") {
-    return "A calm whole-Singapore overview with multiple sparse region anchors, open water, green corridors, roads, transit, and distinct district entry points.";
+    return `A calm whole-country overview for ${node.title} with multiple sparse region anchors, open water, green corridors, roads, transit hints, and distinct district entry points.`;
   }
   if (node.type === "district") {
     return `${node.title} as a spacious district planning board with roads, water, parks, paths, simplified landmarks, and clear region geometry.`;
@@ -100,6 +111,12 @@ function visualContextForNode(node) {
   }
 
   return `${node.title} as a restrained illustrated encyclopedia page.`;
+}
+
+function hasUnconfirmedNodeFacts(node) {
+  return node.facts?.some(
+    (fact) => fact.confidence === "unconfirmed" || fact.sourceType === "ai_generated"
+  );
 }
 
 function isFineGrainedDetourPhrase(phrase) {

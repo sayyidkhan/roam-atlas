@@ -6,6 +6,7 @@ import { planNextFlipbookPage } from "./pagePlanner.js";
 
 export function createFlipbookPage({
   id,
+  countrySlug = "singapore",
   sceneId,
   nodeId,
   imageUrl,
@@ -16,6 +17,7 @@ export function createFlipbookPage({
 }) {
   return {
     id,
+    countrySlug,
     sceneId,
     nodeId,
     imageUrl,
@@ -99,6 +101,7 @@ export function resolveFlipbookClick({
           phrase: click.phrase,
           normalizedClick
         }),
+        countrySlug: currentPage.countrySlug ?? "singapore",
         sceneId: currentPage.sceneId,
         nodeId: null,
         imageUrl: currentPage.imageUrl,
@@ -133,6 +136,7 @@ export function resolveFlipbookClick({
         phrase: click.phrase,
         normalizedClick
       }),
+      countrySlug: currentPage.countrySlug ?? "singapore",
       sceneId: nextSceneId,
       nodeId: plan.nextNodeId ?? click.nodeId,
       imageUrl: artwork?.imageUrl ?? null,

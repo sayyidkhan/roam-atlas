@@ -10,6 +10,12 @@ import {
   searchKnownNode
 } from "../src/data/sceneGraph.js";
 import {
+  getCountryBySlug,
+  getCountryCardState,
+  worldCountries
+} from "../src/data/countries.js";
+import { countryPacks } from "../src/data/countryPacks/index.js";
+import {
   buildItinerary,
   createUnmappedDetour,
   filterCuratedItineraryNodes
@@ -54,9 +60,107 @@ import {
 } from "../src/domain/imageJobQueue.js";
 import {
   RUNTIME_CACHE_URL_PREFIX,
+  createCountryStarterMapCachePaths,
   createRuntimeCachePaths,
   resolveRuntimeCacheRoot
 } from "../src/domain/runtimeCache.js";
+import {
+  canonicalRouteForNode,
+  resolveAppRoute,
+  routeForCountry,
+  routeForCountryConfig,
+  routeForNode,
+  routeForPlace,
+  routeForSingaporeOverview
+} from "../src/domain/routes.js";
+import {
+  buildCountryDraftInfluencePrompt,
+  buildCountryDraftPrompt,
+  createCountryPackDraftFromStarterMap,
+  createCountryPackStarterMap,
+  normalizeCountryDraftInstruction,
+  normalizeCountryDraftPayload
+} from "../src/domain/countryDraft.js";
+
+test("country landing lists world countries with routable country shells", () => {
+  const countryCodes = worldCountries.map((country) => country.code);
+
+  assert.equal(worldCountries.length, 195);
+  assert.equal(new Set(countryCodes).size, worldCountries.length);
+  assert.equal(new Set(worldCountries.map((country) => country.slug)).size, worldCountries.length);
+  assert.deepEqual(
+    countryCodes,
+    [...countryCodes].sort((a, b) =>
+      worldCountries.find((country) => country.code === a).name.localeCompare(
+        worldCountries.find((country) => country.code === b).name
+      )
+    )
+  );
+  assert.equal(getCountryCardState("SG").status, "mapped");
+  assert.equal(getCountryCardState("MY").status, "mapped");
+  assert.equal(getCountryCardState("US").status, "available");
+  assert.equal(getCountryBySlug("malaysia").code, "MY");
+  assert.equal(routeForCountry(getCountryBySlug("malaysia")), "/malaysia");
+  assert.equal(routeForCountryConfig(getCountryBySlug("austria")), "/austria/config");
+});
+
+test("app routes send unmapped countries through config and mapped countries into explorer", () => {
+  const routeContext = { countries: worldCountries, countryPacks };
+  const singaporePack = countryPacks.singapore;
+  const malaysiaPack = countryPacks.malaysia;
+
+  assert.deepEqual(resolveAppRoute("/", routeContext), {
+    type: "country_landing"
+  });
+  assert.deepEqual(resolveAppRoute("/singapore", routeContext), {
+    type: "country_overview",
+    country: getCountryBySlug("singapore"),
+    countrySlug: "singapore",
+    pack: singaporePack
+  });
+  assert.deepEqual(resolveAppRoute("/malaysia", routeContext), {
+    type: "country_overview",
+    country: getCountryBySlug("malaysia"),
+    countrySlug: "malaysia",
+    pack: malaysiaPack
+  });
+  assert.deepEqual(resolveAppRoute("/austria", routeContext), {
+    type: "country_needs_config",
+    country: getCountryBySlug("austria"),
+    countrySlug: "austria"
+  });
+  assert.deepEqual(resolveAppRoute("/austria/config", routeContext), {
+    type: "country_config",
+    country: getCountryBySlug("austria"),
+    countrySlug: "austria"
+  });
+  assert.deepEqual(resolveAppRoute("/malaysia/config", routeContext), {
+    type: "country_overview",
+    country: getCountryBySlug("malaysia"),
+    countrySlug: "malaysia",
+    pack: malaysiaPack
+  });
+  assert.deepEqual(resolveAppRoute("/singapore/place/giraffe", routeContext), {
+    type: "curated_place",
+    countrySlug: "singapore",
+    nodeId: "giraffe",
+    pack: singaporePack
+  });
+  assert.deepEqual(resolveAppRoute("/singapore/place/not-real", routeContext), {
+    type: "invalid_place",
+    countrySlug: "singapore",
+    nodeId: "not-real",
+    pack: singaporePack
+  });
+  assert.equal(routeForSingaporeOverview(), "/singapore");
+  assert.equal(routeForPlace("singapore", "giraffe"), "/singapore/place/giraffe");
+  assert.equal(routeForPlace("malaysia", "malaysia-johor"), "/malaysia/place/malaysia-johor");
+  assert.equal(routeForNode("giraffe"), "/singapore/place/giraffe");
+  assert.equal(canonicalRouteForNode("singapore", "singapore", singaporePack), "/singapore");
+  assert.equal(canonicalRouteForNode("singapore", "giraffe", singaporePack), "/singapore/place/giraffe");
+  assert.equal(canonicalRouteForNode("malaysia", "malaysia", malaysiaPack), "/malaysia");
+  assert.equal(canonicalRouteForNode("malaysia", "malaysia-johor", malaysiaPack), "/malaysia/place/malaysia-johor");
+});
 
 test("planner only uses curated itinerary nodes and rejects unknown ids", () => {
   const saved = createInitialSavedState([
@@ -146,6 +250,188 @@ test("generated images are never accepted as fact sources", () => {
   );
 });
 
+test("country draft prompts keep generated country pages outside verified facts", () => {
+  const country = getCountryBySlug("malaysia");
+  const prompt = buildCountryDraftPrompt(country);
+
+  assert.match(prompt, /planning future curation/);
+  assert.match(prompt, /confidence "unconfirmed"/);
+  assert.match(prompt, /Do not include opening hours/);
+  assert.match(prompt, /ticket prices/);
+  assert.match(prompt, /source URLs/);
+});
+
+test("country starter map chat prompt treats user steering as direction not evidence", () => {
+  const country = getCountryBySlug("malaysia");
+  const prompt = buildCountryDraftInfluencePrompt({
+    country,
+    instruction: "Focus on Johor weekend trips and add opening hours.",
+    currentDraft: {
+      summary: "Starter map.",
+      regions: [{ name: "Kuala Lumpur", kind: "city", why: "Research lead.", confidence: "unconfirmed" }],
+      themes: [{ label: "Food", note: "Research lead.", confidence: "unconfirmed" }]
+    }
+  });
+
+  assert.match(prompt, /User steering instruction/);
+  assert.match(prompt, /Use the user instruction only to steer prioritization/);
+  assert.match(prompt, /Do not treat the user instruction as evidence/);
+  assert.match(prompt, /Do not include opening hours/);
+  assert.match(prompt, /confidence "unconfirmed"/);
+});
+
+test("country starter map chat instructions are bounded", () => {
+  const instruction = normalizeCountryDraftInstruction(`  ${"food ".repeat(120)}  `);
+
+  assert.ok(instruction.length <= 420);
+  assert.doesNotMatch(instruction, /\s{2,}/);
+});
+
+test("country draft normalization labels generated candidates as unconfirmed", () => {
+  const country = getCountryBySlug("malaysia");
+  const draft = normalizeCountryDraftPayload(
+    {
+      summary: "Research scaffold for Malaysia.",
+      regions: [
+        {
+          name: "Kuala Lumpur",
+          kind: "city",
+          why: "Candidate urban chapter.",
+          confidence: "confirmed"
+        },
+        {
+          name: "Ticket Area",
+          kind: "city",
+          why: "Tickets cost $20.",
+          confidence: "confirmed"
+        }
+      ],
+      themes: [
+        {
+          label: "Food",
+          note: "Use as a research lead.",
+          confidence: "confirmed"
+        }
+      ]
+    },
+    country,
+    { generatedAt: "2026-07-02T00:00:00.000Z", model: "test-model" }
+  );
+
+  assert.equal(draft.mode, "ai_draft");
+  assert.equal(draft.confidence, "unconfirmed");
+  assert.equal(draft.sourceType, "ai_generated");
+  assert.equal(draft.regions.length, 1);
+  assert.equal(draft.regions[0].name, "Kuala Lumpur");
+  assert.equal(draft.regions[0].confidence, "unconfirmed");
+  assert.equal(draft.themes[0].confidence, "unconfirmed");
+  assert.match(draft.factBoundary, /not confirmed travel facts/);
+});
+
+test("confirmed starter maps produce unregistered country-pack draft artifacts", () => {
+  const country = getCountryBySlug("malaysia");
+  const starterMap = normalizeCountryDraftPayload(
+    {
+      summary: "Research scaffold for Malaysia.",
+      regions: [
+        {
+          name: "Johor",
+          kind: "state",
+          why: "Research weekend trip potential.",
+          confidence: "unconfirmed"
+        }
+      ],
+      themes: [
+        {
+          label: "Family Travel",
+          note: "Research family-friendly route clusters.",
+          confidence: "unconfirmed"
+        }
+      ]
+    },
+    country,
+    { generatedAt: "2026-07-02T00:00:00.000Z", model: "test-model" }
+  );
+
+  const draft = createCountryPackDraftFromStarterMap(starterMap, {
+    generatedAt: "2026-07-02T00:00:01.000Z"
+  });
+
+  assert.equal(draft.countrySlug, "malaysia");
+  assert.equal(draft.status, "pending_source_review");
+  assert.equal(draft.confidence, "unconfirmed");
+  assert.equal(draft.rootNodeId, "malaysia");
+  assert.equal(draft.nodes[0].id, "malaysia");
+  assert.equal(draft.nodes[1].id, "malaysia-johor");
+  assert.equal(draft.nodes[1].facts[0].sourceType, "ai_generated");
+  assert.equal(draft.nodes[1].facts[0].confidence, "unconfirmed");
+  assert.match(draft.factBoundary, /not registered as curated data/);
+});
+
+test("Malaysia is registered as an actual country pack with unconfirmed starter facts", () => {
+  const pack = countryPacks.malaysia;
+  const scene = pack.scenes[pack.overviewSceneId];
+  const starterMap = createCountryPackStarterMap(pack, {
+    generatedAt: "2026-07-02T00:00:00.000Z"
+  });
+
+  assert.equal(pack.countrySlug, "malaysia");
+  assert.equal(pack.rootNodeId, "malaysia");
+  assert.equal(pack.overviewSceneId, "malaysia-overview");
+  assert.equal(pack.confidence, "unconfirmed");
+  assert.equal(scene.rootNodeId, "malaysia");
+  assert.equal(scene.hotspots.length, 7);
+  assert.ok(pack.nodes.malaysia.childIds.includes("malaysia-johor"));
+  assert.equal(pack.nodes["malaysia-kuala-lumpur"].facts[0].sourceType, "ai_generated");
+  assert.equal(pack.nodes["malaysia-kuala-lumpur"].facts[0].confidence, "unconfirmed");
+  assert.ok(
+    Object.values(pack.nodes).every((node) =>
+      node.facts.every((fact) => fact.confidence !== "confirmed" || fact.sourceType !== "ai_generated")
+    )
+  );
+  assert.match(pack.factBoundary, /actual WanderSG explorer route/);
+  assert.equal(starterMap.sourceType, "ai_generated");
+  assert.equal(starterMap.confidence, "unconfirmed");
+  assert.ok(starterMap.regions.every((region) => region.confidence === "unconfirmed"));
+
+  const result = resolveFlipbookClick({
+    currentPage: {
+      id: "root",
+      countrySlug: "malaysia",
+      sceneId: "malaysia-overview",
+      nodeId: "malaysia",
+      imageUrl: null,
+      parentId: null,
+      parentClick: null,
+      status: "ready"
+    },
+    normalizedClick: { x: 0.16, y: 0.38 },
+    scenes: pack.scenes,
+    nodes: pack.nodes,
+    sceneArtwork: {}
+  });
+
+  assert.equal(result.click.nodeId, "malaysia-kuala-lumpur");
+  assert.equal(result.page.plan.factMode, "unconfirmed");
+  assert.match(result.page.plan.visualContext, /Do not invent named attractions/);
+  assert.match(result.page.plan.visualContext, /Use the supplied page title/);
+});
+
+test("Singapore country pack can be projected into the starter map storage shape", () => {
+  const starterMap = createCountryPackStarterMap(countryPacks.singapore, {
+    generatedAt: "2026-07-02T00:00:00.000Z"
+  });
+
+  assert.equal(starterMap.countrySlug, "singapore");
+  assert.equal(starterMap.mode, "curated_pack_snapshot");
+  assert.equal(starterMap.sourceType, "curated");
+  assert.equal(starterMap.confidence, "confirmed");
+  assert.ok(starterMap.regions.some((region) => region.name === "Marina Bay and Civic District"));
+  assert.ok(starterMap.themes.length > 0);
+  assert.match(starterMap.factBoundary, /curated WanderSG country pack/);
+  assert.notEqual(starterMap.sourceType, "ai_generated");
+});
+
 test("tile cache key changes across fact, prompt, style, and model versions", () => {
   const base = {
     sceneId: "singapore-overview",
@@ -180,20 +466,55 @@ test("image model aliases normalize for OpenAI and fal providers", () => {
 });
 
 test("runtime cache paths live outside the repo and expose stable runtime urls", () => {
+  const defaultCacheRoot = resolveRuntimeCacheRoot({
+    WANDERSG_RUNTIME_CACHE_DIR: ""
+  });
   const cacheRoot = resolveRuntimeCacheRoot({
     WANDERSG_RUNTIME_CACHE_DIR: "/tmp/wandersg-test-cache"
   });
   const paths = createRuntimeCachePaths({
     cacheRoot,
     pageId: "node-cloud-forest",
-    imageModel: "gpt-image-1"
+    imageModel: "gpt-image-1",
+    countrySlug: "singapore"
+  });
+  const starterMapPaths = createCountryStarterMapCachePaths({
+    cacheRoot,
+    countrySlug: "malaysia"
+  });
+  const singaporeStarterMapPaths = createCountryStarterMapCachePaths({
+    cacheRoot,
+    countrySlug: "singapore"
   });
 
+  assert.ok(defaultCacheRoot.endsWith("wandersg-runtime-cache"));
+  assert.notEqual(defaultCacheRoot, process.cwd());
   assert.equal(cacheRoot, "/tmp/wandersg-test-cache");
-  assert.equal(paths.jobUrl, `${RUNTIME_CACHE_URL_PREFIX}/image-jobs/node-cloud-forest.json`);
-  assert.equal(paths.imageUrl, `${RUNTIME_CACHE_URL_PREFIX}/flipbook/node-cloud-forest.gpt-image-1.png`);
+  assert.equal(paths.countrySlug, "singapore");
+  assert.equal(paths.jobUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/image-jobs/node-cloud-forest.json`);
+  assert.equal(paths.imageUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/flipbook/node-cloud-forest.gpt-image-1.png`);
   assert.ok(paths.jobPath.startsWith(cacheRoot));
   assert.ok(paths.imagePath.startsWith(cacheRoot));
+  assert.ok(paths.jobPath.includes("/singapore/image-jobs/"));
+  assert.ok(paths.imagePath.includes("/singapore/flipbook/"));
+  assert.equal(starterMapPaths.countrySlug, "malaysia");
+  assert.equal(
+    starterMapPaths.starterMapUrl,
+    `${RUNTIME_CACHE_URL_PREFIX}/malaysia/starter-map/country.json`
+  );
+  assert.equal(
+    starterMapPaths.starterMapConfirmationUrl,
+    `${RUNTIME_CACHE_URL_PREFIX}/malaysia/starter-map/confirmation.json`
+  );
+  assert.equal(
+    starterMapPaths.countryPackDraftUrl,
+    `${RUNTIME_CACHE_URL_PREFIX}/malaysia/country-pack-draft/country.json`
+  );
+  assert.ok(starterMapPaths.starterMapPath.includes("/malaysia/starter-map/country.json"));
+  assert.equal(
+    singaporeStarterMapPaths.starterMapUrl,
+    `${RUNTIME_CACHE_URL_PREFIX}/singapore/starter-map/country.json`
+  );
 });
 
 test("default artwork pre-generation is opt-in for interactive dev speed", () => {
@@ -564,6 +885,65 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(appSource, /requestSceneArtwork/);
   assert.match(appSource, /apiPath\("\/api\/flipbook\/click"\)/);
   assert.match(appSource, /getCurrentRequestPage/);
+  assert.match(appSource, /setBrowserPath\(canonicalRouteForNode/);
+  assert.match(appSource, /enterCountryShell/);
+  assert.match(appSource, /routeForCountryConfig/);
+  assert.match(appSource, /route\.type === "country_needs_config"/);
+});
+
+test("country shell uses starter map wording instead of generated draft wording", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /Build starter map/);
+  assert.match(appSource, /Rebuild starter map/);
+  assert.match(appSource, /AI starter map/);
+  assert.match(appSource, /Steer starter map/);
+  assert.match(appSource, /data-country-chat-form/);
+  assert.match(appSource, /\/api\/country-draft\/influence/);
+  assert.match(appSource, /Confirm for curation/);
+  assert.match(appSource, /\/api\/country-draft\/confirm/);
+  assert.match(appSource, /loadStoredCountryDraft/);
+  assert.match(appSource, /generate=false/);
+  assert.match(appSource, /force=true/);
+  assert.doesNotMatch(appSource, />Generate draft</);
+  assert.doesNotMatch(appSource, /Draft only/);
+  assert.doesNotMatch(appSource, /data-country-action="generate-draft"/);
+  assert.doesNotMatch(appSource, /Open preview map/);
+  assert.doesNotMatch(appSource, /Open explorer map/);
+  assert.doesNotMatch(appSource, /routeForCountryExplorer/);
+  assert.doesNotMatch(appSource, /createStarterMapExplorerPack/);
+});
+
+test("server persists country starter maps in country-scoped runtime storage", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+
+  assert.match(serverSource, /createCountryStarterMapCachePaths/);
+  assert.match(serverSource, /createCountryPackStarterMap/);
+  assert.match(serverSource, /createCountryPackDraftFromStarterMap/);
+  assert.match(serverSource, /curated_pack_snapshot/);
+  assert.match(serverSource, /source: "country_pack"/);
+  assert.match(serverSource, /readStoredCountryDraft/);
+  assert.match(serverSource, /writeStoredCountryDraft/);
+  assert.match(serverSource, /starter-map/);
+  assert.match(serverSource, /url\.searchParams\.get\("force"\) === "true"/);
+  assert.match(serverSource, /regenerated: forceGenerate/);
+  assert.match(serverSource, /url\.searchParams\.get\("generate"\) !== "false"/);
+  assert.match(serverSource, /Update the country pack source files instead of AI-steering/);
+  assert.match(serverSource, /handleCountryDraftConfirmRequest/);
+  assert.match(serverSource, /confirmed_for_curation/);
+});
+
+test("dev server serves the app shell for direct country and node routes", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const htmlSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.match(serverSource, /isAppRoutePath/);
+  assert.match(serverSource, /pathname === "\/" \|\| isAppRoutePath\(pathname\) \? "\/index\.html"/);
+  assert.match(serverSource, /!pathname\.startsWith\("\/api\/"\) && !path\.extname\(pathname\)/);
+  assert.match(htmlSource, /href="\/src\/styles\.css"/);
+  assert.match(htmlSource, /src="\/src\/ui\/app\.js"/);
+  assert.doesNotMatch(htmlSource, /href="\.\/src\/styles\.css"/);
+  assert.doesNotMatch(htmlSource, /src="\.\/src\/ui\/app\.js"/);
 });
 
 test("default artwork pages are generated through the runtime image pipeline", () => {
@@ -819,7 +1199,7 @@ test("deep page clicks do not reuse parent scene hotspots", () => {
       id: "node-marina-bay-sands",
       sceneId: "marina-bay-scroll",
       nodeId: "marina-bay-sands",
-      imageUrl: "/runtime-cache/flipbook/node-marina-bay-sands.fal-ai-nano-banana-2.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-marina-bay-sands.fal-ai-nano-banana-2.png"
     },
     normalizedClick: { x: 0.2, y: 0.42 },
     scenes: scrollScenes,
@@ -837,7 +1217,7 @@ test("runtime page clicks without reliable VLM should stay on the current page",
     id: "artwork-singapore-overview",
     sceneId: "singapore-overview",
     nodeId: "singapore",
-    imageUrl: "/runtime-cache/flipbook/artwork-singapore-overview.fal-ai-nano-banana-2.png",
+    imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.fal-ai-nano-banana-2.png",
     status: "ready"
   };
 
@@ -885,7 +1265,8 @@ test("server semantic cache prefers the nearest cached click over confidence alo
 test("runtime image job polling is not cached by the browser", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  assert.match(serverSource, /startsWith\("image-jobs\/"\)/);
+  assert.match(serverSource, /isMutableRuntimeJsonPath/);
+  assert.match(serverSource, /\(\?:image-jobs\|codex-jobs\|understanding\|starter-map\|country-pack-draft\)/);
   assert.match(serverSource, /"Cache-Control": isMutableRuntimeJson/);
   assert.match(serverSource, /"no-store"/);
   assert.match(appSource, /fetch\(toApiUrl\(jobUrl\), \{ cache: "no-store" \}\)/);

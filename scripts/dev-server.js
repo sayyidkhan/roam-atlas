@@ -10,8 +10,22 @@ import {
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
 } from "../src/data/defaultArtworkPages.js";
-import { atlasNodes, scrollScenes } from "../src/data/sceneGraph.js";
+import {
+  DEFAULT_COUNTRY_SLUG,
+  countryPacks,
+  getCountryPack
+} from "../src/data/countryPacks/index.js";
+import { getCountryBySlug } from "../src/data/countries.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
+import {
+  buildCountryDraftInfluencePrompt,
+  buildCountryDraftPrompt,
+  createCountryPackDraftFromStarterMap,
+  createCountryPackStarterMap,
+  createCountryDraftFallback,
+  normalizeCountryDraftInstruction,
+  normalizeCountryDraftPayload
+} from "../src/domain/countryDraft.js";
 import { resolveFlipbookClick } from "../src/domain/flipbookPage.js";
 import {
   DEFAULT_FAL_IMAGE_MODEL,
@@ -27,7 +41,9 @@ import {
   sortImageJobsForProcessing
 } from "../src/domain/imageJobQueue.js";
 import {
+  DEFAULT_RUNTIME_COUNTRY_SLUG,
   RUNTIME_CACHE_URL_PREFIX,
+  createCountryStarterMapCachePaths,
   createRuntimeCachePaths,
   resolveRuntimeCacheRoot
 } from "../src/domain/runtimeCache.js";
@@ -38,8 +54,9 @@ const root = path.resolve(__dirname, "..");
 loadLocalEnv(path.join(root, ".env"));
 const port = Number(process.env.PORT ?? "4173");
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
-const imageJobsDir = path.join(runtimeCacheRoot, "image-jobs");
+const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 const processingJobs = new Set();
+const countryDraftCache = new Map();
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -67,6 +84,18 @@ createServer(async (request, response) => {
       await handleArtworkRequest(url, response);
       return;
     }
+    if (request.method === "GET" && url.pathname === "/api/country-draft") {
+      await handleCountryDraftRequest(url, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/country-draft/influence") {
+      await handleCountryDraftInfluenceRequest(request, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/country-draft/confirm") {
+      await handleCountryDraftConfirmRequest(request, response);
+      return;
+    }
 
     await serveStatic(url.pathname, response);
   } catch (error) {
@@ -84,6 +113,7 @@ async function handleResolveClick(request, response) {
   const body = await readJson(request);
   const result = await resolveClickPhraseWithOpenAI({
     sceneId: body.sceneId,
+    countrySlug: body.countrySlug ?? DEFAULT_COUNTRY_SLUG,
     imageUrl: body.imageUrl,
     normalizedClick: body.normalizedClick,
     point: body.point
@@ -107,6 +137,7 @@ async function handleResolveClick(request, response) {
 
 async function handleFlipbookClick(request, response) {
   const body = await readJson(request);
+  const pack = getCountryPackForPage(body.currentPage);
   const normalizedClick = body.imageClick?.normalizedImage ?? body.normalizedClick;
   const localResult = !body.targetNodeId && !body.detourPhrase
     ? resolveDeterministicClick({
@@ -128,8 +159,8 @@ async function handleFlipbookClick(request, response) {
       normalizedClick: semanticClick,
       targetNodeId: semanticHit.matchedNodeId,
       detourPhrase: semanticHit.matchedNodeId ? null : semanticHit.phrase,
-      scenes: scrollScenes,
-      nodes: atlasNodes,
+      scenes: pack.scenes,
+      nodes: pack.nodes,
       sceneArtwork
     });
     result.semanticCache = semanticHit;
@@ -143,6 +174,7 @@ async function handleFlipbookClick(request, response) {
 
   const vlm = await resolveClickPhraseWithOpenAI({
     sceneId: body.currentPage?.sceneId,
+    countrySlug: getRuntimeCountrySlugForPage(body.currentPage),
     imageUrl: body.currentPage?.imageUrl,
     normalizedClick: body.normalizedClick,
     imageClick: body.imageClick
@@ -181,8 +213,8 @@ async function handleFlipbookClick(request, response) {
         normalizedClick,
         targetNodeId: body.targetNodeId,
         detourPhrase: body.detourPhrase,
-        scenes: scrollScenes,
-        nodes: atlasNodes,
+        scenes: pack.scenes,
+        nodes: pack.nodes,
         sceneArtwork
       })
     : shouldUseVlmMatch
@@ -190,8 +222,8 @@ async function handleFlipbookClick(request, response) {
         currentPage: body.currentPage,
         normalizedClick,
         targetNodeId: vlmMatch.nodeId,
-        scenes: scrollScenes,
-        nodes: atlasNodes,
+        scenes: pack.scenes,
+        nodes: pack.nodes,
         sceneArtwork
       })
     : shouldUseVlmDetour
@@ -199,8 +231,8 @@ async function handleFlipbookClick(request, response) {
         currentPage: body.currentPage,
         normalizedClick,
         detourPhrase: vlm.phrase,
-        scenes: scrollScenes,
-        nodes: atlasNodes,
+        scenes: pack.scenes,
+        nodes: pack.nodes,
         sceneArtwork
       })
     : shouldUseLocalFallback
@@ -239,7 +271,8 @@ async function handleFlipbookClick(request, response) {
 }
 
 function resolveDeterministicClick({ currentPage, normalizedClick }) {
-  const scene = scrollScenes[currentPage?.sceneId];
+  const pack = getCountryPackForPage(currentPage);
+  const scene = pack.scenes[currentPage?.sceneId];
   if (!scene || scene.rootNodeId !== currentPage?.nodeId || !normalizedClick) {
     return null;
   }
@@ -247,8 +280,8 @@ function resolveDeterministicClick({ currentPage, normalizedClick }) {
   return resolveFlipbookClick({
     currentPage,
     normalizedClick,
-    scenes: scrollScenes,
-    nodes: atlasNodes,
+    scenes: pack.scenes,
+    nodes: pack.nodes,
     sceneArtwork
   });
 }
@@ -268,6 +301,7 @@ async function appendSemanticRegionFromResult({ currentPage, normalizedClick, re
   if (!phrase || result.click?.resolver === "vlm_guard") return;
 
   const understanding = (await readPageUnderstanding(currentPage)) ?? createBaseUnderstanding(currentPage);
+  const pack = getCountryPackForPage(currentPage);
   const matchedNodeId = result.click?.nodeId ?? null;
   const id = matchedNodeId ? `node-${matchedNodeId}` : `phrase-${slugify(phrase)}`;
   const existing = understanding.regions.find(
@@ -276,7 +310,7 @@ async function appendSemanticRegionFromResult({ currentPage, normalizedClick, re
   const nextRegion = {
     id,
     phrase,
-    label: matchedNodeId ? atlasNodes[matchedNodeId]?.title ?? phrase : phrase,
+    label: matchedNodeId ? pack.nodes[matchedNodeId]?.title ?? phrase : phrase,
     matchedNodeId,
     status: matchedNodeId ? "matched" : "unmapped_detour",
     bbox: boxAroundPoint(normalizedClick, matchedNodeId ? 0.22 : 0.12),
@@ -339,7 +373,8 @@ async function readPageUnderstanding(page) {
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
-    imageModel: getConfiguredImageModel()
+    imageModel: getConfiguredImageModel(),
+    countrySlug: getRuntimeCountrySlugForPage(page)
   });
   try {
     return JSON.parse(await readFile(paths.understandingPath, "utf8"));
@@ -353,7 +388,8 @@ async function writePageUnderstanding(page, understanding) {
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
-    imageModel: getConfiguredImageModel()
+    imageModel: getConfiguredImageModel(),
+    countrySlug: getRuntimeCountrySlugForPage(page)
   });
   await mkdir(path.dirname(paths.understandingPath), { recursive: true });
   await writeFile(
@@ -362,6 +398,7 @@ async function writePageUnderstanding(page, understanding) {
       {
         ...understanding,
         pageId: page.id,
+        countrySlug: getRuntimeCountrySlugForPage(page),
         sceneId: page.sceneId ?? understanding.sceneId,
         nodeId: page.nodeId ?? understanding.nodeId,
         imageUrl: page.imageUrl ?? understanding.imageUrl,
@@ -378,6 +415,7 @@ function createBaseUnderstanding(page) {
   return {
     version: "semantic-regions-v1",
     pageId: page.id,
+    countrySlug: getRuntimeCountrySlugForPage(page),
     sceneId: page.sceneId,
     nodeId: page.nodeId,
     imageUrl: page.imageUrl,
@@ -466,20 +504,21 @@ function createUnresolvedClickResult({ currentPage, normalizedClick, vlm }) {
 }
 
 function matchVlmPhraseForCurrentPage({ currentPage, phrase }) {
-  const currentNode = atlasNodes[currentPage?.nodeId];
-  const scene = scrollScenes[currentPage?.sceneId];
+  const pack = getCountryPackForPage(currentPage);
+  const currentNode = pack.nodes[currentPage?.nodeId];
+  const scene = pack.scenes[currentPage?.sceneId];
   const candidates = [];
   const seen = new Set();
 
   for (const childId of currentNode?.childIds ?? []) {
-    const child = atlasNodes[childId];
+    const child = pack.nodes[childId];
     if (!child || seen.has(childId)) continue;
     seen.add(childId);
     candidates.push({
       nodeId: childId,
       label: child.title,
       confidence: child.facts?.some((fact) => fact.confidence === "confirmed") ? "confirmed" : "general",
-      action: actionForNode(childId)
+      action: actionForNode(childId, pack)
     });
   }
 
@@ -494,7 +533,7 @@ function matchVlmPhraseForCurrentPage({ currentPage, phrase }) {
   return matchClickPhraseToNode({
     phrase,
     candidates,
-    nodes: atlasNodes
+    nodes: pack.nodes
   });
 }
 
@@ -502,8 +541,50 @@ function hasRuntimeGeneratedPage(page) {
   return String(page?.imageUrl ?? "").startsWith(RUNTIME_CACHE_URL_PREFIX);
 }
 
-function actionForNode(nodeId) {
-  const scene = Object.values(scrollScenes).find((item) => item.rootNodeId === nodeId);
+function getCountryPackForPage(page) {
+  return getCountryPack(getRuntimeCountrySlugForPage(page)) ?? defaultCountryPack;
+}
+
+function getRuntimeCountrySlugForPage(page) {
+  return (
+    sanitizeRuntimeCountrySlug(page?.countrySlug) ??
+    getRuntimeCountrySlugFromUrl(page?.imageUrl) ??
+    DEFAULT_RUNTIME_COUNTRY_SLUG
+  );
+}
+
+function getRuntimeCountrySlugForJob(job) {
+  return (
+    sanitizeRuntimeCountrySlug(job?.countrySlug) ??
+    getRuntimeCountrySlugFromUrl(job?.imageUrl) ??
+    DEFAULT_RUNTIME_COUNTRY_SLUG
+  );
+}
+
+function getRuntimeCountrySlugFromUrl(imageUrl) {
+  const value = String(imageUrl ?? "");
+  if (!value.startsWith(`${RUNTIME_CACHE_URL_PREFIX}/`)) return null;
+  const relativePath = value.slice(RUNTIME_CACHE_URL_PREFIX.length + 1);
+  const [firstSegment] = relativePath.split("/");
+  if (!firstSegment || isLegacyRuntimeDirectory(firstSegment)) return null;
+  return sanitizeRuntimeCountrySlug(firstSegment);
+}
+
+function sanitizeRuntimeCountrySlug(value) {
+  const slug = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || null;
+}
+
+function isLegacyRuntimeDirectory(segment) {
+  return ["image-jobs", "codex-jobs", "flipbook", "understanding"].includes(segment);
+}
+
+function actionForNode(nodeId, pack) {
+  const scene = Object.values(pack.scenes).find((item) => item.rootNodeId === nodeId);
   return scene
     ? { type: "enter_scene", sceneId: scene.id }
     : { type: "open_node", nodeId };
@@ -511,7 +592,15 @@ function actionForNode(nodeId) {
 
 async function handleArtworkRequest(url, response) {
   const sceneId = url.searchParams.get("sceneId");
-  const page = getDefaultArtworkPageForScene(sceneId, scrollScenes);
+  const countrySlug = url.searchParams.get("countrySlug") ?? DEFAULT_COUNTRY_SLUG;
+  const pack = getCountryPack(countrySlug);
+  if (!pack) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country pack: ${countrySlug}` }));
+    return;
+  }
+
+  const page = getDefaultArtworkPageForScene(sceneId, pack.scenes, pack.nodes, pack.countrySlug);
   if (!page) {
     response.writeHead(404, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ error: `Unknown artwork scene: ${sceneId}` }));
@@ -523,12 +612,386 @@ async function handleArtworkRequest(url, response) {
   response.end(JSON.stringify({ page: artworkPage }));
 }
 
+async function handleCountryDraftRequest(url, response) {
+  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
+  const forceGenerate = url.searchParams.get("force") === "true";
+  const shouldGenerate = forceGenerate || url.searchParams.get("generate") !== "false";
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  const countryPack = getCountryPack(country.slug);
+  if (countryPack) {
+    if (!forceGenerate) {
+      const storedPackSnapshot = await readStoredCountryDraft(country);
+      if (storedPackSnapshot?.mode === "curated_pack_snapshot") {
+        countryDraftCache.set(country.slug, storedPackSnapshot);
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify({ draft: storedPackSnapshot, cached: true, persisted: true }));
+        return;
+      }
+    }
+
+    const packSnapshot = createCountryPackStarterMap(countryPack);
+    countryDraftCache.set(country.slug, packSnapshot);
+    await writeStoredCountryDraft(country, packSnapshot);
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      draft: packSnapshot,
+      cached: false,
+      persisted: true,
+      regenerated: forceGenerate,
+      source: "country_pack"
+    }));
+    return;
+  }
+
+  if (!forceGenerate) {
+    const cachedDraft = countryDraftCache.get(country.slug);
+    if (cachedDraft) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ draft: cachedDraft, cached: true }));
+      return;
+    }
+
+    const storedDraft = await readStoredCountryDraft(country);
+    if (storedDraft) {
+      countryDraftCache.set(country.slug, storedDraft);
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ draft: storedDraft, cached: true, persisted: true }));
+      return;
+    }
+  }
+
+  if (!shouldGenerate) {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ draft: null, cached: false, persisted: false }));
+    return;
+  }
+
+  const draft = await generateCountryDraft(country);
+  if (draft.generationStatus === "ready") {
+    countryDraftCache.set(country.slug, draft);
+    await writeStoredCountryDraft(country, draft);
+  }
+
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({ draft, cached: false, regenerated: forceGenerate }));
+}
+
+async function handleCountryDraftInfluenceRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  if (getCountryPack(country.slug)) {
+    response.writeHead(409, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      error: `${country.name} is a curated country pack. Update the country pack source files instead of AI-steering a starter map.`
+    }));
+    return;
+  }
+
+  const instruction = normalizeCountryDraftInstruction(body.instruction);
+  if (!instruction) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "Starter map instruction is required." }));
+    return;
+  }
+
+  const storedDraft = await readStoredCountryDraft(country);
+  const currentDraft =
+    normalizeCurrentCountryDraft(body.currentDraft, country) ??
+    countryDraftCache.get(country.slug) ??
+    storedDraft ??
+    null;
+  const draft = await generateCountryDraft(country, { instruction, currentDraft });
+  if (draft.generationStatus === "ready") {
+    countryDraftCache.set(country.slug, draft);
+    await writeStoredCountryDraft(country, draft);
+  }
+
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    draft,
+    message: {
+      role: "assistant",
+      text: draft.changeNote || "Starter map updated. All candidates remain unconfirmed."
+    }
+  }));
+}
+
+async function handleCountryDraftConfirmRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  if (getCountryPack(country.slug)) {
+    response.writeHead(409, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      error: `${country.name} is already backed by a curated country pack.`
+    }));
+    return;
+  }
+
+  const storedDraft = await readStoredCountryDraft(country);
+  const currentDraft =
+    normalizeCurrentCountryDraft(body.currentDraft, country) ??
+    countryDraftCache.get(country.slug) ??
+    storedDraft ??
+    null;
+  if (!currentDraft) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "Build a starter map before confirming it for curation." }));
+    return;
+  }
+
+  const confirmation = createStarterMapConfirmation(country, currentDraft);
+  const countryPackDraft = createCountryPackDraftFromStarterMap(currentDraft);
+  const paths = await writeStoredCountryPromotion({
+    country,
+    confirmation,
+    countryPackDraft
+  });
+
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    confirmation,
+    countryPackDraft,
+    paths: {
+      confirmationUrl: paths.starterMapConfirmationUrl,
+      countryPackDraftUrl: paths.countryPackDraftUrl
+    }
+  }));
+}
+
+async function readStoredCountryDraft(country) {
+  const paths = createCountryStarterMapCachePaths({
+    cacheRoot: runtimeCacheRoot,
+    countrySlug: country.slug
+  });
+
+  try {
+    const stored = JSON.parse(await readFile(paths.starterMapPath, "utf8"));
+    const draft = stored.draft ?? stored;
+    if (draft?.mode === "curated_pack_snapshot" && draft.countrySlug === country.slug) {
+      return draft;
+    }
+
+    return normalizeCountryDraftPayload(draft, country, {
+      generatedAt: stored.draft?.generatedAt ?? stored.generatedAt,
+      model: stored.draft?.model ?? stored.model,
+      generationStatus: stored.draft?.generationStatus ?? stored.generationStatus ?? "ready"
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredCountryDraft(country, draft) {
+  const paths = createCountryStarterMapCachePaths({
+    cacheRoot: runtimeCacheRoot,
+    countrySlug: country.slug
+  });
+  await mkdir(path.dirname(paths.starterMapPath), { recursive: true });
+  await writeFile(
+    paths.starterMapPath,
+    `${JSON.stringify(
+      {
+        countrySlug: country.slug,
+        countryCode: country.code,
+        countryName: country.name,
+        draft,
+        storageKind: "runtime-starter-map",
+        factBoundary: draft.mode === "curated_pack_snapshot"
+          ? "Stored starter map is a runtime snapshot of the curated country pack."
+          : "Stored starter maps are ai_generated and unconfirmed until promoted with sources.",
+        updatedAt: new Date().toISOString()
+      },
+      null,
+      2
+    )}\n`
+  );
+  return paths;
+}
+
+async function writeStoredCountryPromotion({ country, confirmation, countryPackDraft }) {
+  const paths = createCountryStarterMapCachePaths({
+    cacheRoot: runtimeCacheRoot,
+    countrySlug: country.slug
+  });
+  await mkdir(path.dirname(paths.starterMapConfirmationPath), { recursive: true });
+  await mkdir(path.dirname(paths.countryPackDraftPath), { recursive: true });
+  await writeFile(paths.starterMapConfirmationPath, `${JSON.stringify(confirmation, null, 2)}\n`);
+  await writeFile(paths.countryPackDraftPath, `${JSON.stringify(countryPackDraft, null, 2)}\n`);
+  return paths;
+}
+
+function createStarterMapConfirmation(country, draft) {
+  const confirmedAt = new Date().toISOString();
+  return {
+    countryCode: country.code,
+    countrySlug: country.slug,
+    countryName: country.name,
+    status: "confirmed_for_curation",
+    sourceStarterMap: {
+      mode: draft.mode,
+      sourceType: draft.sourceType,
+      confidence: draft.confidence,
+      generatedAt: draft.generatedAt
+    },
+    candidateCounts: {
+      regions: draft.regions?.length ?? 0,
+      themes: draft.themes?.length ?? 0
+    },
+    nextStep: "Generate a source-reviewed country pack from the draft artifact.",
+    factBoundary: "Confirmation approves curation direction only; it does not verify travel facts.",
+    confirmedAt
+  };
+}
+
+async function generateCountryDraft(country, { instruction = null, currentDraft = null } = {}) {
+  if (!process.env.OPENAI_API_KEY) {
+    return createCountryDraftFallbackFromCurrent(
+      country,
+      "OPENAI_API_KEY is not configured.",
+      currentDraft,
+      { generationStatus: "provider_missing" }
+    );
+  }
+
+  const model = process.env.WANDERSG_TEXT_MODEL ?? "gpt-4.1-mini";
+  const prompt = instruction
+    ? buildCountryDraftInfluencePrompt({ country, instruction, currentDraft })
+    : buildCountryDraftPrompt(country);
+  let openaiResponse;
+  try {
+    openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        input: [
+          {
+            role: "user",
+            content: [{ type: "input_text", text: prompt }]
+          }
+        ],
+        temperature: 0.2
+      })
+    });
+  } catch (error) {
+    return createCountryDraftFallbackFromCurrent(
+      country,
+      `OpenAI starter map update failed: ${String(error?.message ?? error)}`,
+      currentDraft,
+      { generationStatus: "provider_error", model }
+    );
+  }
+
+  if (!openaiResponse.ok) {
+    return createCountryDraftFallbackFromCurrent(
+      country,
+      `OpenAI starter map update failed: ${openaiResponse.status} ${await openaiResponse.text()}`,
+      currentDraft,
+      { generationStatus: "provider_error", model }
+    );
+  }
+
+  const payload = await openaiResponse.json();
+  const text = extractOpenAIText(payload);
+  const parsed = parseJsonObject(text);
+  if (!parsed) {
+    return createCountryDraftFallbackFromCurrent(
+      country,
+      "OpenAI returned a non-JSON starter map.",
+      currentDraft,
+      { generationStatus: "parse_error", model }
+    );
+  }
+
+  return normalizeCountryDraftPayload(parsed, country, {
+    generationStatus: "ready",
+    model
+  });
+}
+
+function createCountryDraftFallbackFromCurrent(country, reason, currentDraft, options = {}) {
+  if (currentDraft) {
+    return normalizeCountryDraftPayload(currentDraft, country, {
+      ...options,
+      unavailableReason: reason
+    });
+  }
+
+  return createCountryDraftFallback(country, reason, options);
+}
+
+function normalizeCurrentCountryDraft(currentDraft, country) {
+  if (!currentDraft || currentDraft.countrySlug !== country.slug) return null;
+  return normalizeCountryDraftPayload(currentDraft, country, {
+    generatedAt: currentDraft.generatedAt,
+    model: currentDraft.model,
+    generationStatus: currentDraft.generationStatus ?? "ready"
+  });
+}
+
+function extractOpenAIText(payload) {
+  if (typeof payload?.output_text === "string") {
+    return payload.output_text;
+  }
+
+  const content = payload?.output?.flatMap((item) => item.content ?? []) ?? [];
+  const textItem = content.find((item) => typeof item.text === "string");
+  return textItem?.text ?? "";
+}
+
+function parseJsonObject(text) {
+  const raw = String(text ?? "").trim();
+  if (!raw) return null;
+  const unfenced = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(unfenced);
+  } catch {
+    const start = unfenced.indexOf("{");
+    const end = unfenced.lastIndexOf("}");
+    if (start === -1 || end <= start) return null;
+    try {
+      return JSON.parse(unfenced.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
 async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   const imageModel = getConfiguredImageModel();
+  const countrySlug = getRuntimeCountrySlugForPage(page);
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
-    imageModel
+    imageModel,
+    countrySlug
   });
   const outputDir = path.dirname(paths.jobPath);
   const jobPath = paths.jobPath;
@@ -549,6 +1012,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     });
     return {
       ...page,
+      countrySlug,
       imageUrl: existingJob.imageUrl,
       status: "ready",
       generated: {
@@ -568,6 +1032,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   if (existingMetadataMatchesRequest) {
     const readyJob = {
       pageId: page.id,
+      countrySlug,
       sceneId: page.sceneId,
       nodeId: page.nodeId,
       parentId: page.parentId,
@@ -595,6 +1060,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     });
     return {
       ...page,
+      countrySlug,
       imageUrl: existingMetadata.imageUrl,
       status: "ready",
       generated: {
@@ -621,6 +1087,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     }
     return {
       ...page,
+      countrySlug,
       status: "pending_codex_image_generation",
       generated: {
         source: "image-generation-required",
@@ -636,6 +1103,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     JSON.stringify(
       {
         pageId: page.id,
+        countrySlug,
         sceneId: page.sceneId,
         nodeId: page.nodeId,
         parentId: page.parentId,
@@ -658,6 +1126,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
 
   return {
     ...page,
+    countrySlug,
     status: "pending_codex_image_generation",
     generated: {
       source: "image-generation-required",
@@ -711,21 +1180,18 @@ function startImageJobProcessor() {
 }
 
 async function queueDefaultArtworkJobs() {
-  for (const page of listDefaultArtworkPages(scrollScenes)) {
-    await createCodexImageJob(page, { jobKind: "prewarm" });
+  for (const pack of Object.values(countryPacks)) {
+    for (const page of listDefaultArtworkPages(pack.scenes, pack.nodes, pack.countrySlug)) {
+      await createCodexImageJob(page, { jobKind: "prewarm" });
+    }
   }
 }
 
 async function processPendingCodexJobs() {
-  await mkdir(imageJobsDir, { recursive: true });
-  const entries = await readdir(imageJobsDir);
-  const jobFiles = entries
-    .filter((entry) => entry.endsWith(".json"))
-    .sort();
+  const jobFiles = await listRuntimeImageJobFiles();
   const jobs = [];
 
-  for (const fileName of jobFiles) {
-    const jobPath = path.join(imageJobsDir, fileName);
+  for (const { fileName, jobPath } of jobFiles) {
     const job = await readCodexImageJob(jobPath);
     jobs.push({ fileName, jobPath, job });
   }
@@ -735,6 +1201,46 @@ async function processPendingCodexJobs() {
     await processCodexImageJob(jobPath, job);
     break;
   }
+}
+
+async function listRuntimeImageJobFiles() {
+  await mkdir(runtimeCacheRoot, { recursive: true });
+  const jobFiles = [];
+
+  await collectImageJobFiles({
+    jobDir: path.join(runtimeCacheRoot, "image-jobs"),
+    fileNamePrefix: "legacy"
+  }).then((items) => jobFiles.push(...items));
+
+  const entries = await readdir(runtimeCacheRoot, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === "image-jobs") continue;
+    const countrySlug = entry.name;
+    const countryJobDir = path.join(runtimeCacheRoot, countrySlug, "image-jobs");
+    const items = await collectImageJobFiles({
+      jobDir: countryJobDir,
+      fileNamePrefix: countrySlug
+    });
+    jobFiles.push(...items);
+  }
+
+  return jobFiles.sort((a, b) => a.fileName.localeCompare(b.fileName));
+}
+
+async function collectImageJobFiles({ jobDir, fileNamePrefix }) {
+  let entries;
+  try {
+    entries = await readdir(jobDir);
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.endsWith(".json"))
+    .map((entry) => ({
+      fileName: `${fileNamePrefix}/${entry}`,
+      jobPath: path.join(jobDir, entry)
+    }));
 }
 
 function shouldProcessCodexJob(job, jobPath) {
@@ -750,16 +1256,19 @@ function shouldProcessCodexJob(job, jobPath) {
 async function processCodexImageJob(jobPath, job) {
   processingJobs.add(jobPath);
   const imageModel = getConfiguredImageModel();
+  const countrySlug = getRuntimeCountrySlugForJob(job);
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: job.pageId,
-    imageModel
+    imageModel,
+    countrySlug
   });
 
   try {
     await mkdir(path.dirname(paths.imagePath), { recursive: true });
     await writeCodexImageJob(jobPath, {
       ...job,
+      countrySlug,
       status: "processing_openai_image",
       imageModel,
       processingStartedAt: new Date().toISOString()
@@ -776,6 +1285,7 @@ async function processCodexImageJob(jobPath, job) {
       JSON.stringify(
         {
           pageId: job.pageId,
+          countrySlug,
           sceneId: job.sceneId,
           nodeId: job.nodeId,
           parentId: job.parentId,
@@ -797,6 +1307,7 @@ async function processCodexImageJob(jobPath, job) {
 
     await writeCodexImageJob(jobPath, {
       ...job,
+      countrySlug,
       status: "ready",
       imageUrl: paths.imageUrl,
       source: `${generated.provider ?? getConfiguredImageProvider()}-image-api`,
@@ -808,6 +1319,7 @@ async function processCodexImageJob(jobPath, job) {
     });
     await ensurePageUnderstanding({
       id: job.pageId,
+      countrySlug,
       sceneId: job.sceneId,
       nodeId: job.nodeId,
       imageUrl: paths.imageUrl,
@@ -816,6 +1328,7 @@ async function processCodexImageJob(jobPath, job) {
   } catch (error) {
     await writeCodexImageJob(jobPath, {
       ...job,
+      countrySlug,
       status: "failed",
       error: String(error?.message ?? error),
       failedAt: new Date().toISOString()
@@ -867,7 +1380,14 @@ async function generateConfiguredImage({ model, prompt }) {
   });
 }
 
-async function resolveClickPhraseWithOpenAI({ sceneId, imageUrl, normalizedClick, imageClick, point }) {
+async function resolveClickPhraseWithOpenAI({
+  sceneId,
+  countrySlug = DEFAULT_COUNTRY_SLUG,
+  imageUrl,
+  normalizedClick,
+  imageClick,
+  point
+}) {
   if (!process.env.OPENAI_API_KEY) {
     return {
       status: "provider_missing",
@@ -911,11 +1431,12 @@ async function resolveClickPhraseWithOpenAI({ sceneId, imageUrl, normalizedClick
     : normalizedClick
     ? `Click coordinates normalized to the visible viewport: x=${normalizedClick.x}, y=${normalizedClick.y}.`
     : `Click coordinates in displayed image space: x=${point?.x}, y=${point?.y}.`;
-  const candidateText = getSceneCandidateText(sceneId);
+  const pack = getCountryPack(countrySlug) ?? defaultCountryPack;
+  const candidateText = getSceneCandidateText(sceneId, pack);
   const prompt = [
     "You are WanderSG's click resolver.",
     "A red crosshair with a white halo marks the user's click. Ignore the marker itself.",
-    "Describe only the exact visual subject under or closest to the crosshair in this illustrated Singapore atlas image.",
+    `Describe only the exact visual subject under or closest to the crosshair in this illustrated ${pack.title} atlas image.`,
     "If the clicked region contains or is closest to one of the known WanderSG candidate labels, return that exact candidate label.",
     "Be specific. If the user clicked an infinity pool, roof garden, animal, dome, bridge, beach, canopy, food stall, or building part, name that visual subject.",
     candidateText,
@@ -923,6 +1444,7 @@ async function resolveClickPhraseWithOpenAI({ sceneId, imageUrl, normalizedClick
     "Return JSON only with this shape:",
     '{"phrase":"short visual phrase","confidence":"low|medium|high","reason":"short reason"}',
     coordinateText,
+    `Current country slug: ${pack.countrySlug}.`,
     `Current scene id: ${sceneId}.`
   ].join("\n");
 
@@ -978,11 +1500,11 @@ async function resolveClickPhraseWithOpenAI({ sceneId, imageUrl, normalizedClick
   }
 }
 
-function getSceneCandidateText(sceneId) {
-  const scene = scrollScenes[sceneId];
-  const rootNode = atlasNodes[scene?.rootNodeId];
+function getSceneCandidateText(sceneId, pack) {
+  const scene = pack.scenes[sceneId];
+  const rootNode = pack.nodes[scene?.rootNodeId];
   const candidateLabels = (rootNode?.childIds ?? [])
-    .map((nodeId) => atlasNodes[nodeId]?.title)
+    .map((nodeId) => pack.nodes[nodeId]?.title)
     .filter(Boolean);
   if (candidateLabels.length === 0) return "Known WanderSG candidate labels: none.";
   return `Known WanderSG candidate labels for this page: ${candidateLabels.join(", ")}.`;
@@ -1239,7 +1761,7 @@ async function serveStatic(pathname, response) {
     return;
   }
 
-  const safePath = pathname === "/" ? "/index.html" : pathname;
+  const safePath = pathname === "/" || isAppRoutePath(pathname) ? "/index.html" : pathname;
   const filePath = path.normalize(path.join(root, safePath));
   if (!filePath.startsWith(root)) {
     response.writeHead(403);
@@ -1253,11 +1775,13 @@ async function serveStatic(pathname, response) {
   response.end(file);
 }
 
+function isAppRoutePath(pathname) {
+  return !pathname.startsWith("/api/") && !path.extname(pathname);
+}
+
 async function serveRuntimeCache(pathname, response) {
   const relativePath = decodeURIComponent(pathname.slice(RUNTIME_CACHE_URL_PREFIX.length + 1));
-  const compatibleRelativePath = relativePath.startsWith("codex-jobs/")
-    ? relativePath.replace(/^codex-jobs\//, "image-jobs/")
-    : relativePath;
+  const compatibleRelativePath = normalizeRuntimeCacheRelativePath(relativePath);
   const filePath = path.normalize(path.join(runtimeCacheRoot, compatibleRelativePath));
   if (!filePath.startsWith(runtimeCacheRoot)) {
     response.writeHead(403);
@@ -1267,10 +1791,7 @@ async function serveRuntimeCache(pathname, response) {
 
   const file = await readFile(filePath);
   const ext = path.extname(filePath);
-  const isMutableRuntimeJson =
-    compatibleRelativePath.startsWith("image-jobs/") ||
-    compatibleRelativePath.startsWith("codex-jobs/") ||
-    compatibleRelativePath.startsWith("understanding/");
+  const isMutableRuntimeJson = isMutableRuntimeJsonPath(compatibleRelativePath);
   response.writeHead(200, {
     "Content-Type": mimeTypes[ext] ?? "application/octet-stream",
     "Cache-Control": isMutableRuntimeJson
@@ -1278,6 +1799,18 @@ async function serveRuntimeCache(pathname, response) {
       : "private, max-age=31536000, immutable"
   });
   response.end(file);
+}
+
+function normalizeRuntimeCacheRelativePath(relativePath) {
+  if (relativePath.startsWith("codex-jobs/")) {
+    return relativePath.replace(/^codex-jobs\//, "image-jobs/");
+  }
+
+  return relativePath.replace(/^([^/]+)\/codex-jobs\//, "$1/image-jobs/");
+}
+
+function isMutableRuntimeJsonPath(relativePath) {
+  return /^(?:[^/]+\/)?(?:image-jobs|codex-jobs|understanding|starter-map|country-pack-draft)\//.test(relativePath);
 }
 
 function getImagePathFromUrl(imageUrl) {

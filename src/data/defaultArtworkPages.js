@@ -16,37 +16,38 @@ const DEFAULT_ARTWORK_SCENES = [
   "singapore-zoo"
 ];
 
-export function getDefaultArtworkPageForScene(sceneId, scenes) {
+export function getDefaultArtworkPageForScene(sceneId, scenes, nodes = atlasNodes, countrySlug = "singapore") {
   const scene = scenes[sceneId];
   if (!scene) return null;
 
-  const node = atlasNodes[scene.rootNodeId];
+  const node = nodes[scene.rootNodeId];
   if (!node) return null;
 
-  return createDefaultArtworkPage({ scene, node });
+  return createDefaultArtworkPage({ scene, node, nodes, countrySlug });
 }
 
-export function listDefaultArtworkPages(scenes) {
+export function listDefaultArtworkPages(scenes, nodes = atlasNodes, countrySlug = "singapore") {
   return DEFAULT_ARTWORK_SCENES
     .map((nodeId) => {
       const scene = Object.values(scenes).find((item) => item.rootNodeId === nodeId || item.id === nodeId);
       if (!scene) return null;
-      const node = atlasNodes[scene.rootNodeId];
-      return node ? createDefaultArtworkPage({ scene, node }) : null;
+      const node = nodes[scene.rootNodeId];
+      return node ? createDefaultArtworkPage({ scene, node, nodes, countrySlug }) : null;
     })
     .filter(Boolean);
 }
 
-function createDefaultArtworkPage({ scene, node }) {
+function createDefaultArtworkPage({ scene, node, nodes, countrySlug }) {
   const pageType = inferPageTypeForNode(node);
   const zoomLevel = inferZoomLevelForNode(node);
   const childTitles = (node.childIds ?? [])
-    .map((childId) => atlasNodes[childId]?.title)
+    .map((childId) => nodes[childId]?.title)
     .filter(Boolean);
   const visualContext = defaultVisualContextForNode(node);
 
   return {
     id: `artwork-${scene.id}`,
+    countrySlug,
     sceneId: scene.id,
     nodeId: node.id,
     parentId: null,
@@ -56,7 +57,7 @@ function createDefaultArtworkPage({ scene, node }) {
       title: node.title,
       pageType,
       zoomLevel,
-      factMode: "curated",
+      factMode: hasUnconfirmedNodeFacts(node) ? "unconfirmed" : "curated",
       visualContext,
       imagePrompt: buildWanderImagePrompt({
         nodeId: node.id,
@@ -72,7 +73,21 @@ function createDefaultArtworkPage({ scene, node }) {
   };
 }
 
+function hasUnconfirmedNodeFacts(node) {
+  return node.facts?.some(
+    (fact) => fact.confidence === "unconfirmed" || fact.sourceType === "ai_generated"
+  );
+}
+
 function defaultVisualContextForNode(node) {
+  if (node.id === "malaysia") {
+    return [
+      "A restrained Malaysia starter-map overview page with clear visual icon clusters for Kuala Lumpur, Penang, Langkawi, Johor, Sabah, Sarawak, and Melaka.",
+      "Use large calm water shapes, coast and island hints, forest and mountain washes, anonymous city silhouettes, warm paper texture, and clean ink outlines.",
+      "Readable image text may include only the supplied candidate region names and generic status wording such as starter map or unconfirmed.",
+      "Do not write curated, verified, official, best, must-see, opening hours, prices, route times, source citations, official claims, slogans, or long captions."
+    ].join(" ");
+  }
   if (node.id === "singapore") {
     return "A restrained Singapore overview page with clear visual icon clusters for west-side NUS, NTU, and Jurong Lake Gardens; Marina Bay and Gardens by the Bay; Chinatown, Kampong Glam, and Little India; Sentosa; east-side Changi Airport, Jewel Changi, and East Coast Park; and north-side Mandai Wildlife Reserve and Singapore Zoo. Use large open water and green space, sparse roads, and short readable curated anchor labels only.";
   }

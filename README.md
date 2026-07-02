@@ -19,6 +19,35 @@ AI-generated, while factual claims are grounded in curated and official data.
 - [AGENTS.md](AGENTS.md) is the operating guide for coding, research, image,
   fact-check, and itinerary agents.
 
+## Country Packs and Routes
+
+The app supports world-level country routing, but explorer behavior is loaded
+from registered country packs. Singapore is the first verified pack; Malaysia is
+registered as a starter country pack with unconfirmed facts.
+
+Current route shape:
+
+```text
+/                         country landing
+/:countrySlug             mapped country overview, or redirect to config if unmapped
+/:countrySlug/config      unmapped country starter-map config
+/:countrySlug/place/:id   mapped place or region from that country's pack
+```
+
+Country pack registry:
+
+```text
+src/data/countryPacks/
+  index.js
+  malaysia.js
+  singapore.js
+```
+
+Unmapped countries can have routes and shells, but they must not invent verified
+POIs, opening hours, itinerary items, or factual claims until a country pack
+exists. Starter country packs may be registered, but their facts must stay
+`ai_generated` and `unconfirmed` until source review.
+
 ## Local Secrets
 
 Never commit API keys. `.env` and `.env.*` are gitignored.
@@ -36,6 +65,12 @@ Nano banana 2 through fal is the default image provider:
 FAL_KEY="..." WANDERSG_IMAGE_PROVIDER=fal WANDERSG_IMAGE_MODEL=fal-ai/nano-banana-2 npm run dev
 ```
 
+OpenAI image generation can be used without a fal key:
+
+```bash
+OPENAI_API_KEY="..." WANDERSG_IMAGE_PROVIDER=openai npm run dev
+```
+
 If a key is pasted into chat, rotate it after testing.
 
 ## Runtime Image Cache
@@ -43,6 +78,36 @@ If a key is pasted into chat, rotate it after testing.
 Click-generated flipbook jobs and images are runtime artifacts. By default, the
 dev server stores them outside the repo at the OS temp path
 `wandersg-runtime-cache` and serves them through `/runtime-cache/...`.
+
+Runtime artifacts are grouped by country slug:
+
+```text
+wandersg-runtime-cache/
+  singapore/
+    starter-map/
+    image-jobs/
+    flipbook/
+    understanding/
+  malaysia/
+    starter-map/
+    country-pack-draft/
+```
+
+For example, Singapore-generated pages are served from
+`/runtime-cache/singapore/flipbook/...`.
+Unconfirmed country starter maps are stored per country at
+`/runtime-cache/{countrySlug}/starter-map/country.json`.
+For registered country packs such as Singapore, that starter-map file is a
+runtime snapshot of the curated pack, not an AI-generated draft.
+When an AI starter map is confirmed for curation, the dev server writes
+`/runtime-cache/{countrySlug}/starter-map/confirmation.json` and
+`/runtime-cache/{countrySlug}/country-pack-draft/country.json`. These files are
+review artifacts; they do not register a live country pack until source-backed
+data is moved into `src/data/countryPacks/`.
+
+Malaysia currently ships as an actual country pack at `/malaysia`; its starter
+facts stay `ai_generated` and `unconfirmed` until replaced with source-backed
+facts.
 
 Set `WANDERSG_RUNTIME_CACHE_DIR` to point at another private local directory.
 For production, keep job metadata in Redis and image files in object storage; do

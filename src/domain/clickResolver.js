@@ -30,7 +30,7 @@ export function resolveImageClick({ scene, point, nodes }) {
     phrase: hotspot.label ?? node.title,
     confidence: hotspot.confidence,
     action: hotspot.action,
-    reason: "Matched through precomputed click region and curated scene graph."
+    reason: "Matched through precomputed click region and mapped scene graph."
   };
 }
 

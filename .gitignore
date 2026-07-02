@@ -7,3 +7,6 @@ build/
 !.env.example
 public/generated/codex-jobs/
 public/generated/flipbook/
+/image-jobs/
+/flipbook/
+/understanding/
