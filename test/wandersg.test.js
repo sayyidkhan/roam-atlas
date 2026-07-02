@@ -10,6 +10,10 @@ import {
   searchKnownNode
 } from "../src/data/sceneGraph.js";
 import {
+  WANDERSG_CONFIG,
+  resolveWandersgConfig
+} from "../src/config/wandersgConfig.js";
+import {
   getCountryBySlug,
   getCountryCardState,
   worldCountries
@@ -49,9 +53,7 @@ import {
   buildWanderImagePrompt as buildPromptOutput
 } from "../src/lib/prompts/index.js";
 import {
-  DEFAULT_FAL_IMAGE_MODEL,
   DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT,
-  normalizeFalImageModel,
   normalizeImageModel
 } from "../src/domain/imageProvider.js";
 import {
@@ -456,13 +458,26 @@ test("tile cache key changes across fact, prompt, style, and model versions", ()
   );
 });
 
-test("image model aliases normalize for OpenAI and fal providers", () => {
+test("image model aliases normalize for OpenAI provider", () => {
   assert.equal(normalizeImageModel("image1"), "gpt-image-1");
   assert.equal(normalizeImageModel("image2"), "gpt-image-2");
-  assert.equal(normalizeFalImageModel("nano-banana-2"), DEFAULT_FAL_IMAGE_MODEL);
-  assert.equal(normalizeFalImageModel("nano banana 2"), DEFAULT_FAL_IMAGE_MODEL);
   assert.match(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /central 16:9 safe area/);
   assert.match(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
+});
+
+test("source config stores non-secret OpenAI model defaults", () => {
+  const defaults = resolveWandersgConfig({});
+  const withPortOverride = resolveWandersgConfig({ PORT: "5173" });
+
+  assert.equal(WANDERSG_CONFIG.image.provider, "openai");
+  assert.equal(defaults.image.provider, "openai");
+  assert.equal(defaults.image.model, "gpt-image-2");
+  assert.equal(defaults.image.fallbackModel, "gpt-image-1");
+  assert.equal(defaults.image.size, "1536x1024");
+  assert.equal(defaults.ai.textModel, "gpt-4.1-mini");
+  assert.equal(defaults.ai.vlmModel, "gpt-4.1-mini");
+  assert.equal(defaults.ai.environmentModel, "gpt-5.5");
+  assert.equal(withPortOverride.server.port, 5173);
 });
 
 test("runtime cache paths live outside the repo and expose stable runtime urls", () => {
@@ -931,6 +946,9 @@ test("server persists country starter maps in country-scoped runtime storage", (
   assert.match(serverSource, /Update the country pack source files instead of AI-steering/);
   assert.match(serverSource, /handleCountryDraftConfirmRequest/);
   assert.match(serverSource, /confirmed_for_curation/);
+  assert.match(serverSource, /resolveWandersgConfig/);
+  assert.match(serverSource, /DEFAULT_IMAGE_PROVIDER/);
+  assert.match(serverSource, /appConfig\.ai\.vlmModel/);
 });
 
 test("dev server serves the app shell for direct country and node routes", () => {
@@ -1199,7 +1217,7 @@ test("deep page clicks do not reuse parent scene hotspots", () => {
       id: "node-marina-bay-sands",
       sceneId: "marina-bay-scroll",
       nodeId: "marina-bay-sands",
-      imageUrl: "/runtime-cache/singapore/flipbook/node-marina-bay-sands.fal-ai-nano-banana-2.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-marina-bay-sands.gpt-image-2.png"
     },
     normalizedClick: { x: 0.2, y: 0.42 },
     scenes: scrollScenes,
@@ -1217,7 +1235,7 @@ test("runtime page clicks without reliable VLM should stay on the current page",
     id: "artwork-singapore-overview",
     sceneId: "singapore-overview",
     nodeId: "singapore",
-    imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.fal-ai-nano-banana-2.png",
+    imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.png",
     status: "ready"
   };
 

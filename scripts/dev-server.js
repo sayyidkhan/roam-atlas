@@ -17,6 +17,7 @@ import {
 } from "../src/data/countryPacks/index.js";
 import { getCountryBySlug } from "../src/data/countries.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
+import { resolveWandersgConfig } from "../src/config/wandersgConfig.js";
 import {
   buildCountryDraftInfluencePrompt,
   buildCountryDraftPrompt,
@@ -28,12 +29,9 @@ import {
 } from "../src/domain/countryDraft.js";
 import { resolveFlipbookClick } from "../src/domain/flipbookPage.js";
 import {
-  DEFAULT_FAL_IMAGE_MODEL,
   DEFAULT_IMAGE_MODEL,
-  DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT,
-  generateTileImageWithFal,
+  DEFAULT_IMAGE_PROVIDER,
   generateTileImageWithOpenAI,
-  normalizeFalImageModel,
   normalizeImageModel
 } from "../src/domain/imageProvider.js";
 import {
@@ -52,7 +50,8 @@ import { matchClickPhraseToNode } from "../src/domain/nodeMatcher.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 loadLocalEnv(path.join(root, ".env"));
-const port = Number(process.env.PORT ?? "4173");
+const appConfig = resolveWandersgConfig(process.env);
+const port = appConfig.server.port;
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 const processingJobs = new Set();
@@ -873,7 +872,7 @@ async function generateCountryDraft(country, { instruction = null, currentDraft 
     );
   }
 
-  const model = process.env.WANDERSG_TEXT_MODEL ?? "gpt-4.1-mini";
+  const model = appConfig.ai.textModel;
   const prompt = instruction
     ? buildCountryDraftInfluencePrompt({ country, instruction, currentDraft })
     : buildCountryDraftPrompt(country);
@@ -1002,7 +1001,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   const prompt = page.plan?.imagePrompt;
   const existingMatchesRequest =
     existingJob?.prompt === prompt &&
-    normalizeFalImageModel(existingJob?.imageModel ?? imageModel) === normalizeFalImageModel(imageModel);
+    normalizeImageModel(existingJob?.imageModel ?? imageModel) === normalizeImageModel(imageModel);
 
   if (existingMatchesRequest && existingJob?.status === "ready" && existingJob.imageUrl) {
     await ensurePageUnderstanding({
@@ -1027,7 +1026,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   const existingMetadata = await readRuntimeImageMetadata(paths.metadataPath);
   const existingMetadataMatchesRequest =
     existingMetadata?.prompt === prompt &&
-    normalizeFalImageModel(existingMetadata?.imageModel ?? imageModel) === normalizeFalImageModel(imageModel) &&
+    normalizeImageModel(existingMetadata?.imageModel ?? imageModel) === normalizeImageModel(imageModel) &&
     existingMetadata.imageUrl;
   if (existingMetadataMatchesRequest) {
     const readyJob = {
@@ -1339,44 +1338,24 @@ async function processCodexImageJob(jobPath, job) {
 }
 
 function getConfiguredImageModel() {
-  if (getConfiguredImageProvider() === "fal") {
-    return normalizeFalImageModel(process.env.WANDERSG_IMAGE_MODEL ?? DEFAULT_FAL_IMAGE_MODEL);
-  }
-  return normalizeImageModel(process.env.WANDERSG_IMAGE_MODEL ?? DEFAULT_IMAGE_MODEL);
+  return normalizeImageModel(appConfig.image.model ?? DEFAULT_IMAGE_MODEL);
 }
 
 function getConfiguredImageProvider() {
-  const provider = process.env.WANDERSG_IMAGE_PROVIDER?.trim().toLowerCase();
-  if (provider === "fal" || provider === "nano-banana" || provider === "nano-banana-2") {
-    return "fal";
-  }
-  if (provider === "openai") return "openai";
-  return "fal";
+  return DEFAULT_IMAGE_PROVIDER;
 }
 
 function hasConfiguredImageProvider() {
-  return getConfiguredImageProvider() === "fal"
-    ? Boolean(process.env.FAL_KEY)
-    : Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(process.env.OPENAI_API_KEY);
 }
 
 async function generateConfiguredImage({ model, prompt }) {
-  if (getConfiguredImageProvider() === "fal") {
-    return generateTileImageWithFal({
-      apiKey: process.env.FAL_KEY,
-      model,
-      prompt,
-      aspectRatio: process.env.WANDERSG_IMAGE_ASPECT_RATIO ?? "16:9",
-      resolution: process.env.WANDERSG_IMAGE_RESOLUTION ?? "1K",
-      systemPrompt: process.env.WANDERSG_IMAGE_SYSTEM_PROMPT ?? DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT
-    });
-  }
-
   return generateTileImageWithOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model,
     prompt,
-    size: process.env.WANDERSG_IMAGE_SIZE ?? "1536x1024"
+    fallbackModel: appConfig.image.fallbackModel,
+    size: appConfig.image.size
   });
 }
 
@@ -1426,7 +1405,7 @@ async function resolveClickPhraseWithOpenAI({
     ? [
         `Click coordinates in original image pixels: x=${imageClick.pixel?.x}, y=${imageClick.pixel?.y}.`,
         `Click coordinates normalized to the original image: x=${imageClick.normalizedImage.x}, y=${imageClick.normalizedImage.y}.`,
-        `The browser displayed this image with object-fit: cover; use the original-image pixel coordinate, not the viewport coordinate.`
+        `The browser displayed this image with object-fit: ${imageClick.objectFit ?? "contain"}; use the original-image pixel coordinate, not the viewport coordinate.`
       ].join("\n")
     : normalizedClick
     ? `Click coordinates normalized to the visible viewport: x=${normalizedClick.x}, y=${normalizedClick.y}.`
@@ -1455,7 +1434,7 @@ async function resolveClickPhraseWithOpenAI({
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: process.env.WANDERSG_VLM_MODEL ?? "gpt-4.1-mini",
+      model: appConfig.ai.vlmModel,
       input: [
         {
           role: "user",

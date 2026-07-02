@@ -52,23 +52,20 @@ exists. Starter country packs may be registered, but their facts must stay
 
 Never commit API keys. `.env` and `.env.*` are gitignored.
 
-For local image generation, create a private `.env` from `.env.example` or pass
-environment variables directly when starting the dev server:
+For local generation, create a private `.env` from `.env.example` and add only
+the secrets you actually have:
 
 ```bash
-FAL_KEY="..." npm run dev
+OPENAI_API_KEY="..."
 ```
 
-Nano banana 2 through fal is the default image provider:
+Non-secret defaults live in `src/config/wandersgConfig.js`, including image
+model, text model, VLM model, and future environment animation model settings.
+Edit that config file when the project default should change. The current
+source-controlled image provider is OpenAI:
 
 ```bash
-FAL_KEY="..." WANDERSG_IMAGE_PROVIDER=fal WANDERSG_IMAGE_MODEL=fal-ai/nano-banana-2 npm run dev
-```
-
-OpenAI image generation can be used without a fal key:
-
-```bash
-OPENAI_API_KEY="..." WANDERSG_IMAGE_PROVIDER=openai npm run dev
+OPENAI_API_KEY="..." npm run dev
 ```
 
 If a key is pasted into chat, rotate it after testing.

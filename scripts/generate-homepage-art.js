@@ -4,44 +4,37 @@ import { fileURLToPath } from "node:url";
 
 import { getDefaultArtworkPageForScene } from "../src/data/defaultArtworkPages.js";
 import { scrollScenes } from "../src/data/sceneGraph.js";
+import { resolveWandersgConfig } from "../src/config/wandersgConfig.js";
 import {
-  DEFAULT_FAL_IMAGE_MODEL,
-  DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT,
-  generateTileImageWithFal,
-  normalizeFalImageModel
+  generateTileImageWithOpenAI,
+  normalizeImageModel
 } from "../src/domain/imageProvider.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const env = await loadDotEnv(path.join(root, ".env"));
+const appConfig = resolveWandersgConfig({ ...env, ...process.env });
 
-const apiKey = process.env.FAL_KEY ?? env.FAL_KEY;
+const apiKey = process.env.OPENAI_API_KEY ?? env.OPENAI_API_KEY;
 if (!apiKey) {
-  throw new Error("FAL_KEY is required. Add it to .env or export it before running this script.");
+  throw new Error("OPENAI_API_KEY is required. Add it to .env or export it before running this script.");
 }
 
 const page = getDefaultArtworkPageForScene("singapore-overview", scrollScenes);
-const model = normalizeFalImageModel(
-  process.env.WANDERSG_IMAGE_MODEL ?? env.WANDERSG_IMAGE_MODEL ?? DEFAULT_FAL_IMAGE_MODEL
-);
-const aspectRatio = process.env.WANDERSG_IMAGE_ASPECT_RATIO ?? env.WANDERSG_IMAGE_ASPECT_RATIO ?? "16:9";
-const resolution = process.env.WANDERSG_IMAGE_RESOLUTION ?? env.WANDERSG_IMAGE_RESOLUTION ?? "1K";
+const model = normalizeImageModel(appConfig.image.model);
+const size = appConfig.image.size;
 const outputDir = path.join(root, "public", "generated", "scenes", "singapore-overview");
 const imagePath = path.join(outputDir, "overview-codex-local.png");
 const metadataPath = path.join(outputDir, "overview-codex-local.json");
 
 await mkdir(outputDir, { recursive: true });
 
-const generated = await generateTileImageWithFal({
+const generated = await generateTileImageWithOpenAI({
   apiKey,
   model,
   prompt: page.plan.imagePrompt,
-  aspectRatio,
-  resolution,
-  systemPrompt:
-    process.env.WANDERSG_IMAGE_SYSTEM_PROMPT ??
-    env.WANDERSG_IMAGE_SYSTEM_PROMPT ??
-    DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT
+  fallbackModel: appConfig.image.fallbackModel,
+  size
 });
 
 await writeFile(imagePath, Buffer.from(generated.b64Json, "base64"));
@@ -52,10 +45,9 @@ await writeFile(
       pageId: page.id,
       sceneId: page.sceneId,
       nodeId: page.nodeId,
-      imageProvider: "fal",
+      imageProvider: generated.provider,
       imageModel: generated.model,
-      aspectRatio,
-      resolution,
+      size,
       imageUrl: "./public/generated/scenes/singapore-overview/overview-codex-local.png",
       prompt: page.plan.imagePrompt,
       revisedPrompt: generated.revisedPrompt,
@@ -67,7 +59,7 @@ await writeFile(
   )}\n`
 );
 
-console.log(`Generated homepage art with ${generated.model}: ${imagePath}`);
+console.log(`Generated homepage art with ${generated.provider}/${generated.model}: ${imagePath}`);
 
 async function loadDotEnv(filePath) {
   try {
