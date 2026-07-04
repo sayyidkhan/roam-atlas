@@ -1,14 +1,14 @@
 export const WANDERSG_CONFIG = {
   ai: {
-    textModel: "gpt-4.1-mini",
-    vlmModel: "gpt-4.1-mini",
+    textModel: "gpt-5.4-mini",
+    vlmModel: "gpt-5.4-mini",
     environmentModel: "gpt-5.5",
-    environmentFallbackModel: "gpt-4.1-mini"
+    environmentFallbackModel: "gpt-5"
   },
   image: {
     provider: "openai",
     model: "gpt-image-2",
-    fallbackModel: "gpt-image-1",
+    fallbackModel: null,
     size: "1536x1024"
   },
   server: {

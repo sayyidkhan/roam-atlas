@@ -9,7 +9,8 @@ export function buildWanderImagePrompt({
   density = "balanced",
   aspectRatio = "16:9",
   parentNodeTitle,
-  knownChildNodeTitles = []
+  knownChildNodeTitles = [],
+  countryName
 }) {
   return buildPromptOutput({
     nodeId,
@@ -20,7 +21,8 @@ export function buildWanderImagePrompt({
     density: normalizeDensity(density),
     aspectRatio: normalizeAspectRatio(aspectRatio),
     parentNodeTitle,
-    knownChildNodeTitles
+    knownChildNodeTitles,
+    countryName
   }).prompt;
 }
 

@@ -4,7 +4,7 @@ import {
   inferZoomLevelForNode
 } from "./imagePromptBuilder.js";
 
-export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }) {
+export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, countryName = "Singapore" }) {
   if (!matchedNode) {
     const currentZoomLevel = inferZoomLevelForNode(currentNode);
     const shouldUseDetailPlate =
@@ -30,7 +30,8 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
         pageType,
         zoomLevel,
         density: "restrained",
-        parentNodeTitle: currentNode?.title
+        parentNodeTitle: currentNode?.title,
+        countryName
       }),
       factMode: "unverified_detour",
       frontendOverlays: [
@@ -62,7 +63,8 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
       pageType,
       zoomLevel,
       density: isUnconfirmedNode || zoomLevel === 0 ? "minimal" : "balanced",
-      parentNodeTitle: currentNode?.title
+      parentNodeTitle: currentNode?.title,
+      countryName
     }),
     frontendOverlays: [
       {
@@ -83,7 +85,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
 function visualContextForNode(node) {
   if (hasUnconfirmedNodeFacts(node)) {
     return [
-      `${node.title} as an unconfirmed WanderSG starter-map page.`,
+      `${node.title} as an unconfirmed starter-map page.`,
       "Show a generic atlas composition with terrain, water, paths, trees, transit hints, and anonymous city or landscape forms.",
       `Use the supplied page title "${node.title}" only.`,
       "Do not invent named attractions, street names, walk names, districts, official signs, opening hours, prices, routes, citations, rankings, or factual captions.",

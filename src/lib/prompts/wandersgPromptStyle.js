@@ -1,4 +1,4 @@
-export const WANDERSG_PROMPT_VERSION = "wandersg-flipbook-v3-image-text";
+export const WANDERSG_PROMPT_VERSION = "wandersg-flipbook-v4-country-context";
 
 export const CORE_VISUAL_STYLE = `
 Core visual style:
@@ -20,7 +20,7 @@ Core visual style:
 
 export const GLOBAL_IMAGE_RULES = `
 Global image rules:
-1. Short readable image text is allowed when it is supplied by WanderSG: page titles, curated node names, short chapter labels, numbers, and one- to three-word callout headings.
+1. Short readable image text is allowed when it is supplied by the app: page titles, curated node names, short chapter labels, numbers, and one- to three-word callout headings.
 2. Do not generate prices, opening hours, route times, official signage, official claims, source citations, marketing copy, or long factual paragraphs.
 3. If callout boxes appear, keep the text short and diagram-like. Prefer numbered anchors, short labels, and concise headings.
 4. Prefer fewer meaningful objects over many small objects.

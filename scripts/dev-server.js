@@ -1,12 +1,13 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync, inflateSync } from "node:zlib";
 
 import { getSceneArtwork } from "../src/data/sceneArtwork.js";
 import {
+  getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
 } from "../src/data/defaultArtworkPages.js";
@@ -56,6 +57,8 @@ const runtimeCacheRoot = resolveRuntimeCacheRoot();
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 const processingJobs = new Set();
 const countryDraftCache = new Map();
+const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v1";
+const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v2";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -93,6 +96,10 @@ createServer(async (request, response) => {
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/confirm") {
       await handleCountryDraftConfirmRequest(request, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/runtime-cache/flush") {
+      await handleRuntimeCacheFlushRequest(request, response);
       return;
     }
 
@@ -160,7 +167,8 @@ async function handleFlipbookClick(request, response) {
       detourPhrase: semanticHit.matchedNodeId ? null : semanticHit.phrase,
       scenes: pack.scenes,
       nodes: pack.nodes,
-      sceneArtwork
+      sceneArtwork,
+      countryName: pack.title
     });
     result.semanticCache = semanticHit;
     if (result.page.status === "generation_required") {
@@ -214,7 +222,8 @@ async function handleFlipbookClick(request, response) {
         detourPhrase: body.detourPhrase,
         scenes: pack.scenes,
         nodes: pack.nodes,
-        sceneArtwork
+        sceneArtwork,
+        countryName: pack.title
       })
     : shouldUseVlmMatch
     ? resolveFlipbookClick({
@@ -223,7 +232,8 @@ async function handleFlipbookClick(request, response) {
         targetNodeId: vlmMatch.nodeId,
         scenes: pack.scenes,
         nodes: pack.nodes,
-        sceneArtwork
+        sceneArtwork,
+        countryName: pack.title
       })
     : shouldUseVlmDetour
     ? resolveFlipbookClick({
@@ -232,7 +242,8 @@ async function handleFlipbookClick(request, response) {
         detourPhrase: vlm.phrase,
         scenes: pack.scenes,
         nodes: pack.nodes,
-        sceneArtwork
+        sceneArtwork,
+        countryName: pack.title
       })
     : shouldUseLocalFallback
     ? localResult
@@ -281,7 +292,8 @@ function resolveDeterministicClick({ currentPage, normalizedClick }) {
     normalizedClick,
     scenes: pack.scenes,
     nodes: pack.nodes,
-    sceneArtwork
+    sceneArtwork,
+    countryName: pack.title
   });
 }
 
@@ -471,6 +483,10 @@ function clamp01(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value) || min));
+}
+
 function slugify(value) {
   return String(value)
     .toLowerCase()
@@ -579,7 +595,7 @@ function sanitizeRuntimeCountrySlug(value) {
 }
 
 function isLegacyRuntimeDirectory(segment) {
-  return ["image-jobs", "codex-jobs", "flipbook", "understanding"].includes(segment);
+  return ["image-jobs", "codex-jobs", "flipbook", "understanding", "environment"].includes(segment);
 }
 
 function actionForNode(nodeId, pack) {
@@ -591,6 +607,7 @@ function actionForNode(nodeId, pack) {
 
 async function handleArtworkRequest(url, response) {
   const sceneId = url.searchParams.get("sceneId");
+  const nodeId = url.searchParams.get("nodeId");
   const countrySlug = url.searchParams.get("countrySlug") ?? DEFAULT_COUNTRY_SLUG;
   const pack = getCountryPack(countrySlug);
   if (!pack) {
@@ -599,14 +616,16 @@ async function handleArtworkRequest(url, response) {
     return;
   }
 
-  const page = getDefaultArtworkPageForScene(sceneId, pack.scenes, pack.nodes, pack.countrySlug);
+  const page = nodeId
+    ? getDefaultArtworkPageForNode(nodeId, sceneId, pack.scenes, pack.nodes, pack.countrySlug, pack.title)
+    : getDefaultArtworkPageForScene(sceneId, pack.scenes, pack.nodes, pack.countrySlug, pack.title);
   if (!page) {
     response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown artwork scene: ${sceneId}` }));
+    response.end(JSON.stringify({ error: nodeId ? `Unknown artwork node: ${nodeId}` : `Unknown artwork scene: ${sceneId}` }));
     return;
   }
 
-  const artworkPage = await createCodexImageJob(page, { jobKind: "artwork" });
+  const artworkPage = await createCodexImageJob(page, { jobKind: nodeId ? "interactive" : "artwork" });
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify({ page: artworkPage }));
 }
@@ -691,10 +710,11 @@ async function handleCountryDraftInfluenceRequest(request, response) {
     return;
   }
 
-  if (getCountryPack(country.slug)) {
+  const countryPack = getCountryPack(country.slug);
+  if (isSourceReviewedCountryPack(countryPack)) {
     response.writeHead(409, { "Content-Type": "application/json" });
     response.end(JSON.stringify({
-      error: `${country.name} is a curated country pack. Update the country pack source files instead of AI-steering a starter map.`
+      error: `${country.name} is a source-reviewed country pack. Update the country pack source files instead of AI-steering a starter map.`
     }));
     return;
   }
@@ -726,6 +746,10 @@ async function handleCountryDraftInfluenceRequest(request, response) {
       text: draft.changeNote || "Starter map updated. All candidates remain unconfirmed."
     }
   }));
+}
+
+function isSourceReviewedCountryPack(countryPack) {
+  return Boolean(countryPack) && countryPack.confidence !== "unconfirmed";
 }
 
 async function handleCountryDraftConfirmRequest(request, response) {
@@ -775,6 +799,60 @@ async function handleCountryDraftConfirmRequest(request, response) {
       countryPackDraftUrl: paths.countryPackDraftUrl
     }
   }));
+}
+
+async function handleRuntimeCacheFlushRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  const result = await flushCountryGeneratedRuntimeCache(country.slug);
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    countrySlug: country.slug,
+    countryName: country.name,
+    ...result
+  }));
+}
+
+async function flushCountryGeneratedRuntimeCache(countrySlug) {
+  const countryCacheRoot = path.normalize(path.join(runtimeCacheRoot, countrySlug));
+  if (!isPathInside(runtimeCacheRoot, countryCacheRoot)) {
+    throw new Error(`Unsafe runtime cache path for ${countrySlug}.`);
+  }
+
+  const generatedFolders = ["image-jobs", "flipbook", "understanding", "environment"];
+  clearProcessingJobsForCountry(countryCacheRoot);
+  await Promise.all(
+    generatedFolders.map((folder) =>
+      rm(path.join(countryCacheRoot, folder), { recursive: true, force: true })
+    )
+  );
+
+  return {
+    flushed: true,
+    removedFolders: generatedFolders,
+    preservedFolders: ["starter-map", "country-pack-draft"],
+    factBoundary: "Only generated visual/runtime cache was flushed. Country-pack data and starter-map review artifacts were preserved."
+  };
+}
+
+function isPathInside(parentPath, childPath) {
+  const relativePath = path.relative(parentPath, childPath);
+  return Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+}
+
+function clearProcessingJobsForCountry(countryCacheRoot) {
+  for (const jobPath of [...processingJobs]) {
+    if (isPathInside(countryCacheRoot, path.normalize(jobPath))) {
+      processingJobs.delete(jobPath);
+    }
+  }
 }
 
 async function readStoredCountryDraft(country) {
@@ -1004,6 +1082,12 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     normalizeImageModel(existingJob?.imageModel ?? imageModel) === normalizeImageModel(imageModel);
 
   if (existingMatchesRequest && existingJob?.status === "ready" && existingJob.imageUrl) {
+    const environmentPlan = await ensureEnvironmentPlanForPage({
+      ...page,
+      countrySlug,
+      imageUrl: existingJob.imageUrl,
+      status: "ready"
+    }, paths);
     await ensurePageUnderstanding({
       ...page,
       imageUrl: existingJob.imageUrl,
@@ -1014,9 +1098,12 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
       countrySlug,
       imageUrl: existingJob.imageUrl,
       status: "ready",
+      environmentUrl: paths.environmentUrl,
       generated: {
         source: existingJob.source ?? "image-cache",
         jobUrl,
+        environmentUrl: paths.environmentUrl,
+        environmentStatus: environmentPlan?.status ?? "ready",
         reused: true,
         factBoundary: "Generated image is visual only and is not a fact source."
       }
@@ -1029,6 +1116,12 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     normalizeImageModel(existingMetadata?.imageModel ?? imageModel) === normalizeImageModel(imageModel) &&
     existingMetadata.imageUrl;
   if (existingMetadataMatchesRequest) {
+    const environmentPlan = await ensureEnvironmentPlanForPage({
+      ...page,
+      countrySlug,
+      imageUrl: existingMetadata.imageUrl,
+      status: "ready"
+    }, paths);
     const readyJob = {
       pageId: page.id,
       countrySlug,
@@ -1043,6 +1136,8 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
       imageProvider: existingMetadata.imageProvider ?? getConfiguredImageProvider(),
       imageModel: existingMetadata.imageModel ?? imageModel,
       metadataUrl: paths.metadataUrl,
+      environmentUrl: paths.environmentUrl,
+      environmentStatus: environmentPlan?.status ?? "ready",
       prompt,
       title: page.plan?.title,
       pageType: page.plan?.pageType,
@@ -1062,9 +1157,12 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
       countrySlug,
       imageUrl: existingMetadata.imageUrl,
       status: "ready",
+      environmentUrl: paths.environmentUrl,
       generated: {
         source: readyJob.source,
         jobUrl,
+        environmentUrl: paths.environmentUrl,
+        environmentStatus: environmentPlan?.status ?? "ready",
         reused: true,
         factBoundary: "Generated image is visual only and is not a fact source."
       }
@@ -1097,31 +1195,24 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     };
   }
 
-  await writeFile(
-    jobPath,
-    JSON.stringify(
-      {
-        pageId: page.id,
-        countrySlug,
-        sceneId: page.sceneId,
-        nodeId: page.nodeId,
-        parentId: page.parentId,
-        parentClick: page.parentClick,
-        status: "pending_codex_image_generation",
-        jobKind,
-        autoProcess: hasConfiguredImageProvider(),
-        imageModel,
-        prompt,
-        title: page.plan?.title,
-        pageType: page.plan?.pageType,
-        cacheKind: "runtime",
-        factBoundary: "Generated image is visual only and is not a fact source.",
-        createdAt: new Date().toISOString()
-      },
-      null,
-      2
-    )
-  );
+  await writeCodexImageJob(jobPath, {
+    pageId: page.id,
+    countrySlug,
+    sceneId: page.sceneId,
+    nodeId: page.nodeId,
+    parentId: page.parentId,
+    parentClick: page.parentClick,
+    status: "pending_codex_image_generation",
+    jobKind,
+    autoProcess: hasConfiguredImageProvider(),
+    imageModel,
+    prompt,
+    title: page.plan?.title,
+    pageType: page.plan?.pageType,
+    cacheKind: "runtime",
+    factBoundary: "Generated image is visual only and is not a fact source.",
+    createdAt: new Date().toISOString()
+  });
 
   return {
     ...page,
@@ -1136,6 +1227,7 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
 }
 
 async function writeCodexImageJob(jobPath, job) {
+  await mkdir(path.dirname(jobPath), { recursive: true });
   await writeFile(jobPath, `${JSON.stringify(job, null, 2)}\n`);
 }
 
@@ -1153,6 +1245,250 @@ async function readRuntimeImageMetadata(metadataPath) {
   } catch {
     return null;
   }
+}
+
+async function ensureEnvironmentPlanForPage(page, paths) {
+  if (!page?.imageUrl) return null;
+
+  const existing = await readRuntimeEnvironmentPlan(paths.environmentPath);
+  if (
+    existing?.version === ENVIRONMENT_PLAN_SCHEMA_VERSION &&
+    existing.promptVersion === ENVIRONMENT_PLAN_PROMPT_VERSION &&
+    existing.imageUrl === page.imageUrl
+  ) {
+    return existing;
+  }
+
+  let plan;
+  try {
+    plan = await createEnvironmentPlanWithOpenAI(page);
+  } catch (error) {
+    plan = createEnvironmentFallbackPlan(page, String(error?.message ?? error));
+  }
+
+  await mkdir(path.dirname(paths.environmentPath), { recursive: true });
+  await writeFile(paths.environmentPath, `${JSON.stringify(plan, null, 2)}\n`);
+  return plan;
+}
+
+async function readRuntimeEnvironmentPlan(environmentPath) {
+  try {
+    return JSON.parse(await readFile(environmentPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function createEnvironmentPlanWithOpenAI(page) {
+  if (!process.env.OPENAI_API_KEY) {
+    return createEnvironmentFallbackPlan(page, "OPENAI_API_KEY is not configured.");
+  }
+
+  const imagePath = getImagePathFromUrl(page.imageUrl);
+  if (!imagePath) {
+    return createEnvironmentFallbackPlan(page, "Current page image path is outside the WanderSG workspace and runtime cache.");
+  }
+
+  const imageBytes = await readFile(imagePath);
+  const mimeType = mimeTypeForImagePath(imagePath);
+  const prompt = buildEnvironmentPlanPrompt(page);
+  const models = [
+    appConfig.ai.environmentModel,
+    appConfig.ai.environmentFallbackModel
+  ].filter((model, index, list) => model && list.indexOf(model) === index);
+  let lastError = null;
+
+  for (const model of models) {
+    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        input: [
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: prompt },
+              {
+                type: "input_image",
+                image_url: `data:${mimeType};base64,${imageBytes.toString("base64")}`,
+                detail: "high"
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!openaiResponse.ok) {
+      lastError = `${model}: ${await openaiResponse.text()}`;
+      continue;
+    }
+
+    const payload = await openaiResponse.json();
+    const parsed = parseJsonObject(extractOpenAIText(payload));
+    const plan = normalizeEnvironmentPlan(parsed, page, {
+      source: "openai-vlm",
+      model
+    });
+    if (plan.layers.length > 0) {
+      return plan;
+    }
+    lastError = `${model}: environment planner returned no usable safe layers.`;
+  }
+
+  return createEnvironmentFallbackPlan(page, lastError ?? "No environment planner model is configured.");
+}
+
+function buildEnvironmentPlanPrompt(page) {
+  const pack = getCountryPackForPage(page);
+  const title = page.plan?.title ?? page.title ?? page.nodeId ?? page.sceneId ?? "current atlas page";
+  const pageType = page.plan?.pageType ?? page.pageType ?? "atlas_page";
+  return [
+    "You are WanderSG's environment planner for a generated travel-atlas illustration.",
+    "Inspect the actual image and choose small safe regions for code-rendered ambience overlays.",
+    "The overlays are decorative only. They must not imply verified travel facts, wildlife sightings, routes, prices, opening hours, or official claims.",
+    `Country: ${pack.title}.`,
+    `Page title: ${title}.`,
+    `Page type: ${pageType}.`,
+    "Return JSON only with this exact shape:",
+    `{"version":"${ENVIRONMENT_PLAN_SCHEMA_VERSION}","layers":[{"id":"short-id","kind":"cloud|water|foliage|light|marine_life|birds","bounds":{"x":0,"y":0,"width":0.2,"height":0.1},"intensity":"subtle|medium","safePlacement":"sky|open_air|open_water|foliage|open_light","avoid":["land","islands","buildings","labels","callouts","leader lines","people","animals"],"reason":"short visual reason"}],"warnings":["short warning"]}`,
+    "Bounds are normalized to the original image: x, y, width, and height must be between 0 and 1.",
+    "Use at most 6 layers.",
+    "Prefer small, sparse regions with empty visual space.",
+    "Clouds and birds may only go in clear sky or open air.",
+    "Water shimmer and marine_life may only go on clear open water. Never place them over land, islands, buildings, bridges, boats, labels, numbered markers, callouts, or leader lines.",
+    "Marine_life means a tiny decorative jumping silhouette, not a factual dolphin claim. If there is a large uncluttered open-water area, include one small marine_life layer; skip it only when it would overlap land, islands, labels, boats, buildings, bridges, people, or animals.",
+    "Foliage may only go over dense tree canopy or vegetation, never over buildings or labels.",
+    "If you cannot identify safe regions, return an empty layers array with a warning.",
+    "Do not ask for generated code. Do not describe animation implementation."
+  ].join("\n");
+}
+
+function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
+  const layers = Array.isArray(rawPlan?.layers)
+    ? rawPlan.layers
+        .map((layer, index) => normalizeEnvironmentLayer(layer, index))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+  return createEnvironmentPlanEnvelope(page, {
+    source,
+    model,
+    status: layers.length ? "ready" : "fallback",
+    layers,
+    warnings: normalizeEnvironmentWarnings(rawPlan?.warnings)
+  });
+}
+
+function normalizeEnvironmentLayer(layer, index) {
+  const kind = normalizeEnvironmentLayerKind(layer?.kind);
+  const safePlacement = normalizeSafeEnvironmentPlacement(layer?.safePlacement);
+  const bounds = normalizeEnvironmentBounds(layer?.bounds);
+  if (!kind || !safePlacement || !bounds) return null;
+  if (["water", "marine_life"].includes(kind) && safePlacement !== "open_water") return null;
+  if (kind === "foliage" && safePlacement !== "foliage") return null;
+  if (kind === "cloud" && !["sky", "open_air"].includes(safePlacement)) return null;
+  if (kind === "birds" && !["sky", "open_air", "open_water"].includes(safePlacement)) return null;
+
+  return {
+    id: slugify(layer?.id || `${kind}-${index + 1}`),
+    kind,
+    bounds,
+    coordinateSpace: "normalized",
+    intensity: layer?.intensity === "medium" ? "medium" : "subtle",
+    safePlacement,
+    avoid: normalizeAvoidList(layer?.avoid),
+    reason: String(layer?.reason ?? "").slice(0, 180)
+  };
+}
+
+function normalizeEnvironmentLayerKind(kind) {
+  const value = String(kind ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+  return ["cloud", "water", "foliage", "light", "marine_life", "birds"].includes(value)
+    ? value
+    : null;
+}
+
+function normalizeSafeEnvironmentPlacement(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+  return ["sky", "open_air", "open_water", "foliage", "open_light"].includes(normalized)
+    ? normalized
+    : null;
+}
+
+function normalizeEnvironmentBounds(bounds) {
+  if (!bounds || typeof bounds !== "object") return null;
+  const x = clamp01(Number(bounds.x));
+  const y = clamp01(Number(bounds.y));
+  const width = Math.min(clamp(Number(bounds.width), 0.04, 1), 1 - x);
+  const height = Math.min(clamp(Number(bounds.height), 0.04, 1), 1 - y);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || width < 0.04 || height < 0.04) return null;
+  return { x, y, width, height };
+}
+
+function normalizeAvoidList(value) {
+  const fallback = ["land", "islands", "buildings", "labels", "callouts", "leader lines"];
+  if (!Array.isArray(value)) return fallback;
+  return value
+    .map((item) => String(item ?? "").trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeEnvironmentWarnings(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item ?? "").slice(0, 180)).filter(Boolean).slice(0, 4);
+}
+
+function createEnvironmentFallbackPlan(page, warning) {
+  return createEnvironmentPlanEnvelope(page, {
+    source: "fallback",
+    model: null,
+    status: "fallback",
+    layers: [
+      {
+        id: "safe-light-wash",
+        kind: "light",
+        bounds: { x: 0, y: 0, width: 1, height: 1 },
+        coordinateSpace: "normalized",
+        intensity: "subtle",
+        safePlacement: "open_light",
+        avoid: ["labels", "callouts", "leader lines"],
+        reason: "Conservative fallback avoids placing water or wildlife without image understanding."
+      }
+    ],
+    warnings: warning ? [warning] : []
+  });
+}
+
+function createEnvironmentPlanEnvelope(page, { source, model, status, layers, warnings }) {
+  const timestamp = new Date().toISOString();
+  return {
+    version: ENVIRONMENT_PLAN_SCHEMA_VERSION,
+    source,
+    model,
+    status,
+    pageId: page.id,
+    countrySlug: getRuntimeCountrySlugForPage(page),
+    sceneId: page.sceneId,
+    nodeId: page.nodeId,
+    imageUrl: page.imageUrl,
+    promptVersion: ENVIRONMENT_PLAN_PROMPT_VERSION,
+    generatedAt: timestamp,
+    factBoundary: "Environment overlays are decorative code-rendered ambience only and are not fact sources.",
+    layers,
+    warnings
+  };
 }
 
 function startImageJobProcessor() {
@@ -1180,7 +1516,7 @@ function startImageJobProcessor() {
 
 async function queueDefaultArtworkJobs() {
   for (const pack of Object.values(countryPacks)) {
-    for (const page of listDefaultArtworkPages(pack.scenes, pack.nodes, pack.countrySlug)) {
+    for (const page of listDefaultArtworkPages(pack.scenes, pack.nodes, pack.countrySlug, pack.title)) {
       await createCodexImageJob(page, { jobKind: "prewarm" });
     }
   }
@@ -1293,6 +1629,7 @@ async function processCodexImageJob(jobPath, job) {
           imageProvider: generated.provider ?? getConfiguredImageProvider(),
           size: generated.size,
           imageUrl: paths.imageUrl,
+          environmentUrl: paths.environmentUrl,
           prompt: job.prompt,
           revisedPrompt: generated.revisedPrompt,
           cacheKind: "runtime",
@@ -1304,6 +1641,19 @@ async function processCodexImageJob(jobPath, job) {
       )
     );
 
+    const environmentPlan = await ensureEnvironmentPlanForPage({
+      id: job.pageId,
+      countrySlug,
+      sceneId: job.sceneId,
+      nodeId: job.nodeId,
+      imageUrl: paths.imageUrl,
+      status: "ready",
+      plan: {
+        title: job.title,
+        pageType: job.pageType
+      }
+    }, paths);
+
     await writeCodexImageJob(jobPath, {
       ...job,
       countrySlug,
@@ -1313,6 +1663,8 @@ async function processCodexImageJob(jobPath, job) {
       imageProvider: generated.provider ?? getConfiguredImageProvider(),
       imageModel: generated.model,
       metadataUrl: paths.metadataUrl,
+      environmentUrl: paths.environmentUrl,
+      environmentStatus: environmentPlan?.status ?? "ready",
       cacheKind: "runtime",
       completedAt: new Date().toISOString()
     });
@@ -1789,7 +2141,7 @@ function normalizeRuntimeCacheRelativePath(relativePath) {
 }
 
 function isMutableRuntimeJsonPath(relativePath) {
-  return /^(?:[^/]+\/)?(?:image-jobs|codex-jobs|understanding|starter-map|country-pack-draft)\//.test(relativePath);
+  return /^(?:[^/]+\/)?(?:image-jobs|codex-jobs|understanding|environment|starter-map|country-pack-draft)\//.test(relativePath);
 }
 
 function getImagePathFromUrl(imageUrl) {

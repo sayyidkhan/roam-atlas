@@ -41,7 +41,7 @@ export const sourceRegistry = {
     id: "wandersg-curated",
     title: "WanderSG curated MVP dataset",
     type: "curated",
-    url: "PRODUCT.md"
+    url: "docs/PRODUCT.md"
   },
   generalBiology: {
     id: "general-biology",
@@ -373,14 +373,16 @@ export function findAnimalExhibitClaim(nodeId) {
 function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
   const tileWidth = 420;
   const tileHeight = 520;
+  const width = columns * tileWidth;
+  const height = rows * tileHeight;
 
   return {
     id,
     title,
     rootNodeId,
     coordinateSpace: {
-      width: columns * tileWidth,
-      height: rows * tileHeight,
+      width,
+      height,
       unit: "virtual_px"
     },
     tileGrid: {
@@ -422,10 +424,13 @@ function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
     }),
     hotspots,
     ambientLayers: [
-      { id: `${id}-light`, kind: "light", bounds: { x: 0, y: 0, width: columns * tileWidth, height: tileHeight }, intensity: "subtle" }
+      { id: `${id}-light`, kind: "light", bounds: { x: 0, y: 0, width, height }, intensity: "subtle" },
+      { id: `${id}-clouds`, kind: "cloud", bounds: { x: 0, y: 0, width, height: height * 0.34 }, intensity: "subtle" },
+      { id: `${id}-water`, kind: "water", bounds: { x: 0, y: height * 0.32, width, height: height * 0.46 }, intensity: "subtle" },
+      { id: `${id}-foliage`, kind: "foliage", bounds: { x: 0, y: height * 0.44, width, height: height * 0.42 }, intensity: "subtle" }
     ],
     cameraPresets: [
-      { id: "overview", label: "Overview", targetBounds: { x: 0, y: 0, width: columns * tileWidth, height: tileHeight }, zoom: 1 }
+      { id: "overview", label: "Overview", targetBounds: { x: 0, y: 0, width, height }, zoom: 1 }
     ],
     styleVersion: STYLE_VERSION,
     dataVersion: DATA_VERSION

@@ -7,6 +7,7 @@ import { planNextFlipbookPage } from "./pagePlanner.js";
 export function createFlipbookPage({
   id,
   countrySlug = "singapore",
+  countryName = "Singapore",
   sceneId,
   nodeId,
   imageUrl,
@@ -18,6 +19,7 @@ export function createFlipbookPage({
   return {
     id,
     countrySlug,
+    countryName,
     sceneId,
     nodeId,
     imageUrl,
@@ -36,7 +38,8 @@ export function resolveFlipbookClick({
   resolvedPhrase = null,
   scenes,
   nodes,
-  sceneArtwork
+  sceneArtwork,
+  countryName = "Singapore"
 }) {
   const scene = scenes[currentPage.sceneId];
   const point = {
@@ -88,7 +91,8 @@ export function resolveFlipbookClick({
   const plan = planNextFlipbookPage({
     currentNode: nodes[currentPage.nodeId],
     matchedNode,
-    clickedPhrase: click.phrase
+    clickedPhrase: click.phrase,
+    countryName
   });
 
   if (click.status === "unmapped") {
@@ -102,6 +106,7 @@ export function resolveFlipbookClick({
           normalizedClick
         }),
         countrySlug: currentPage.countrySlug ?? "singapore",
+        countryName,
         sceneId: currentPage.sceneId,
         nodeId: null,
         imageUrl: currentPage.imageUrl,
@@ -137,6 +142,7 @@ export function resolveFlipbookClick({
         normalizedClick
       }),
       countrySlug: currentPage.countrySlug ?? "singapore",
+      countryName,
       sceneId: nextSceneId,
       nodeId: plan.nextNodeId ?? click.nodeId,
       imageUrl: artwork?.imageUrl ?? null,

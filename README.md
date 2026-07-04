@@ -15,7 +15,7 @@ AI-generated, while factual claims are grounded in curated and official data.
 
 ## Project Docs
 
-- [PRODUCT.md](PRODUCT.md) is the product source of truth.
+- [PRODUCT.md](docs/PRODUCT.md) is the product source of truth.
 - [AGENTS.md](AGENTS.md) is the operating guide for coding, research, image,
   fact-check, and itinerary agents.
 
@@ -30,7 +30,7 @@ Current route shape:
 ```text
 /                         country landing
 /:countrySlug             mapped country overview, or redirect to config if unmapped
-/:countrySlug/config      unmapped country starter-map config
+/:countrySlug/config      country config, available for mapped and unmapped countries
 /:countrySlug/place/:id   mapped place or region from that country's pack
 ```
 
@@ -48,21 +48,26 @@ POIs, opening hours, itinerary items, or factual claims until a country pack
 exists. Starter country packs may be registered, but their facts must stay
 `ai_generated` and `unconfirmed` until source review.
 
-## Local Secrets
+## OpenAI Setup
 
-Never commit API keys. `.env` and `.env.*` are gitignored.
+WanderSG uses OpenAI only. Do not add parallel provider keys unless the product
+direction changes.
 
-For local generation, create a private `.env` from `.env.example` and add only
-the secrets you actually have:
+Never commit API keys. `.env` and `.env.*` are gitignored. For local generation,
+create a private `.env` from `.env.example` and add the one secret the app uses:
 
 ```bash
 OPENAI_API_KEY="..."
 ```
 
-Non-secret defaults live in `src/config/wandersgConfig.js`, including image
-model, text model, VLM model, and future environment animation model settings.
-Edit that config file when the project default should change. The current
-source-controlled image provider is OpenAI:
+Non-secret model defaults live in `src/config/wandersgConfig.js`.
+
+- Text, VLM, and environment models must stay on GPT-5-family or newer models.
+- Image generation uses OpenAI image models.
+- Do not add model env overrides for normal local development; edit the config
+  file when the project default should change.
+
+Run locally with:
 
 ```bash
 OPENAI_API_KEY="..." npm run dev

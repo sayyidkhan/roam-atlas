@@ -42,6 +42,7 @@ import { planNextFlipbookPage } from "../src/domain/pagePlanner.js";
 import { getSceneArtwork } from "../src/data/sceneArtwork.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
 import {
+  getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
 } from "../src/data/defaultArtworkPages.js";
@@ -134,10 +135,11 @@ test("app routes send unmapped countries through config and mapped countries int
   assert.deepEqual(resolveAppRoute("/austria/config", routeContext), {
     type: "country_config",
     country: getCountryBySlug("austria"),
-    countrySlug: "austria"
+    countrySlug: "austria",
+    pack: null
   });
   assert.deepEqual(resolveAppRoute("/malaysia/config", routeContext), {
-    type: "country_overview",
+    type: "country_config",
     country: getCountryBySlug("malaysia"),
     countrySlug: "malaysia",
     pack: malaysiaPack
@@ -287,6 +289,22 @@ test("country starter map chat instructions are bounded", () => {
 
   assert.ok(instruction.length <= 420);
   assert.doesNotMatch(instruction, /\s{2,}/);
+});
+
+test("country starter map chat can steer registered unconfirmed starter packs", () => {
+  const country = getCountryBySlug("malaysia");
+  const prompt = buildCountryDraftInfluencePrompt({
+    country,
+    instruction: "Please add Kuching as a candidate city.",
+    currentDraft: createCountryPackStarterMap(countryPacks.malaysia, {
+      generatedAt: "2026-07-02T00:00:00.000Z"
+    })
+  });
+
+  assert.equal(countryPacks.malaysia.confidence, "unconfirmed");
+  assert.match(prompt, /Kuching/);
+  assert.match(prompt, /Current starter map/);
+  assert.match(prompt, /Do not treat the user instruction as evidence/);
 });
 
 test("country draft normalization labels generated candidates as unconfirmed", () => {
@@ -459,10 +477,10 @@ test("tile cache key changes across fact, prompt, style, and model versions", ()
 });
 
 test("image model aliases normalize for OpenAI provider", () => {
-  assert.equal(normalizeImageModel("image1"), "gpt-image-1");
   assert.equal(normalizeImageModel("image2"), "gpt-image-2");
   assert.match(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /central 16:9 safe area/);
   assert.match(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
+  assert.doesNotMatch(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /\bSingapore\b/);
 });
 
 test("source config stores non-secret OpenAI model defaults", () => {
@@ -472,11 +490,13 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(WANDERSG_CONFIG.image.provider, "openai");
   assert.equal(defaults.image.provider, "openai");
   assert.equal(defaults.image.model, "gpt-image-2");
-  assert.equal(defaults.image.fallbackModel, "gpt-image-1");
+  assert.equal(defaults.image.fallbackModel, null);
   assert.equal(defaults.image.size, "1536x1024");
-  assert.equal(defaults.ai.textModel, "gpt-4.1-mini");
-  assert.equal(defaults.ai.vlmModel, "gpt-4.1-mini");
+  assert.equal(defaults.ai.textModel, "gpt-5.4-mini");
+  assert.equal(defaults.ai.vlmModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.environmentModel, "gpt-5.5");
+  assert.equal(defaults.ai.environmentFallbackModel, "gpt-5");
+  assert.ok(Object.values(defaults.ai).every((model) => /^gpt-5(?:\.|$|-)/.test(model)));
   assert.equal(withPortOverride.server.port, 5173);
 });
 
@@ -490,7 +510,7 @@ test("runtime cache paths live outside the repo and expose stable runtime urls",
   const paths = createRuntimeCachePaths({
     cacheRoot,
     pageId: "node-cloud-forest",
-    imageModel: "gpt-image-1",
+    imageModel: "gpt-image-2",
     countrySlug: "singapore"
   });
   const starterMapPaths = createCountryStarterMapCachePaths({
@@ -507,11 +527,14 @@ test("runtime cache paths live outside the repo and expose stable runtime urls",
   assert.equal(cacheRoot, "/tmp/wandersg-test-cache");
   assert.equal(paths.countrySlug, "singapore");
   assert.equal(paths.jobUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/image-jobs/node-cloud-forest.json`);
-  assert.equal(paths.imageUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/flipbook/node-cloud-forest.gpt-image-1.png`);
+  assert.equal(paths.imageUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/flipbook/node-cloud-forest.gpt-image-2.png`);
+  assert.equal(paths.environmentUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/environment/node-cloud-forest.gpt-image-2.json`);
   assert.ok(paths.jobPath.startsWith(cacheRoot));
   assert.ok(paths.imagePath.startsWith(cacheRoot));
+  assert.ok(paths.environmentPath.startsWith(cacheRoot));
   assert.ok(paths.jobPath.includes("/singapore/image-jobs/"));
   assert.ok(paths.imagePath.includes("/singapore/flipbook/"));
+  assert.ok(paths.environmentPath.includes("/singapore/environment/"));
   assert.equal(starterMapPaths.countrySlug, "malaysia");
   assert.equal(
     starterMapPaths.starterMapUrl,
@@ -650,6 +673,58 @@ test("missing tiles do not block factual node display", () => {
   assert.ok(atlasNodes[scene.rootNodeId].facts.length > 0);
 });
 
+test("scene images can render image-specific ambient environment overlays", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const singaporeLayerKinds = new Set(scrollScenes["singapore-overview"].ambientLayers.map((layer) => layer.kind));
+  const malaysiaLayerKinds = new Set(
+    countryPacks.malaysia.scenes["malaysia-overview"].ambientLayers.map((layer) => layer.kind)
+  );
+
+  for (const kind of ["light", "cloud", "water", "foliage"]) {
+    assert.ok(singaporeLayerKinds.has(kind));
+    assert.ok(malaysiaLayerKinds.has(kind));
+    assert.match(styles, new RegExp(`environment-layer--${kind}`));
+  }
+  for (const kind of ["marine_life", "birds"]) {
+    assert.match(styles, new RegExp(`environment-layer--${kind}`));
+  }
+  assert.match(appSource, /renderEnvironmentLayerNodes/);
+  assert.match(appSource, /requestEnvironmentPlan/);
+  assert.match(appSource, /environmentUrl/);
+  assert.match(appSource, /image-plan-atmosphere-code-replacement/);
+  assert.match(appSource, /renderAtmosphereLayer/);
+  assert.match(appSource, /getAtmosphereProfile/);
+  assert.match(appSource, /renderWaterZone/);
+  assert.match(appSource, /renderMarineAtmosphere/);
+  assert.match(appSource, /getNormalizedEnvironmentBounds/);
+  assert.match(appSource, /isRenderableEnvironmentLayer/);
+  assert.match(appSource, /renderEnvironmentParticleMarkup/);
+  assert.match(appSource, /isSafeFallbackEnvironmentLayer/);
+  assert.match(appSource, /createEnvironmentParticles/);
+  assert.match(appSource, /environmentParticleDuration/);
+  assert.match(styles, /--scene-art-width/);
+  assert.match(styles, /--scene-art-height/);
+  assert.match(styles, /atmosphere-layer/);
+  assert.match(styles, /atmosphere-water-field/);
+  assert.match(styles, /atmosphere-water-zone/);
+  assert.match(styles, /atmosphere-water-glint/);
+  assert.match(styles, /atmosphere-shoreline/);
+  assert.match(styles, /atmosphere-breeze/);
+  assert.match(styles, /atmosphere-cloud-bank/);
+  assert.match(styles, /atmosphere-cloud-bank-drift/);
+  assert.match(styles, /atmosphere-cloud-wisp/);
+  assert.match(styles, /atmosphere-bird/);
+  assert.match(styles, /atmosphere-dolphin/);
+  assert.match(styles, /ambient-svg/);
+  assert.match(styles, /ambient-water-line/);
+  assert.match(styles, /ambient-wingbeat/);
+  assert.match(styles, /overflow: visible/);
+  assert.match(styles, /ambient-marine-jump/);
+  assert.match(styles, /ambient-bird/);
+  assert.match(styles, /prefers-reduced-motion/);
+});
+
 test("image click resolver matches clicks through the curated scene graph", () => {
   const result = resolveImageClick({
     scene: scrollScenes["singapore-overview"],
@@ -765,7 +840,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "wandersg-flipbook-v3-image-text");
+  assert.equal(output.promptVersion, "wandersg-flipbook-v4-country-context");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
@@ -775,6 +850,41 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
   assert.match(output.prompt, /dense tourist map/);
   assert.match(output.prompt, /busy panoramic city poster/);
   assert.match(output.prompt, /Do not draw dense road networks/);
+});
+
+test("Malaysia image prompts do not leak Singapore or app branding", () => {
+  const homepage = buildHomepagePrompt({
+    nodeId: "malaysia",
+    nodeTitle: "Malaysia",
+    pageType: "homepage_overview",
+    zoomLevel: 0,
+    countryName: "Malaysia",
+    visualContext: "Malaysia starter page",
+    knownChildNodeTitles: ["Kuala Lumpur", "Penang", "Langkawi", "Johor"]
+  });
+  const region = buildRegionPrompt({
+    nodeId: "malaysia-kuala-lumpur",
+    nodeTitle: "Kuala Lumpur",
+    pageType: "region_overview",
+    zoomLevel: 1,
+    countryName: "Malaysia",
+    visualContext: "city core and heritage district",
+    knownChildNodeTitles: ["parks", "waterfront"]
+  });
+  const encyclopedia = buildEncyclopediaPrompt({
+    nodeId: "melaka-red-facade-building",
+    nodeTitle: "Melaka red facade building",
+    pageType: "architectural_detail",
+    zoomLevel: 3,
+    countryName: "Malaysia",
+    visualContext: "one red facade building study plate"
+  });
+  const combined = [homepage.prompt, region.prompt, encyclopedia.prompt].join("\n");
+
+  assert.match(combined, /Malaysia/);
+  assert.match(homepage.prompt, /Do not fully render all of Malaysia/);
+  assert.doesNotMatch(combined, /\bSingapore\b/);
+  assert.doesNotMatch(combined, /\bWanderSG\b/);
 });
 
 test("region prompt focuses one region and puts short labels in the generated image", () => {
@@ -898,6 +1008,11 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.doesNotMatch(appSource, /overview-codex-local\.png/);
   assert.doesNotMatch(appSource, /127\.0\.0\.1:4173/);
   assert.match(appSource, /requestSceneArtwork/);
+  assert.match(appSource, /requestCurrentPageArtwork/);
+  assert.match(appSource, /canCurrentPageUseSceneArtwork/);
+  assert.match(appSource, /getPageArtworkJobKey/);
+  assert.match(appSource, /pollCurrentPageArtworkJob/);
+  assert.match(appSource, /nodeId=\$\{encodeURIComponent\(page\.nodeId\)\}/);
   assert.match(appSource, /apiPath\("\/api\/flipbook\/click"\)/);
   assert.match(appSource, /getCurrentRequestPage/);
   assert.match(appSource, /setBrowserPath\(canonicalRouteForNode/);
@@ -917,6 +1032,13 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(appSource, /\/api\/country-draft\/influence/);
   assert.match(appSource, /Confirm for curation/);
   assert.match(appSource, /\/api\/country-draft\/confirm/);
+  assert.match(appSource, /Flush generated cache/);
+  assert.match(appSource, /Starter country pack/);
+  assert.match(appSource, /Facts remain unconfirmed/);
+  assert.match(appSource, /Source-reviewed country pack/);
+  assert.match(appSource, /data-country-action="flush-runtime-cache"/);
+  assert.match(appSource, /\/api\/runtime-cache\/flush/);
+  assert.match(appSource, /clearCountryGeneratedState/);
   assert.match(appSource, /loadStoredCountryDraft/);
   assert.match(appSource, /generate=false/);
   assert.match(appSource, /force=true/);
@@ -927,6 +1049,33 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.doesNotMatch(appSource, /Open explorer map/);
   assert.doesNotMatch(appSource, /routeForCountryExplorer/);
   assert.doesNotMatch(appSource, /createStarterMapExplorerPack/);
+});
+
+test("server exposes country-scoped generated cache flushing", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+
+  assert.match(serverSource, /pathname === "\/api\/runtime-cache\/flush"/);
+  assert.match(serverSource, /handleRuntimeCacheFlushRequest/);
+  assert.match(serverSource, /flushCountryGeneratedRuntimeCache/);
+  assert.match(serverSource, /\["image-jobs", "flipbook", "understanding", "environment"\]/);
+  assert.match(serverSource, /preservedFolders: \["starter-map", "country-pack-draft"\]/);
+  assert.match(serverSource, /isPathInside/);
+  assert.match(serverSource, /rm\(path\.join\(countryCacheRoot, folder\), \{ recursive: true, force: true \}\)/);
+});
+
+test("server creates image-specific environment plans for generated artwork", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+
+  assert.match(serverSource, /ensureEnvironmentPlanForPage/);
+  assert.match(serverSource, /createEnvironmentPlanWithOpenAI/);
+  assert.match(serverSource, /getDefaultArtworkPageForNode/);
+  assert.match(serverSource, /url\.searchParams\.get\("nodeId"\)/);
+  assert.match(serverSource, /jobKind: nodeId \? "interactive" : "artwork"/);
+  assert.match(serverSource, /appConfig\.ai\.environmentModel/);
+  assert.match(serverSource, /environment-plan-v1/);
+  assert.match(serverSource, /marine_life may only go on clear open water/);
+  assert.match(serverSource, /Never place them over land, islands, buildings, bridges, boats, labels/);
+  assert.match(serverSource, /Environment overlays are decorative code-rendered ambience only and are not fact sources/);
 });
 
 test("server persists country starter maps in country-scoped runtime storage", () => {
@@ -943,6 +1092,8 @@ test("server persists country starter maps in country-scoped runtime storage", (
   assert.match(serverSource, /url\.searchParams\.get\("force"\) === "true"/);
   assert.match(serverSource, /regenerated: forceGenerate/);
   assert.match(serverSource, /url\.searchParams\.get\("generate"\) !== "false"/);
+  assert.match(serverSource, /isSourceReviewedCountryPack/);
+  assert.match(serverSource, /countryPack\.confidence !== "unconfirmed"/);
   assert.match(serverSource, /Update the country pack source files instead of AI-steering/);
   assert.match(serverSource, /handleCountryDraftConfirmRequest/);
   assert.match(serverSource, /confirmed_for_curation/);
@@ -966,14 +1117,57 @@ test("dev server serves the app shell for direct country and node routes", () =>
 
 test("default artwork pages are generated through the runtime image pipeline", () => {
   const homepage = getDefaultArtworkPageForScene("singapore-overview", scrollScenes);
+  const eastCoastPage = getDefaultArtworkPageForNode(
+    "east-coast-park",
+    "nature-wildlife-scroll",
+    scrollScenes
+  );
+  const malaysiaHomepage = getDefaultArtworkPageForScene(
+    "malaysia-overview",
+    countryPacks.malaysia.scenes,
+    countryPacks.malaysia.nodes,
+    "malaysia",
+    "Malaysia"
+  );
   const pages = listDefaultArtworkPages(scrollScenes);
 
   assert.equal(homepage.id, "artwork-singapore-overview");
   assert.equal(homepage.status, "generation_required");
   assert.equal(homepage.nodeId, "singapore");
   assert.match(homepage.plan.imagePrompt, /visual table of contents/);
+  assert.equal(eastCoastPage.id, "node-east-coast-park");
+  assert.equal(eastCoastPage.sceneId, "nature-wildlife-scroll");
+  assert.equal(eastCoastPage.nodeId, "east-coast-park");
+  assert.match(eastCoastPage.plan.imagePrompt, /East Coast Park/);
+  assert.equal(malaysiaHomepage.id, "artwork-malaysia-overview");
+  assert.equal(malaysiaHomepage.countrySlug, "malaysia");
+  assert.match(malaysiaHomepage.plan.imagePrompt, /Malaysia/);
+  assert.doesNotMatch(malaysiaHomepage.plan.imagePrompt, /\bSingapore\b/);
   assert.ok(pages.some((page) => page.sceneId === "singapore-overview"));
   assert.ok(pages.some((page) => page.sceneId === "singapore-zoo-scroll"));
+});
+
+test("Malaysia flipbook clicks generate Malaysia image prompts", () => {
+  const result = resolveFlipbookClick({
+    currentPage: {
+      id: "root",
+      countrySlug: "malaysia",
+      sceneId: "malaysia-overview",
+      nodeId: "malaysia",
+      imageUrl: "/runtime-cache/malaysia/flipbook/artwork-malaysia-overview.gpt-image-2.png"
+    },
+    normalizedClick: { x: 0.1, y: 0.3 },
+    scenes: countryPacks.malaysia.scenes,
+    nodes: countryPacks.malaysia.nodes,
+    sceneArtwork,
+    countryName: "Malaysia"
+  });
+
+  assert.equal(result.click.status, "matched");
+  assert.equal(result.page.countrySlug, "malaysia");
+  assert.equal(result.page.countryName, "Malaysia");
+  assert.match(result.page.plan.imagePrompt, /Malaysia/);
+  assert.doesNotMatch(result.page.plan.imagePrompt, /\bSingapore\b/);
 });
 
 test("flipbook click returns generation-required page when runtime artwork is not cached yet", () => {
@@ -982,7 +1176,7 @@ test("flipbook click returns generation-required page when runtime artwork is no
       id: "root",
       sceneId: "singapore-overview",
       nodeId: "singapore",
-      imageUrl: "./public/generated/scenes/singapore-overview/overview-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.png"
     },
     normalizedClick: { x: 0.58, y: 0.4 },
     resolvedPhrase: "southern island beaches and resort coastline",
@@ -1006,7 +1200,7 @@ test("overview wildlife hotspot is not stolen by synthetic child regions", () =>
       id: "root",
       sceneId: "singapore-overview",
       nodeId: "singapore",
-      imageUrl: "./public/generated/scenes/singapore-overview/overview-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.png"
     },
     normalizedClick: { x: 0.67, y: 0.39 },
     scenes: scrollScenes,
@@ -1026,7 +1220,7 @@ test("flipbook click can use a VLM phrase before planning the next page", () => 
       id: "root",
       sceneId: "singapore-overview",
       nodeId: "singapore",
-      imageUrl: "./public/generated/scenes/singapore-overview/overview-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.png"
     },
     normalizedClick: { x: 0.1, y: 0.1 },
     resolvedPhrase: "waterfront skyline garden district with glass domes",
@@ -1049,7 +1243,7 @@ test("flipbook VLM phrases that do not match curated candidates become unverifie
       id: "root",
       sceneId: "singapore-overview",
       nodeId: "singapore",
-      imageUrl: "./public/generated/scenes/singapore-overview/overview-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.png"
     },
     normalizedClick: { x: 0.1, y: 0.1 },
     resolvedPhrase: "floating moon castle",
@@ -1070,7 +1264,7 @@ test("flipbook VLM matching uses current node children after turning the page", 
       id: "root-150-450",
       sceneId: "marina-bay-scroll",
       nodeId: "marina-bay-scroll",
-      imageUrl: "./public/generated/scenes/marina-bay-scroll/marina-bay-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-marina-bay-scroll.gpt-image-2.png"
     },
     normalizedClick: { x: 0.34, y: 0.48 },
     resolvedPhrase: "glass conservatories and garden domes",
@@ -1095,7 +1289,7 @@ test("flipbook can keep drilling from Gardens into Supertree Grove", () => {
       id: "root-150-450-340-480",
       sceneId: "marina-bay-scroll",
       nodeId: "gardens-by-the-bay",
-      imageUrl: "./public/generated/scenes/gardens-by-the-bay/gardens-by-the-bay-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-gardens-by-the-bay.gpt-image-2.png"
     },
     normalizedClick: { x: 0.52, y: 0.42 },
     resolvedPhrase: "supertree grove canopy structures",
@@ -1118,7 +1312,7 @@ test("flipbook overlay target can drill directly into a curated child node", () 
       id: "node-gardens-by-the-bay",
       sceneId: "marina-bay-scroll",
       nodeId: "gardens-by-the-bay",
-      imageUrl: "./public/generated/scenes/gardens-by-the-bay/gardens-by-the-bay-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-gardens-by-the-bay.gpt-image-2.png"
     },
     normalizedClick: { x: 0.5, y: 0.34 },
     targetNodeId: "cloud-forest",
@@ -1140,7 +1334,7 @@ test("flipbook leaf pages can still create an unverified drill-down job", () => 
       id: "node-supertree-structure-plate",
       sceneId: "marina-bay-scroll",
       nodeId: "supertree-structure-plate",
-      imageUrl: "./public/generated/scenes/supertree-grove/supertree-grove-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-supertree-grove.gpt-image-2.png"
     },
     normalizedClick: { x: 0.5, y: 0.5 },
     detourPhrase: "Supertree canopy detail study",
@@ -1162,7 +1356,7 @@ test("flipbook page ids are stable per node so generated images can be reused", 
       id: "node-marina-bay-scroll",
       sceneId: "marina-bay-scroll",
       nodeId: "marina-bay-scroll",
-      imageUrl: "./public/generated/scenes/marina-bay-scroll/marina-bay-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-marina-bay-scroll.gpt-image-2.png"
     },
     normalizedClick: { x: 0.34, y: 0.48 },
     resolvedPhrase: "glass conservatories and garden domes",
@@ -1175,7 +1369,7 @@ test("flipbook page ids are stable per node so generated images can be reused", 
       id: "node-marina-bay-scroll",
       sceneId: "marina-bay-scroll",
       nodeId: "marina-bay-scroll",
-      imageUrl: "./public/generated/scenes/marina-bay-scroll/marina-bay-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-marina-bay-scroll.gpt-image-2.png"
     },
     normalizedClick: { x: 0.62, y: 0.31 },
     resolvedPhrase: "glass domes and conservatory garden",
@@ -1196,7 +1390,7 @@ test("local dev click fallback uses current page precomputed child regions", () 
       id: "root-150-450-340-480",
       sceneId: "marina-bay-scroll",
       nodeId: "gardens-by-the-bay",
-      imageUrl: "./public/generated/scenes/gardens-by-the-bay/gardens-by-the-bay-codex-local.png"
+      imageUrl: "/runtime-cache/singapore/flipbook/node-gardens-by-the-bay.gpt-image-2.png"
     },
     normalizedClick: { x: 0.2, y: 0.42 },
     scenes: scrollScenes,
@@ -1284,7 +1478,7 @@ test("runtime image job polling is not cached by the browser", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
   assert.match(serverSource, /isMutableRuntimeJsonPath/);
-  assert.match(serverSource, /\(\?:image-jobs\|codex-jobs\|understanding\|starter-map\|country-pack-draft\)/);
+  assert.match(serverSource, /\(\?:image-jobs\|codex-jobs\|understanding\|environment\|starter-map\|country-pack-draft\)/);
   assert.match(serverSource, /"Cache-Control": isMutableRuntimeJson/);
   assert.match(serverSource, /"no-store"/);
   assert.match(appSource, /fetch\(toApiUrl\(jobUrl\), \{ cache: "no-store" \}\)/);

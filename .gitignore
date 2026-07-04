@@ -5,8 +5,7 @@ build/
 .env
 .env.*
 !.env.example
-public/generated/codex-jobs/
-public/generated/flipbook/
+public/generated/
 /image-jobs/
 /flipbook/
 /understanding/

@@ -162,7 +162,7 @@ export function createCountryPackStarterMap(pack, options = {}) {
     warnings: isConfirmedPack
       ? [
           "This file is a runtime snapshot of curated data, not the source of truth.",
-          "Edit the country pack source files to change confirmed Singapore data."
+          `Edit the country pack source files to change confirmed ${pack.title} data.`
         ]
       : [
           "This file is a runtime snapshot of starter country-pack data.",
@@ -307,7 +307,7 @@ function normalizeRegions(regions) {
       };
     })
     .filter(Boolean)
-    .slice(0, 6);
+    .slice(0, 10);
 }
 
 function normalizeThemes(themes) {
@@ -326,7 +326,7 @@ function normalizeThemes(themes) {
       };
     })
     .filter(Boolean)
-    .slice(0, 5);
+    .slice(0, 8);
 }
 
 function normalizeRegionKind(kind) {

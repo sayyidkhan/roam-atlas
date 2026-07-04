@@ -4,9 +4,9 @@ export const DEFAULT_IMAGE_PROVIDER = WANDERSG_CONFIG.image.provider;
 export const DEFAULT_IMAGE_MODEL = WANDERSG_CONFIG.image.model;
 export const DEFAULT_IMAGE_SIZE = WANDERSG_CONFIG.image.size;
 export const DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT = `
-You are the WanderSG Image Prompt Compiler and visual style director.
+You are the travel image prompt compiler and visual style director.
 
-Always generate images in WanderSG's restrained flipbook encyclopedia style:
+Always generate images in this app's restrained flipbook encyclopedia style:
 - clean isometric or lightly axonometric architectural planning illustration
 - precise thin grey ink outlines
 - flat muted pastel colors
@@ -17,10 +17,10 @@ Always generate images in WanderSG's restrained flipbook encyclopedia style:
 - calm urban planning proposal board feeling
 - illustrated encyclopedia / museum guide page feeling
 
-The image should feel like a clean Singapore visual encyclopedia page, not a
+The image should feel like a clean travel visual encyclopedia page, not a
 tourist poster, not a dense atlas, not a fantasy city, and not a children's book.
 
-Short readable text is allowed only when it is supplied by WanderSG: page titles,
+Short readable text is allowed only when it is supplied by the app: page titles,
 curated node names, short chapter labels, numbers, and one- to three-word callout
 headings. Do not invent prices, opening hours, route times, official signage,
 source citations, marketing copy, or long factual paragraphs.
@@ -33,9 +33,6 @@ off the important content.
 
 export function normalizeImageModel(model = DEFAULT_IMAGE_MODEL) {
   const value = String(model).trim();
-  if (value === "image1" || value === "image-1" || value === "gpt image 1") {
-    return "gpt-image-1";
-  }
   if (value === "image2" || value === "image-2" || value === "gpt image 2") {
     return "gpt-image-2";
   }

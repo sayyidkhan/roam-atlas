@@ -4,23 +4,29 @@ import {
   NEGATIVE_STYLE_TERMS,
   WANDERSG_PROMPT_VERSION
 } from "./wandersgPromptStyle.js";
+import {
+  getPromptCountryName,
+  getPromptWholeAreaPhrase
+} from "./promptContext.js";
 
 export function buildHomepagePrompt(input) {
+  const countryName = getPromptCountryName(input);
+  const wholeAreaPhrase = getPromptWholeAreaPhrase(countryName);
   const anchors =
     input.knownChildNodeTitles && input.knownChildNodeTitles.length > 0
       ? input.knownChildNodeTitles.slice(0, 7).join(", ")
-      : "Marina Bay / Gardens, Heritage shophouse district, Civic district, Sentosa / southern coast, Mandai / wildlife, East Coast or local life";
+      : "capital or city core, heritage district, waterfront or coast, nature area, food or local life, transport gateway";
 
   const prompt = `
-Create the WanderSG homepage as a restrained illustrated overview page for Singapore.
+Create a restrained illustrated overview page for ${countryName}.
 
 Page type:
 homepage_overview
 
 Purpose:
-This is the entry page of an interactive AI flipbook-like exploration experience.
+This is the entry page of an interactive AI flipbook-like exploration experience for ${countryName}.
 It should feel like a calm visual table of contents, not a full-detail city map.
-It should introduce Singapore as a small set of explorable themed anchor regions.
+It should introduce ${countryName} as a small set of explorable themed anchor regions.
 
 Anchor regions:
 ${anchors}
@@ -33,7 +39,7 @@ Composition:
 - Use large water bodies, open parks, soft background space, or simplified landforms as negative space.
 - Keep at least 35% of the image visually open.
 - Do not fill every empty area.
-- Do not fully render the entire island.
+- Do not fully render ${wholeAreaPhrase}.
 - Do not draw dense road networks across the whole scene.
 - Do not draw every neighborhood.
 - Do not make a complete tourism poster.
@@ -68,7 +74,7 @@ ${CORE_VISUAL_STYLE}
 ${GLOBAL_IMAGE_RULES}
 
 Labels:
-Readable image text is allowed only for short curated anchor labels and the page title. No logo. No legend. No prices. No hours. No route times. No official claims. Frontend overlays render exact facts and source badges.
+Readable image text is allowed only for short curated anchor labels and the page title. Do not render any product logo or app name as a logo or title. No legend. No prices. No hours. No route times. No official claims. Frontend overlays render exact facts and source badges.
 
 Avoid:
 ${NEGATIVE_STYLE_TERMS.join(", ")}.

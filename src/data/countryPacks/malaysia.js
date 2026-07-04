@@ -124,6 +124,7 @@ function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
           pageType: "homepage_overview",
           zoomLevel: 0,
           density: "minimal",
+          countryName: "Malaysia",
           knownChildNodeTitles: malaysiaNodes[rootNodeId]?.childIds.map((nodeId) => malaysiaNodes[nodeId]?.title).filter(Boolean) ?? []
         }),
         continuityPrompt: `This tile is part of a larger panoramic Malaysia scroll. Scene: ${title}. Tile position: row ${row}, column ${column} of ${rows} x ${columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, official claims, or official logos.`,
@@ -140,7 +141,10 @@ function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
     }),
     hotspots,
     ambientLayers: [
-      { id: `${id}-light`, kind: "light", bounds: { x: 0, y: 0, width, height }, intensity: "subtle" }
+      { id: `${id}-light`, kind: "light", bounds: { x: 0, y: 0, width, height }, intensity: "subtle" },
+      { id: `${id}-clouds`, kind: "cloud", bounds: { x: 0, y: 0, width, height: height * 0.36 }, intensity: "subtle" },
+      { id: `${id}-water`, kind: "water", bounds: { x: 0, y: height * 0.28, width, height: height * 0.58 }, intensity: "subtle" },
+      { id: `${id}-foliage`, kind: "foliage", bounds: { x: 0, y: height * 0.36, width, height: height * 0.5 }, intensity: "subtle" }
     ],
     cameraPresets: [
       { id: "overview", label: "Overview", targetBounds: { x: 0, y: 0, width, height }, zoom: 1 }
@@ -152,7 +156,7 @@ function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
 
 function visualContextForScene(rootNodeId) {
   if (rootNodeId === "malaysia") {
-    return "A restrained Malaysia overview page for a WanderSG explorer. Show broad candidate region clusters for Kuala Lumpur, Penang, Langkawi, Johor, Sabah, Sarawak, and Melaka as clickable atlas areas. Use warm paper texture, clean ink outlines, terrain washes, coast and island hints, forest and city clusters, calm water, and short readable anchor labels only. Do not add opening hours, prices, official claims, source citations, routes, or long factual captions.";
+    return "A restrained Malaysia overview page for a travel explorer. Show broad candidate region clusters for Kuala Lumpur, Penang, Langkawi, Johor, Sabah, Sarawak, and Melaka as clickable atlas areas. Use warm paper texture, clean ink outlines, terrain washes, coast and island hints, forest and city clusters, calm water, and short readable anchor labels only. Do not add opening hours, prices, official claims, source citations, routes, or long factual captions.";
   }
 
   return "A restrained Malaysia starter region page with clear atlas composition, warm paper texture, clean ink outlines, and sparse clickable clusters. Do not add opening hours, prices, official claims, source citations, routes, or long factual captions.";

@@ -26,6 +26,7 @@
  * @property {string} visualContext
  * @property {string=} userVibe
  * @property {string=} parentNodeTitle
+ * @property {string=} countryName
  * @property {WanderDensity=} density
  * @property {WanderFactMode=} factMode
  * @property {"16:9" | "2:1" | "4:3" | "1:1"=} aspectRatio

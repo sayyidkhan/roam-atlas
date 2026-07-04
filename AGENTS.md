@@ -221,7 +221,7 @@ Owns:
 
 Rules:
 
-- Read `PRODUCT.md` before major changes.
+- Read `docs/PRODUCT.md` before major changes.
 - Keep AI calls behind typed interfaces.
 - Keep curated data separate from generated content.
 - Implement the visual world as tile-based dynamic scroll architecture, not as

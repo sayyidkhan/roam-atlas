@@ -23,6 +23,7 @@ export function createRuntimeCachePaths({
   const modelSlug = sanitizeCacheSlug(imageModel);
   const imageFileName = `${pageSlug}.${modelSlug}.png`;
   const metadataFileName = `${pageSlug}.${modelSlug}.json`;
+  const environmentFileName = `${pageSlug}.${modelSlug}.json`;
   const jobFileName = `${pageSlug}.json`;
   const countryUrlPrefix = `${RUNTIME_CACHE_URL_PREFIX}/${countryCacheSlug}`;
   const countryCacheRoot = path.join(cacheRoot, countryCacheSlug);
@@ -38,6 +39,8 @@ export function createRuntimeCachePaths({
     imageUrl: `${countryUrlPrefix}/flipbook/${imageFileName}`,
     metadataPath: path.join(countryCacheRoot, "flipbook", metadataFileName),
     metadataUrl: `${countryUrlPrefix}/flipbook/${metadataFileName}`,
+    environmentPath: path.join(countryCacheRoot, "environment", environmentFileName),
+    environmentUrl: `${countryUrlPrefix}/environment/${environmentFileName}`,
     understandingPath: path.join(countryCacheRoot, "understanding", `${pageSlug}.json`),
     understandingUrl: `${countryUrlPrefix}/understanding/${pageSlug}.json`
   };

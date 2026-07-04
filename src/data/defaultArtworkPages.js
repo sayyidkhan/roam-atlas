@@ -16,28 +16,66 @@ const DEFAULT_ARTWORK_SCENES = [
   "singapore-zoo"
 ];
 
-export function getDefaultArtworkPageForScene(sceneId, scenes, nodes = atlasNodes, countrySlug = "singapore") {
+export function getDefaultArtworkPageForScene(
+  sceneId,
+  scenes,
+  nodes = atlasNodes,
+  countrySlug = "singapore",
+  countryName = "Singapore"
+) {
   const scene = scenes[sceneId];
   if (!scene) return null;
 
   const node = nodes[scene.rootNodeId];
   if (!node) return null;
 
-  return createDefaultArtworkPage({ scene, node, nodes, countrySlug });
+  return createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName });
 }
 
-export function listDefaultArtworkPages(scenes, nodes = atlasNodes, countrySlug = "singapore") {
+export function getDefaultArtworkPageForNode(
+  nodeId,
+  sceneId,
+  scenes,
+  nodes = atlasNodes,
+  countrySlug = "singapore",
+  countryName = "Singapore"
+) {
+  const node = nodes[nodeId];
+  if (!node) return null;
+
+  const scene =
+    scenes[sceneId] ??
+    Object.values(scenes).find((item) => item.rootNodeId === node.id || item.id === node.id) ??
+    Object.values(scenes).find((item) => nodes[item.rootNodeId]?.childIds?.includes(node.id));
+  if (!scene) return null;
+
+  return createDefaultArtworkPage({
+    scene,
+    node,
+    nodes,
+    countrySlug,
+    countryName,
+    pageId: scene.rootNodeId === node.id ? `artwork-${scene.id}` : `node-${node.id}`
+  });
+}
+
+export function listDefaultArtworkPages(
+  scenes,
+  nodes = atlasNodes,
+  countrySlug = "singapore",
+  countryName = "Singapore"
+) {
   return DEFAULT_ARTWORK_SCENES
     .map((nodeId) => {
       const scene = Object.values(scenes).find((item) => item.rootNodeId === nodeId || item.id === nodeId);
       if (!scene) return null;
       const node = nodes[scene.rootNodeId];
-      return node ? createDefaultArtworkPage({ scene, node, nodes, countrySlug }) : null;
+      return node ? createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName }) : null;
     })
     .filter(Boolean);
 }
 
-function createDefaultArtworkPage({ scene, node, nodes, countrySlug }) {
+function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName, pageId = `artwork-${scene.id}` }) {
   const pageType = inferPageTypeForNode(node);
   const zoomLevel = inferZoomLevelForNode(node);
   const childTitles = (node.childIds ?? [])
@@ -46,7 +84,7 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug }) {
   const visualContext = defaultVisualContextForNode(node);
 
   return {
-    id: `artwork-${scene.id}`,
+    id: pageId,
     countrySlug,
     sceneId: scene.id,
     nodeId: node.id,
@@ -67,6 +105,7 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug }) {
         zoomLevel,
         density: zoomLevel === 0 ? "minimal" : "restrained",
         knownChildNodeTitles: childTitles,
+        countryName,
         aspectRatio: "16:9"
       })
     }
@@ -113,5 +152,5 @@ function defaultVisualContextForNode(node) {
     return "A Singapore Zoo chapter page with habitat zones, visitor paths, shaded planting, water, pavilions, animals suggested as simple visual forms, and short zone labels.";
   }
 
-  return `${node.title} as a restrained WanderSG flipbook encyclopedia page with clear click targets, sparse layout, and short readable labels.`;
+  return `${node.title} as a restrained travel flipbook encyclopedia page with clear click targets, sparse layout, and short readable labels.`;
 }
