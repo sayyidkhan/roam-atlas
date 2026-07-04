@@ -17,6 +17,10 @@ import {
   getCountryPack
 } from "../src/data/countryPacks/index.js";
 import { getCountryBySlug } from "../src/data/countries.js";
+import {
+  getCountryImageOverrideUrl,
+  getCountryImageTopics
+} from "../src/data/countryImageTopics.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
 import { resolveRoamAtlasConfig } from "../src/config/roamAtlasConfig.js";
 import {
@@ -86,9 +90,9 @@ const COUNTRY_MEDIA_PAGE_OVERRIDES = {
   VN: "Vietnam"
 };
 const COUNTRY_MEDIA_EXCLUDE_PATTERN =
-  /(^|[^a-z])(?:flag|coat|arms|emblem|seal|orthographic|projection|location|locator|map|population|density|diagram|chart|stamp|coin|portrait|president|minister|king|queen|parliament|battle|war|army|military|police|navy|aircraft|letter|logo)([^a-z]|$)/i;
+  /(^|[^a-z])(?:flag|coat|arms|emblem|seal|orthographic|projection|location|locator|map|population|density|diagram|chart|graph|gdp|growth|economic|economy|stamp|coin|portrait|president|minister|king|queen|parliament|battle|war|army|military|police|navy|aircraft|letter|logo|manuscript|document|pdf|djvu|text|plate|script|inscription|passport|visa|banknote|currency|montage|collage)([^a-z]|$)/i;
 const COUNTRY_MEDIA_PLACE_PATTERN =
-  /(?:village|town|city|cidade|capital|skyline|coast|harbou?r|beach|island|mountain|valley|river|lake|forest|desert|waterfall|falls|park|garden|palace|temple|church|cathedral|mosque|castle|fort|fortress|street|old town|landscape|view|bay|port|plain|plateau|reserve|road|reservoir|market|monument|cave|arch|ruins|heritage|luanda)/i;
+  /(?:village|town|city|cidade|capital|skyline|coast|harbou?r|beach|island|mountain|valley|river|lake|lagoon|reef|shoreline|forest|desert|waterfall|falls|park|garden|palace|pavilion|tower|gate|bridge|hall|temple|church|cathedral|mosque|castle|fort|fortress|street|old town|landscape|view|bay|port|plain|plateau|reserve|road|reservoir|market|monument|cave|arch|ruins|heritage|luanda)/i;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -668,13 +672,13 @@ async function handleCountryImageRequest(url, response) {
   const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
   const country = getCountryBySlug(countrySlug);
   if (!country) {
-    redirectCountryImageFallback(response);
+    redirectCountryImageFallback(response, null);
     return;
   }
 
   const image = await resolveCountryMediaImage(country);
   if (!image?.imageUrl) {
-    redirectCountryImageFallback(response);
+    redirectCountryImageFallback(response, country);
     return;
   }
 
@@ -687,11 +691,11 @@ async function handleCountryImageRequest(url, response) {
   response.end();
 }
 
-function redirectCountryImageFallback(response) {
+function redirectCountryImageFallback(response, country) {
   response.writeHead(302, {
-    Location: COUNTRY_IMAGE_FALLBACK_PATH,
+    Location: country ? `https://flagcdn.com/w640/${country.code.toLowerCase()}.png` : COUNTRY_IMAGE_FALLBACK_PATH,
     "Cache-Control": "public, max-age=3600",
-    "X-RoamAtlas-Image-Source": "fallback"
+    "X-RoamAtlas-Image-Source": country ? "flag-fallback" : "fallback"
   });
   response.end();
 }
@@ -702,13 +706,63 @@ async function resolveCountryMediaImage(country) {
   }
 
   const pageTitle = getCountryMediaPageTitle(country);
-  let result = await resolveCountryCommonsCategoryImage(pageTitle);
+  const overrideUrl = getCountryImageOverrideUrl(country);
+  let result = overrideUrl && isAllowedCountryMediaUrl(overrideUrl)
+    ? {
+        imageUrl: overrideUrl,
+        source: "country-image-override",
+        pageTitle: getCountryImageTopics(country)[0] ?? pageTitle
+      }
+    : null;
   if (!result) {
-    result = await resolveCountryPageMediaImage(pageTitle);
+    result = await resolveCountryLandmarkSearchImage(country, pageTitle);
+  }
+  if (!result) {
+    result = await resolveCountryCommonsCategoryImage(pageTitle);
   }
 
-  countryImageCache.set(country.slug, result);
+  if (result) {
+    countryImageCache.set(country.slug, result);
+  }
   return result;
+}
+
+async function resolveCountryLandmarkSearchImage(country, pageTitle) {
+  for (const topic of getCountryImageTopics(country)) {
+    const searchUrl = new URL("https://commons.wikimedia.org/w/api.php");
+    searchUrl.search = new URLSearchParams({
+      action: "query",
+      generator: "search",
+      gsrsearch: topic,
+      gsrnamespace: "6",
+      gsrlimit: "12",
+      prop: "imageinfo",
+      iiprop: "url|mime",
+      iiurlwidth: "960",
+      format: "json",
+      origin: "*"
+    }).toString();
+
+    try {
+      const searchResponse = await fetch(searchUrl, createCountryImageFetchOptions());
+      if (!searchResponse.ok) continue;
+      const contentType = searchResponse.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) continue;
+      const payload = await searchResponse.json();
+      const image = selectCountrySearchImage(Object.values(payload?.query?.pages ?? {}), topic, pageTitle);
+      if (image) {
+        return {
+          ...image,
+          source: "wikimedia-commons-search",
+          pageTitle: topic
+        };
+      }
+    } catch {
+      // Try the next landmark topic before falling back to broad country media.
+    }
+  }
+
+  return null;
 }
 
 async function resolveCountryCommonsCategoryImage(pageTitle) {
@@ -747,6 +801,57 @@ async function resolveCountryCommonsCategoryImage(pageTitle) {
   return null;
 }
 
+function selectCountrySearchImage(pages, topic, pageTitle) {
+  const topicTerms = normalizeMediaSearchTerms(topic);
+  const candidates = pages
+    .map((page) => {
+      const imageInfo = page?.imageinfo?.[0];
+      const imageUrl = imageInfo?.thumburl ?? imageInfo?.url ?? null;
+      const title = String(page?.title ?? "");
+      return {
+        title,
+        imageUrl,
+        mime: String(imageInfo?.mime ?? ""),
+        score: scoreCountrySearchCandidate(title, topicTerms, pageTitle)
+      };
+    })
+    .filter((candidate) =>
+      candidate.imageUrl &&
+      candidate.mime.startsWith("image/") &&
+      isAllowedCountryMediaUrl(candidate.imageUrl) &&
+      !COUNTRY_MEDIA_EXCLUDE_PATTERN.test(candidate.title) &&
+      !/\.(?:svg|pdf|djvu)$/i.test(candidate.title)
+    )
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+
+  return candidates[0]?.score > 0
+    ? {
+        imageUrl: candidates[0].imageUrl
+      }
+    : null;
+}
+
+function normalizeMediaSearchTerms(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((term) => term.length > 2 && !["the", "and", "city"].includes(term));
+}
+
+function scoreCountrySearchCandidate(title, topicTerms, pageTitle) {
+  const normalizedTitle = String(title ?? "").toLowerCase();
+  let score = 0;
+  for (const term of topicTerms) {
+    if (normalizedTitle.includes(term)) score += 3;
+  }
+  if (COUNTRY_MEDIA_PLACE_PATTERN.test(normalizedTitle)) score += 3;
+  if (normalizedTitle.includes(pageTitle.toLowerCase())) score += 2;
+  if (/\.(?:jpe?g|webp)$/i.test(normalizedTitle)) score += 2;
+  if (/^file:\d/.test(normalizedTitle)) score -= 2;
+  return score;
+}
+
 function getCountryMediaCategoryTitles(pageTitle) {
   return [
     `Landscapes of ${pageTitle}`,
@@ -783,21 +888,6 @@ function selectCountryCommonsImage(pages, pageTitle) {
     : null;
 }
 
-async function resolveCountryPageMediaImage(pageTitle) {
-  const mediaUrl = `https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(pageTitle)}?redirect=true`;
-  try {
-    const mediaResponse = await fetch(mediaUrl, createCountryImageFetchOptions());
-    if (mediaResponse.ok) {
-      const payload = await mediaResponse.json();
-      return selectCountryMediaImage(payload?.items ?? [], pageTitle);
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
 function createCountryImageFetchOptions() {
   const fetchOptions = {
     headers: {
@@ -820,39 +910,6 @@ function getCountryMediaPageTitle(country) {
   );
 }
 
-function selectCountryMediaImage(items, pageTitle) {
-  const image = items
-    .filter(isUsableCountryMediaImage)
-    .map((item) => ({
-      item,
-      score: scoreCountryMediaTitle(
-        `${item.title ?? ""} ${item.caption?.text ?? ""} ${item.description?.text ?? ""}`,
-        pageTitle
-      )
-    }))
-    .filter((candidate) => candidate.score > 0)
-    .sort((a, b) => b.score - a.score)[0]?.item;
-  const imageUrl = image ? getLargestMediaSource(image) : null;
-  return imageUrl && isAllowedCountryMediaUrl(imageUrl)
-    ? {
-        imageUrl,
-        source: "wikipedia-media-list",
-        pageTitle
-      }
-    : null;
-}
-
-function isUsableCountryMediaImage(item) {
-  if (item?.type !== "image") return false;
-  const title = String(item.title ?? "");
-  const caption = String(item.caption?.text ?? item.description?.text ?? "");
-  if (!/\.(?:jpe?g|png|webp)$/i.test(title)) return false;
-  if (COUNTRY_MEDIA_EXCLUDE_PATTERN.test(title) || COUNTRY_MEDIA_EXCLUDE_PATTERN.test(caption)) {
-    return false;
-  }
-  return Boolean(getLargestMediaSource(item));
-}
-
 function scoreCountryMediaTitle(title, pageTitle) {
   const value = String(title ?? "");
   let score = 0;
@@ -861,18 +918,6 @@ function scoreCountryMediaTitle(title, pageTitle) {
   if (/^File:\d/.test(value)) score -= 2;
   if (/-\s*(?:free|memories)\s*-/i.test(value)) score -= 2;
   return score;
-}
-
-function getLargestMediaSource(item) {
-  const srcset = Array.isArray(item?.srcset) ? item.srcset : [];
-  const src =
-    srcset.find((candidate) => candidate.scale === "2x")?.src ??
-    srcset.at(-1)?.src ??
-    item?.thumbnail?.source ??
-    item?.original?.source ??
-    null;
-  if (!src) return null;
-  return src.startsWith("//") ? `https:${src}` : src;
 }
 
 function isAllowedCountryMediaUrl(value) {

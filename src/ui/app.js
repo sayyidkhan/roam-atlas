@@ -16,7 +16,11 @@ import {
 } from "../domain/routes.js";
 
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
-const COUNTRY_CARD_IMAGE_VERSION = "country-media-v2";
+const COUNTRY_CARD_IMAGE_VERSION = "country-media-v4";
+const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
+let countryPhotoObserver = null;
+let activeCountryPhotoLoads = 0;
+let countryPhotoQueue = [];
 
 const state = {
   currentView: "countries",
@@ -189,6 +193,7 @@ function renderCountryLanding() {
 
   elements.countryCount.textContent = `${filteredCountries.length} of ${worldCountries.length} countries`;
   elements.countryGrid.replaceChildren(...filteredCountries.map(renderCountryCard));
+  observeCountryCardPhotos(elements.countryGrid);
 }
 
 function renderCountryCard(country) {
@@ -204,7 +209,7 @@ function renderCountryCard(country) {
 
   const photo = document.createElement("img");
   photo.className = "country-card-photo";
-  photo.src = getCountryPhotoUrl(country);
+  photo.dataset.src = getCountryPhotoUrl(country);
   photo.alt = "";
   photo.loading = "lazy";
   photo.decoding = "async";
@@ -260,6 +265,59 @@ function getCountryPhotoUrl(country) {
   return apiPath(
     `/api/country-image?countrySlug=${encodeURIComponent(country.slug)}&v=${COUNTRY_CARD_IMAGE_VERSION}`
   );
+}
+
+function observeCountryCardPhotos(container) {
+  const photos = [...container.querySelectorAll(".country-card-photo[data-src]")];
+  if (!("IntersectionObserver" in window)) {
+    photos.forEach(queueCountryCardPhoto);
+    return;
+  }
+
+  if (countryPhotoObserver) {
+    countryPhotoObserver.disconnect();
+  }
+
+  countryPhotoObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        queueCountryCardPhoto(entry.target);
+        countryPhotoObserver.unobserve(entry.target);
+      });
+    },
+    { rootMargin: "520px 0px" }
+  );
+
+  photos.forEach((photo) => countryPhotoObserver.observe(photo));
+}
+
+function queueCountryCardPhoto(photo) {
+  if (!photo?.dataset?.src || photo.dataset.queued === "true") return;
+  photo.dataset.queued = "true";
+  countryPhotoQueue.push(photo);
+  processCountryPhotoQueue();
+}
+
+function processCountryPhotoQueue() {
+  while (activeCountryPhotoLoads < COUNTRY_CARD_IMAGE_CONCURRENCY && countryPhotoQueue.length > 0) {
+    const photo = countryPhotoQueue.shift();
+    if (!photo?.isConnected || !photo.dataset.src || photo.src) continue;
+    activeCountryPhotoLoads += 1;
+    const finish = () => {
+      activeCountryPhotoLoads = Math.max(0, activeCountryPhotoLoads - 1);
+      processCountryPhotoQueue();
+    };
+    photo.addEventListener("load", finish, { once: true });
+    photo.addEventListener("error", finish, { once: true });
+    loadCountryCardPhoto(photo);
+  }
+}
+
+function loadCountryCardPhoto(photo) {
+  if (!photo?.dataset?.src || photo.src) return;
+  photo.src = photo.dataset.src;
+  delete photo.dataset.src;
 }
 
 function getCountryFlagUrl(code, width) {

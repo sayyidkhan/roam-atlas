@@ -18,6 +18,10 @@ import {
   getCountryCardState,
   worldCountries
 } from "../src/data/countries.js";
+import {
+  getCountryImageOverrideUrl,
+  getCountryImageTopics
+} from "../src/data/countryImageTopics.js";
 import { countryPacks } from "../src/data/countryPacks/index.js";
 import {
   buildItinerary,
@@ -112,16 +116,34 @@ test("country landing cards request country-specific media images", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
   const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 
+  assert.deepEqual(getCountryImageTopics(getCountryBySlug("singapore")).slice(0, 1), [
+    "Singapore Marina Bay Sands"
+  ]);
+  assert.deepEqual(getCountryImageTopics(getCountryBySlug("malaysia")).slice(0, 1), [
+    "Malaysia Petronas Towers"
+  ]);
+  assert.match(getCountryImageOverrideUrl(getCountryBySlug("singapore")), /Marina_Bay_Sands/);
+  assert.match(getCountryImageOverrideUrl(getCountryBySlug("malaysia")), /Petronas/);
+  assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
   assert.match(appSource, /country-card-photo/);
   assert.match(appSource, /getCountryPhotoUrl/);
   assert.match(appSource, /\/api\/country-image\?countrySlug=/);
+  assert.match(appSource, /country-media-v4/);
+  assert.match(appSource, /observeCountryCardPhotos/);
+  assert.match(appSource, /IntersectionObserver/);
+  assert.match(appSource, /COUNTRY_CARD_IMAGE_CONCURRENCY = 2/);
+  assert.match(appSource, /queueCountryCardPhoto/);
   assert.match(serverSource, /handleCountryImageRequest/);
   assert.match(serverSource, /\/api\/country-image/);
+  assert.match(serverSource, /if \(result\) \{\n    countryImageCache\.set/);
+  assert.match(serverSource, /resolveCountryLandmarkSearchImage/);
+  assert.match(serverSource, /country-image-override/);
+  assert.match(serverSource, /wikimedia-commons-search/);
   assert.match(serverSource, /commons\.wikimedia\.org\/w\/api\.php/);
   assert.match(serverSource, /wikimedia-commons-category/);
-  assert.match(serverSource, /api\/rest_v1\/page\/media-list/);
   assert.match(serverSource, /COUNTRY_MEDIA_EXCLUDE_PATTERN/);
   assert.match(serverSource, /COUNTRY_MEDIA_PLACE_PATTERN/);
+  assert.match(serverSource, /flag-fallback/);
   assert.match(serverSource, /country-card-atlas\.jpg/);
   assert.match(styleSource, /\.country-card-photo/);
   assert.doesNotMatch(styleSource, /\.country-card:hover,\n\.country-card:focus-visible \{\n[^}]*background-image: url\("\/public\/art\/country-card-atlas\.jpg"\)/);
