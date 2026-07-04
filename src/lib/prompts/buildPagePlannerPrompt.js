@@ -1,6 +1,6 @@
 export function buildPagePlannerPrompt() {
   return `
-You are the WanderSG Flipbook Page Planner.
+You are the RoamAtlas Flipbook Page Planner.
 
 You receive:
 - current node

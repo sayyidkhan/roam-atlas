@@ -5,7 +5,7 @@ export const RUNTIME_CACHE_URL_PREFIX = "/runtime-cache";
 export const DEFAULT_RUNTIME_COUNTRY_SLUG = "singapore";
 
 export function resolveRuntimeCacheRoot(env = process.env) {
-  return path.resolve(env.WANDERSG_RUNTIME_CACHE_DIR || path.join(os.tmpdir(), "wandersg-runtime-cache"));
+  return path.resolve(env.ROAMATLAS_RUNTIME_CACHE_DIR || path.join(os.tmpdir(), "roamatlas-runtime-cache"));
 }
 
 export function sanitizeCacheSlug(value) {

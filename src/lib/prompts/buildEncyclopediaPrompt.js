@@ -2,8 +2,8 @@ import {
   GLOBAL_IMAGE_RULES,
   CORE_VISUAL_STYLE,
   NEGATIVE_STYLE_TERMS,
-  WANDERSG_PROMPT_VERSION
-} from "./wandersgPromptStyle.js";
+  ROAMATLAS_PROMPT_VERSION
+} from "./roamAtlasPromptStyle.js";
 import { getPromptCountryName } from "./promptContext.js";
 
 function getDetailTreatment(pageType) {
@@ -117,7 +117,7 @@ ${input.aspectRatio ?? "16:9"}.
 
   return {
     prompt,
-    promptVersion: WANDERSG_PROMPT_VERSION,
+    promptVersion: ROAMATLAS_PROMPT_VERSION,
     pageType: input.pageType,
     zoomLevel: input.zoomLevel,
     recommendedNegativePromptTerms: [

@@ -12,7 +12,7 @@ const STATUS_PRIORITY = {
 };
 
 export function shouldQueueDefaultArtwork(env = process.env) {
-  return env.WANDERSG_PREGENERATE_DEFAULT_ARTWORK === "true";
+  return env.ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK === "true";
 }
 
 export function imageJobPriority(job) {

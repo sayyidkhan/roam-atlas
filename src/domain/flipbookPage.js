@@ -191,7 +191,7 @@ function resolveLocalPageClick({ currentNode, scene, point, scenes, nodes }) {
       nodeId: null,
       phrase: "unmapped illustrated detail",
       confidence: "unconfirmed",
-      reason: "No precomputed WanderSG region contains this click."
+      reason: "No precomputed RoamAtlas region contains this click."
     };
   }
 

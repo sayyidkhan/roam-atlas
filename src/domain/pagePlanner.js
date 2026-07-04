@@ -1,5 +1,5 @@
 import {
-  buildWanderImagePrompt,
+  buildRoamAtlasImagePrompt,
   inferPageTypeForNode,
   inferZoomLevelForNode
 } from "./imagePromptBuilder.js";
@@ -23,7 +23,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
       zoomLevel,
       title,
       visualContext,
-      imagePrompt: buildWanderImagePrompt({
+      imagePrompt: buildRoamAtlasImagePrompt({
         nodeId: "unmapped-detour",
         nodeTitle: title,
         visualContext,
@@ -37,7 +37,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
       frontendOverlays: [
         {
           type: "fact",
-          text: "This is an AI-imagined detour, not a confirmed WanderSG node.",
+          text: "This is an AI-imagined detour, not a confirmed RoamAtlas node.",
           anchor: clickedPhrase
         }
       ],
@@ -56,7 +56,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
     zoomLevel,
     title: matchedNode.title,
     visualContext,
-    imagePrompt: buildWanderImagePrompt({
+    imagePrompt: buildRoamAtlasImagePrompt({
       nodeId: matchedNode.id,
       nodeTitle: matchedNode.title,
       visualContext,
@@ -76,7 +76,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
     clickTargetsToPrecompute: matchedNode.childIds.map((nodeId) => ({
       targetName: nodeId,
       likelyNodeId: nodeId,
-      whyClickable: "Child node in the mapped WanderSG scene graph."
+      whyClickable: "Child node in the mapped RoamAtlas scene graph."
     })),
     factMode: isUnconfirmedNode ? "unconfirmed" : "verified"
   };

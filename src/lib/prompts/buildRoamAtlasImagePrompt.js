@@ -2,7 +2,7 @@ import { buildHomepagePrompt } from "./buildHomepagePrompt.js";
 import { buildRegionPrompt } from "./buildRegionPrompt.js";
 import { buildEncyclopediaPrompt } from "./buildEncyclopediaPrompt.js";
 
-export function buildWanderImagePrompt(input) {
+export function buildRoamAtlasImagePrompt(input) {
   if (input.pageType === "homepage_overview" || input.zoomLevel === 0) {
     return buildHomepagePrompt({
       ...input,

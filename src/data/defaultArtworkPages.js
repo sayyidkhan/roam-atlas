@@ -1,6 +1,6 @@
 import { atlasNodes } from "./sceneGraph.js";
 import {
-  buildWanderImagePrompt,
+  buildRoamAtlasImagePrompt,
   inferPageTypeForNode,
   inferZoomLevelForNode
 } from "../domain/imagePromptBuilder.js";
@@ -97,7 +97,7 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName
       zoomLevel,
       factMode: hasUnconfirmedNodeFacts(node) ? "unconfirmed" : "curated",
       visualContext,
-      imagePrompt: buildWanderImagePrompt({
+      imagePrompt: buildRoamAtlasImagePrompt({
         nodeId: node.id,
         nodeTitle: node.title,
         visualContext,

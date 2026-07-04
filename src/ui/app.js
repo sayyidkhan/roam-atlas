@@ -16,6 +16,7 @@ import {
 } from "../domain/routes.js";
 
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
+const COUNTRY_CARD_IMAGE_VERSION = "country-media-v2";
 
 const state = {
   currentView: "countries",
@@ -201,6 +202,18 @@ function renderCountryCard(country) {
   card.style.setProperty("--country-picture-x", picturePosition.x);
   card.style.setProperty("--country-picture-y", picturePosition.y);
 
+  const photo = document.createElement("img");
+  photo.className = "country-card-photo";
+  photo.src = getCountryPhotoUrl(country);
+  photo.alt = "";
+  photo.loading = "lazy";
+  photo.decoding = "async";
+  photo.referrerPolicy = "no-referrer";
+  photo.addEventListener("error", () => {
+    photo.remove();
+    card.classList.add("country-card--photo-fallback");
+  });
+
   const visual = document.createElement("span");
   visual.className = "country-card-visual";
 
@@ -239,8 +252,14 @@ function renderCountryCard(country) {
   footer.className = "country-card-footer";
   footer.append(status, code);
 
-  card.append(visual, title, footer);
+  card.append(photo, visual, title, footer);
   return card;
+}
+
+function getCountryPhotoUrl(country) {
+  return apiPath(
+    `/api/country-image?countrySlug=${encodeURIComponent(country.slug)}&v=${COUNTRY_CARD_IMAGE_VERSION}`
+  );
 }
 
 function getCountryFlagUrl(code, width) {
@@ -505,7 +524,7 @@ function renderDraftChat(draftState) {
 function renderDraftChatMessage(message) {
   return `
     <article class="draft-chat-message draft-chat-message--${escapeHtml(message.role)}">
-      <strong>${message.role === "user" ? "You" : "WanderSG"}</strong>
+      <strong>${message.role === "user" ? "You" : "RoamAtlas"}</strong>
       <p>${escapeHtml(message.text)}</p>
     </article>
   `;
@@ -773,8 +792,8 @@ function enterCuratedPlace({ countrySlug, nodeId, pack }, { updateUrl = true, sh
     if (pack) enterMappedCountry(pack, { updateUrl: false, shouldRender: false });
     state.routeNotice = {
       confidence: "unconfirmed",
-      title: "Unknown WanderSG node",
-      message: `${nodeId} is not mapped in WanderSG's verified ${pack?.title ?? countrySlug} graph.`
+      title: "Unknown RoamAtlas node",
+      message: `${nodeId} is not mapped in RoamAtlas' verified ${pack?.title ?? countrySlug} graph.`
     };
     if (shouldRender) render();
     return;
@@ -833,8 +852,8 @@ function applyRouteFromLocation({ shouldRender = true } = {}) {
     enterMappedCountry(route.pack, { updateUrl: false, shouldRender: false });
     state.routeNotice = {
       confidence: "unconfirmed",
-      title: "Unknown WanderSG node",
-      message: `${route.nodeId} is not mapped in WanderSG's verified ${route.pack.title} graph.`
+      title: "Unknown RoamAtlas node",
+      message: `${route.nodeId} is not mapped in RoamAtlas' verified ${route.pack.title} graph.`
     };
     if (shouldRender) render();
     return;
@@ -1684,7 +1703,7 @@ function runFlipbookResult(result) {
     renderDetour({
       confidence: "unresolved",
       title: "Click not resolved",
-      message: "WanderSG could not identify that exact image region confidently enough, so it did not turn to the wrong page."
+      message: "RoamAtlas could not identify that exact image region confidently enough, so it did not turn to the wrong page."
     });
     return;
   }
@@ -1802,7 +1821,7 @@ function renderDetour(detour) {
 function explainClickError(error) {
   const message = String(error?.message ?? error);
   if (message === "Failed to fetch" || error?.name === "TypeError") {
-    return "The browser could not reach the WanderSG dev server. Open the app through npm run dev, not as a file, and make sure the server is still running.";
+    return "The browser could not reach the RoamAtlas dev server. Open the app through npm run dev, not as a file, and make sure the server is still running.";
   }
   return message;
 }
@@ -1844,7 +1863,7 @@ function renderImageGenerationPending(page, result) {
   elements.nodeDetail.innerHTML = `
     <p class="eyebrow">image generation</p>
     <h2>${page.plan?.title ?? "Next page"}</h2>
-    <p class="muted">Generating the next flipbook page. WanderSG will turn the page automatically when the image is ready.</p>
+    <p class="muted">Generating the next flipbook page. RoamAtlas will turn the page automatically when the image is ready.</p>
     <article class="fact">
       <p>${page.generated?.jobUrl ?? "Job file pending."}</p>
     </article>
@@ -1887,7 +1906,7 @@ function toApiUrl(path) {
 
 function apiPath(path) {
   if (!window.location.origin.startsWith("http")) {
-    throw new Error("WanderSG must be opened through the dev server, not as a local file.");
+    throw new Error("RoamAtlas must be opened through the dev server, not as a local file.");
   }
   return path;
 }

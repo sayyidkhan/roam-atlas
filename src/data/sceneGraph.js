@@ -1,6 +1,6 @@
 import { buildTileCacheKey } from "../domain/scrollScene.js";
 import { DEFAULT_IMAGE_MODEL } from "../domain/imageProvider.js";
-import { buildWanderImagePrompt } from "../domain/imagePromptBuilder.js";
+import { buildRoamAtlasImagePrompt } from "../domain/imagePromptBuilder.js";
 
 export const DATA_VERSION = "data-v1";
 export const STYLE_VERSION = "atlas-qingming-v1";
@@ -38,8 +38,8 @@ export const sourceRegistry = {
     url: "https://www.sentosa.gov.sg/who-we-are/overview/"
   },
   curated: {
-    id: "wandersg-curated",
-    title: "WanderSG curated MVP dataset",
+    id: "roamatlas-curated",
+    title: "RoamAtlas curated MVP dataset",
     type: "curated",
     url: "docs/PRODUCT.md"
   },
@@ -65,7 +65,7 @@ export const atlasNodes = {
     ],
     tags: ["overview", "singapore"],
     facts: [
-      fact("sg-curated", "Singapore is the only country mapped in this WanderSG first slice.", "curated", "confirmed", sourceRegistry.curated.url)
+      fact("sg-curated", "Singapore is the only country mapped in this RoamAtlas first slice.", "curated", "confirmed", sourceRegistry.curated.url)
     ]
   }),
   "marina-bay-scroll": node({
@@ -171,7 +171,7 @@ export const atlasNodes = {
     childIds: ["supertree-structure-plate"],
     tags: ["supertree", "trees", "canopy", "garden", "vertical", "grove"],
     facts: [
-      fact("supertree-curated", "Supertree Grove is included as a curated Gardens by the Bay drill-down node for the WanderSG demo path.", "curated", "confirmed", sourceRegistry.curated.url)
+      fact("supertree-curated", "Supertree Grove is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.", "curated", "confirmed", sourceRegistry.curated.url)
     ]
   }),
   "flower-dome": node({
@@ -181,7 +181,7 @@ export const atlasNodes = {
     parentId: "gardens-by-the-bay",
     tags: ["flower", "dome", "conservatory", "glass", "garden"],
     facts: [
-      fact("flower-dome-curated", "Flower Dome is included as a curated Gardens by the Bay drill-down node for the WanderSG demo path.", "curated", "confirmed", sourceRegistry.curated.url)
+      fact("flower-dome-curated", "Flower Dome is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.", "curated", "confirmed", sourceRegistry.curated.url)
     ]
   }),
   "cloud-forest": node({
@@ -191,7 +191,7 @@ export const atlasNodes = {
     parentId: "gardens-by-the-bay",
     tags: ["cloud", "forest", "conservatory", "glass", "waterfall", "dome"],
     facts: [
-      fact("cloud-forest-curated", "Cloud Forest is included as a curated Gardens by the Bay drill-down node for the WanderSG demo path.", "curated", "confirmed", sourceRegistry.curated.url)
+      fact("cloud-forest-curated", "Cloud Forest is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.", "curated", "confirmed", sourceRegistry.curated.url)
     ]
   }),
   "supertree-structure-plate": node({
@@ -344,14 +344,14 @@ export function searchKnownNode(query) {
     return {
       status: "unmapped",
       nodeId: null,
-      reason: "No curated WanderSG node matched this search."
+      reason: "No curated RoamAtlas node matched this search."
     };
   }
 
   return {
     status: "matched",
     nodeId: match.id,
-    reason: "Matched against curated WanderSG node ids and titles."
+    reason: "Matched against curated RoamAtlas node ids and titles."
   };
 }
 
@@ -403,7 +403,7 @@ function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
         column,
         bounds: { x: column * tileWidth, y: row * tileHeight, width: tileWidth, height: tileHeight },
         status: "missing",
-        prompt: buildWanderImagePrompt({
+        prompt: buildRoamAtlasImagePrompt({
           nodeTitle: title,
           visualContext: visualContextForScene(rootNodeId),
           pageType: "singapore_overview_scroll",
@@ -509,7 +509,7 @@ function poi(id, title, parentId, tags, duration) {
     parentId,
     tags,
     facts: [
-      fact(`${id}-curated`, `${title} is included as a curated WanderSG first-slice point of interest.`, "curated", "confirmed", sourceRegistry.curated.url)
+      fact(`${id}-curated`, `${title} is included as a curated RoamAtlas first-slice point of interest.`, "curated", "confirmed", sourceRegistry.curated.url)
     ],
     itineraryHints: hints(duration, "afternoon", "low", [parentId])
   });
@@ -524,7 +524,7 @@ function zone(id, title, childIds) {
     childIds,
     tags: ["wildlife", "zone"],
     facts: [
-      fact(`${id}-curated`, `${title} is included as a zoo-zone node for the WanderSG demo path.`, "curated", "confirmed", sourceRegistry.curated.url)
+      fact(`${id}-curated`, `${title} is included as a zoo-zone node for the RoamAtlas demo path.`, "curated", "confirmed", sourceRegistry.curated.url)
     ]
   });
 }

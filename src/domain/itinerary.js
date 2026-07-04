@@ -17,7 +17,7 @@ export function buildItinerary({ days, pace, savedNodeIds, nodes }) {
     theme: index === 0 ? "Visual Singapore highlights" : "Curated discoveries",
     items: [],
     warnings: [
-      "Only curated WanderSG nodes are used. Times are approximate and do not claim live opening hours."
+      "Only curated RoamAtlas nodes are used. Times are approximate and do not claim live opening hours."
     ]
   }));
 
@@ -49,7 +49,7 @@ export function createUnmappedDetour(query) {
     title: query,
     confidence: "unconfirmed",
     message:
-      "This is not mapped in WanderSG's verified data yet. You can explore it as an AI-imagined detour, but it will not be treated as a confirmed travel fact until reviewed."
+      "This is not mapped in RoamAtlas' verified data yet. You can explore it as an AI-imagined detour, but it will not be treated as a confirmed travel fact until reviewed."
   };
 }
 

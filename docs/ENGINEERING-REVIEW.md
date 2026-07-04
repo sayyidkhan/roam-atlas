@@ -1,4 +1,4 @@
-# WanderSG Engineering Review
+# RoamAtlas Engineering Review
 
 Date: 2026-05-09
 Skill: gstack plan-eng-review
@@ -6,7 +6,7 @@ Mode: implementation lock-in before first code slice
 
 ## Product Boundary
 
-WanderSG's core invariant is non-negotiable:
+RoamAtlas' core invariant is non-negotiable:
 
 > AI can generate the visual layer. AI cannot invent factual travel claims.
 

@@ -1,8 +1,8 @@
-# WanderSG Agent Guide
+# RoamAtlas Agent Guide
 
-This file is the operating manual for AI agents working on WanderSG.
+This file is the operating manual for AI agents working on RoamAtlas.
 
-WanderSG has a hard product boundary:
+RoamAtlas has a hard product boundary:
 
 > AI can generate the visual layer. AI cannot invent factual travel claims.
 
@@ -265,7 +265,7 @@ Required confidence labels:
 
 Use option 2 for the visual system: a tile-based dynamic scroll.
 
-This means WanderSG should feel like an interactive Qingming-style long scroll,
+This means RoamAtlas should feel like an interactive Qingming-style long scroll,
 but the product should be built from generated scene tiles, deterministic
 hotspots, camera motion, and cached drill-down scenes. Do not build a true
 Flipbook-style real-time pixel browser for the first product slice.
@@ -572,7 +572,7 @@ force selection from that list.
 Template:
 
 ```text
-You are choosing the next WanderSG node.
+You are choosing the next RoamAtlas node.
 
 You may only choose one of these known node ids:
 {{KNOWN_NODE_IDS}}
@@ -600,7 +600,7 @@ The itinerary agent may only use supplied POIs.
 Template:
 
 ```text
-You are creating a Singapore itinerary from curated WanderSG nodes.
+You are creating a Singapore itinerary from curated RoamAtlas nodes.
 
 Rules:
 - Use only the provided nodes.
@@ -668,7 +668,7 @@ official logos, animal names, ticket prices, or exact route labels.
 If the user clicks or searches for something outside the curated graph:
 
 ```text
-This is not mapped in WanderSG's verified data yet.
+This is not mapped in RoamAtlas' verified data yet.
 You can explore it as an AI-imagined detour, but it will not be treated as a
 confirmed travel fact until reviewed.
 ```

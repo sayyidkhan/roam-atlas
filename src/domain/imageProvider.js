@@ -1,9 +1,9 @@
-import { WANDERSG_CONFIG } from "../config/wandersgConfig.js";
+import { ROAMATLAS_CONFIG } from "../config/roamAtlasConfig.js";
 
-export const DEFAULT_IMAGE_PROVIDER = WANDERSG_CONFIG.image.provider;
-export const DEFAULT_IMAGE_MODEL = WANDERSG_CONFIG.image.model;
-export const DEFAULT_IMAGE_SIZE = WANDERSG_CONFIG.image.size;
-export const DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT = `
+export const DEFAULT_IMAGE_PROVIDER = ROAMATLAS_CONFIG.image.provider;
+export const DEFAULT_IMAGE_MODEL = ROAMATLAS_CONFIG.image.model;
+export const DEFAULT_IMAGE_SIZE = ROAMATLAS_CONFIG.image.size;
+export const DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT = `
 You are the travel image prompt compiler and visual style director.
 
 Always generate images in this app's restrained flipbook encyclopedia style:
@@ -73,7 +73,7 @@ export async function generateTileImageWithOpenAI({
   apiKey,
   model = DEFAULT_IMAGE_MODEL,
   prompt,
-  fallbackModel = WANDERSG_CONFIG.image.fallbackModel,
+  fallbackModel = ROAMATLAS_CONFIG.image.fallbackModel,
   size = DEFAULT_IMAGE_SIZE
 }) {
   const requestedModel = normalizeImageModel(model);

@@ -18,7 +18,7 @@ import {
 } from "../src/data/countryPacks/index.js";
 import { getCountryBySlug } from "../src/data/countries.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
-import { resolveWandersgConfig } from "../src/config/wandersgConfig.js";
+import { resolveRoamAtlasConfig } from "../src/config/roamAtlasConfig.js";
 import {
   buildCountryDraftInfluencePrompt,
   buildCountryDraftPrompt,
@@ -51,14 +51,44 @@ import { matchClickPhraseToNode } from "../src/domain/nodeMatcher.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 loadLocalEnv(path.join(root, ".env"));
-const appConfig = resolveWandersgConfig(process.env);
+const appConfig = resolveRoamAtlasConfig(process.env);
 const port = appConfig.server.port;
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 const processingJobs = new Set();
 const countryDraftCache = new Map();
+const countryImageCache = new Map();
+const COUNTRY_IMAGE_FALLBACK_PATH = "/public/art/country-card-atlas.jpg";
 const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v1";
 const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v2";
+const COUNTRY_MEDIA_PAGE_OVERRIDES = {
+  BA: "Bosnia and Herzegovina",
+  BO: "Bolivia",
+  BN: "Brunei",
+  CD: "Democratic Republic of the Congo",
+  CG: "Republic of the Congo",
+  CI: "Ivory Coast",
+  CV: "Cape Verde",
+  FM: "Federated States of Micronesia",
+  KN: "Saint Kitts and Nevis",
+  KP: "North Korea",
+  KR: "South Korea",
+  LA: "Laos",
+  LC: "Saint Lucia",
+  MD: "Moldova",
+  PS: "State of Palestine",
+  RU: "Russia",
+  ST: "Sao Tome and Principe",
+  SY: "Syria",
+  TZ: "Tanzania",
+  VC: "Saint Vincent and the Grenadines",
+  VE: "Venezuela",
+  VN: "Vietnam"
+};
+const COUNTRY_MEDIA_EXCLUDE_PATTERN =
+  /(^|[^a-z])(?:flag|coat|arms|emblem|seal|orthographic|projection|location|locator|map|population|density|diagram|chart|stamp|coin|portrait|president|minister|king|queen|parliament|battle|war|army|military|police|navy|aircraft|letter|logo)([^a-z]|$)/i;
+const COUNTRY_MEDIA_PLACE_PATTERN =
+  /(?:village|town|city|cidade|capital|skyline|coast|harbou?r|beach|island|mountain|valley|river|lake|forest|desert|waterfall|falls|park|garden|palace|temple|church|cathedral|mosque|castle|fort|fortress|street|old town|landscape|view|bay|port|plain|plateau|reserve|road|reservoir|market|monument|cave|arch|ruins|heritage|luanda)/i;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -86,6 +116,10 @@ createServer(async (request, response) => {
       await handleArtworkRequest(url, response);
       return;
     }
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/country-image") {
+      await handleCountryImageRequest(url, response);
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/country-draft") {
       await handleCountryDraftRequest(url, response);
       return;
@@ -105,13 +139,13 @@ createServer(async (request, response) => {
 
     await serveStatic(url.pathname, response);
   } catch (error) {
-    console.error("WanderSG dev server request failed:", error);
+    console.error("RoamAtlas dev server request failed:", error);
     response.writeHead(500, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ error: String(error?.message ?? error) }));
   }
 }).listen(port, () => {
-  console.log(`WanderSG dev server listening on http://127.0.0.1:${port}`);
-  console.log(`WanderSG runtime cache: ${runtimeCacheRoot}`);
+  console.log(`RoamAtlas dev server listening on http://127.0.0.1:${port}`);
+  console.log(`RoamAtlas runtime cache: ${runtimeCacheRoot}`);
   startImageJobProcessor();
 });
 
@@ -628,6 +662,229 @@ async function handleArtworkRequest(url, response) {
   const artworkPage = await createCodexImageJob(page, { jobKind: nodeId ? "interactive" : "artwork" });
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify({ page: artworkPage }));
+}
+
+async function handleCountryImageRequest(url, response) {
+  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    redirectCountryImageFallback(response);
+    return;
+  }
+
+  const image = await resolveCountryMediaImage(country);
+  if (!image?.imageUrl) {
+    redirectCountryImageFallback(response);
+    return;
+  }
+
+  response.writeHead(302, {
+    Location: image.imageUrl,
+    "Cache-Control": "public, max-age=86400",
+    "X-RoamAtlas-Image-Source": image.source,
+    "X-RoamAtlas-Image-Page": image.pageTitle
+  });
+  response.end();
+}
+
+function redirectCountryImageFallback(response) {
+  response.writeHead(302, {
+    Location: COUNTRY_IMAGE_FALLBACK_PATH,
+    "Cache-Control": "public, max-age=3600",
+    "X-RoamAtlas-Image-Source": "fallback"
+  });
+  response.end();
+}
+
+async function resolveCountryMediaImage(country) {
+  if (countryImageCache.has(country.slug)) {
+    return countryImageCache.get(country.slug);
+  }
+
+  const pageTitle = getCountryMediaPageTitle(country);
+  let result = await resolveCountryCommonsCategoryImage(pageTitle);
+  if (!result) {
+    result = await resolveCountryPageMediaImage(pageTitle);
+  }
+
+  countryImageCache.set(country.slug, result);
+  return result;
+}
+
+async function resolveCountryCommonsCategoryImage(pageTitle) {
+  for (const categoryTitle of getCountryMediaCategoryTitles(pageTitle)) {
+    const categoryUrl = new URL("https://commons.wikimedia.org/w/api.php");
+    categoryUrl.search = new URLSearchParams({
+      action: "query",
+      generator: "categorymembers",
+      gcmtitle: `Category:${categoryTitle}`,
+      gcmtype: "file",
+      gcmlimit: "16",
+      prop: "imageinfo",
+      iiprop: "url|mime",
+      iiurlwidth: "960",
+      format: "json",
+      origin: "*"
+    }).toString();
+
+    try {
+      const categoryResponse = await fetch(categoryUrl, createCountryImageFetchOptions());
+      if (!categoryResponse.ok) continue;
+      const payload = await categoryResponse.json();
+      const image = selectCountryCommonsImage(Object.values(payload?.query?.pages ?? {}), pageTitle);
+      if (image) {
+        return {
+          ...image,
+          source: "wikimedia-commons-category",
+          pageTitle: categoryTitle
+        };
+      }
+    } catch {
+      // Try the next category before falling back to page media.
+    }
+  }
+
+  return null;
+}
+
+function getCountryMediaCategoryTitles(pageTitle) {
+  return [
+    `Landscapes of ${pageTitle}`,
+    `Tourism in ${pageTitle}`,
+    `Cities in ${pageTitle}`,
+    `Nature of ${pageTitle}`
+  ];
+}
+
+function selectCountryCommonsImage(pages, pageTitle) {
+  const candidates = pages
+    .map((page) => {
+      const imageInfo = page?.imageinfo?.[0];
+      const imageUrl = imageInfo?.thumburl ?? imageInfo?.url ?? null;
+      return {
+        title: String(page?.title ?? ""),
+        imageUrl,
+        mime: String(imageInfo?.mime ?? ""),
+        score: scoreCountryMediaTitle(page?.title, pageTitle)
+      };
+    })
+    .filter((candidate) =>
+      candidate.imageUrl &&
+      candidate.mime.startsWith("image/") &&
+      isAllowedCountryMediaUrl(candidate.imageUrl) &&
+      !COUNTRY_MEDIA_EXCLUDE_PATTERN.test(candidate.title)
+    )
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+
+  return candidates[0]
+    ? {
+        imageUrl: candidates[0].imageUrl
+      }
+    : null;
+}
+
+async function resolveCountryPageMediaImage(pageTitle) {
+  const mediaUrl = `https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(pageTitle)}?redirect=true`;
+  try {
+    const mediaResponse = await fetch(mediaUrl, createCountryImageFetchOptions());
+    if (mediaResponse.ok) {
+      const payload = await mediaResponse.json();
+      return selectCountryMediaImage(payload?.items ?? [], pageTitle);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function createCountryImageFetchOptions() {
+  const fetchOptions = {
+    headers: {
+      "User-Agent": "RoamAtlas/0.1 local-dev country-card-media"
+    }
+  };
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    fetchOptions.signal = AbortSignal.timeout(4500);
+  }
+  return fetchOptions;
+}
+
+function getCountryMediaPageTitle(country) {
+  return (
+    COUNTRY_MEDIA_PAGE_OVERRIDES[country.code] ??
+    country.name
+      .replace(/\s*&\s*/g, " and ")
+      .replace(/^St\.\s+/i, "Saint ")
+      .replace(/\s+-\s+/g, " ")
+  );
+}
+
+function selectCountryMediaImage(items, pageTitle) {
+  const image = items
+    .filter(isUsableCountryMediaImage)
+    .map((item) => ({
+      item,
+      score: scoreCountryMediaTitle(
+        `${item.title ?? ""} ${item.caption?.text ?? ""} ${item.description?.text ?? ""}`,
+        pageTitle
+      )
+    }))
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.item;
+  const imageUrl = image ? getLargestMediaSource(image) : null;
+  return imageUrl && isAllowedCountryMediaUrl(imageUrl)
+    ? {
+        imageUrl,
+        source: "wikipedia-media-list",
+        pageTitle
+      }
+    : null;
+}
+
+function isUsableCountryMediaImage(item) {
+  if (item?.type !== "image") return false;
+  const title = String(item.title ?? "");
+  const caption = String(item.caption?.text ?? item.description?.text ?? "");
+  if (!/\.(?:jpe?g|png|webp)$/i.test(title)) return false;
+  if (COUNTRY_MEDIA_EXCLUDE_PATTERN.test(title) || COUNTRY_MEDIA_EXCLUDE_PATTERN.test(caption)) {
+    return false;
+  }
+  return Boolean(getLargestMediaSource(item));
+}
+
+function scoreCountryMediaTitle(title, pageTitle) {
+  const value = String(title ?? "");
+  let score = 0;
+  if (value.toLowerCase().includes(pageTitle.toLowerCase())) score += 3;
+  if (COUNTRY_MEDIA_PLACE_PATTERN.test(value)) score += 4;
+  if (/^File:\d/.test(value)) score -= 2;
+  if (/-\s*(?:free|memories)\s*-/i.test(value)) score -= 2;
+  return score;
+}
+
+function getLargestMediaSource(item) {
+  const srcset = Array.isArray(item?.srcset) ? item.srcset : [];
+  const src =
+    srcset.find((candidate) => candidate.scale === "2x")?.src ??
+    srcset.at(-1)?.src ??
+    item?.thumbnail?.source ??
+    item?.original?.source ??
+    null;
+  if (!src) return null;
+  return src.startsWith("//") ? `https:${src}` : src;
+}
+
+function isAllowedCountryMediaUrl(value) {
+  try {
+    const mediaUrl = new URL(value);
+    return (
+      mediaUrl.protocol === "https:" &&
+      /(^|\.)wikimedia\.org$/i.test(mediaUrl.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function handleCountryDraftRequest(url, response) {
@@ -1286,7 +1543,7 @@ async function createEnvironmentPlanWithOpenAI(page) {
 
   const imagePath = getImagePathFromUrl(page.imageUrl);
   if (!imagePath) {
-    return createEnvironmentFallbackPlan(page, "Current page image path is outside the WanderSG workspace and runtime cache.");
+    return createEnvironmentFallbackPlan(page, "Current page image path is outside the RoamAtlas workspace and runtime cache.");
   }
 
   const imageBytes = await readFile(imagePath);
@@ -1348,7 +1605,7 @@ function buildEnvironmentPlanPrompt(page) {
   const title = page.plan?.title ?? page.title ?? page.nodeId ?? page.sceneId ?? "current atlas page";
   const pageType = page.plan?.pageType ?? page.pageType ?? "atlas_page";
   return [
-    "You are WanderSG's environment planner for a generated travel-atlas illustration.",
+    "You are RoamAtlas' environment planner for a generated travel-atlas illustration.",
     "Inspect the actual image and choose small safe regions for code-rendered ambience overlays.",
     "The overlays are decorative only. They must not imply verified travel facts, wildlife sightings, routes, prices, opening hours, or official claims.",
     `Country: ${pack.title}.`,
@@ -1493,16 +1750,16 @@ function createEnvironmentPlanEnvelope(page, { source, model, status, layers, wa
 
 function startImageJobProcessor() {
   if (!hasConfiguredImageProvider()) {
-    console.log("WanderSG image job processor idle: no image provider key is configured.");
+    console.log("RoamAtlas image job processor idle: no image provider key is configured.");
     return;
   }
 
-  console.log(`WanderSG image job processor enabled with ${getConfiguredImageProvider()}.`);
+  console.log(`RoamAtlas image job processor enabled with ${getConfiguredImageProvider()}.`);
   const initialQueue = shouldQueueDefaultArtwork()
     ? queueDefaultArtworkJobs()
     : Promise.resolve();
   if (!shouldQueueDefaultArtwork()) {
-    console.log("WanderSG default artwork pre-generation skipped. Set WANDERSG_PREGENERATE_DEFAULT_ARTWORK=true to enable it.");
+    console.log("RoamAtlas default artwork pre-generation skipped. Set ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK=true to enable it.");
   }
   initialQueue.then(processPendingCodexJobs).catch((error) => {
     console.error("Initial image job processing failed:", error);
@@ -1743,7 +2000,7 @@ async function resolveClickPhraseWithOpenAI({
     return {
       status: "image_missing",
       phrase: null,
-      reason: "Current page image path is outside the WanderSG workspace and runtime cache."
+      reason: "Current page image path is outside the RoamAtlas workspace and runtime cache."
     };
   }
   const imageBytes = await readFile(imagePath);
@@ -1765,10 +2022,10 @@ async function resolveClickPhraseWithOpenAI({
   const pack = getCountryPack(countrySlug) ?? defaultCountryPack;
   const candidateText = getSceneCandidateText(sceneId, pack);
   const prompt = [
-    "You are WanderSG's click resolver.",
+    "You are RoamAtlas' click resolver.",
     "A red crosshair with a white halo marks the user's click. Ignore the marker itself.",
     `Describe only the exact visual subject under or closest to the crosshair in this illustrated ${pack.title} atlas image.`,
-    "If the clicked region contains or is closest to one of the known WanderSG candidate labels, return that exact candidate label.",
+    "If the clicked region contains or is closest to one of the known RoamAtlas candidate labels, return that exact candidate label.",
     "Be specific. If the user clicked an infinity pool, roof garden, animal, dome, bridge, beach, canopy, food stall, or building part, name that visual subject.",
     candidateText,
     "Do not make factual travel claims. Do not invent official names, opening hours, prices, routes, or live availability.",
@@ -1837,8 +2094,8 @@ function getSceneCandidateText(sceneId, pack) {
   const candidateLabels = (rootNode?.childIds ?? [])
     .map((nodeId) => pack.nodes[nodeId]?.title)
     .filter(Boolean);
-  if (candidateLabels.length === 0) return "Known WanderSG candidate labels: none.";
-  return `Known WanderSG candidate labels for this page: ${candidateLabels.join(", ")}.`;
+  if (candidateLabels.length === 0) return "Known RoamAtlas candidate labels: none.";
+  return `Known RoamAtlas candidate labels for this page: ${candidateLabels.join(", ")}.`;
 }
 
 function annotateClickPointOnPng(imageBytes, normalizedX, normalizedY) {

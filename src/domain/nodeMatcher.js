@@ -22,7 +22,7 @@ export function matchClickPhraseToNode({ phrase, candidates, nodes }) {
       status: "unmapped",
       nodeId: null,
       confidence: "unconfirmed",
-      reason: "The VLM phrase did not match a curated WanderSG node."
+      reason: "The VLM phrase did not match a curated RoamAtlas node."
     };
   }
 

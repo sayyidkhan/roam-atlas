@@ -9,7 +9,7 @@ export function resolveImageClick({ scene, point, nodes }) {
       nodeId: null,
       phrase: "unmapped illustrated detail",
       confidence: "unconfirmed",
-      reason: "No precomputed WanderSG region contains this click."
+      reason: "No precomputed RoamAtlas region contains this click."
     };
   }
 

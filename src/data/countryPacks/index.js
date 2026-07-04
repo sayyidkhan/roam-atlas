@@ -15,7 +15,7 @@ export function getCountryPack(countrySlug) {
 export function requireCountryPack(countrySlug) {
   const pack = getCountryPack(countrySlug);
   if (!pack) {
-    throw new Error(`No WanderSG country pack is registered for ${countrySlug}.`);
+    throw new Error(`No RoamAtlas country pack is registered for ${countrySlug}.`);
   }
   return pack;
 }

@@ -1,15 +1,15 @@
-# WanderSG Product Document
+# RoamAtlas Product Document
 
 ## One-Liner
 
-WanderSG is a travel planner that behaves like an illustrated encyclopedia.
-Users wander from Singapore into districts, attractions, zoo zones, animals,
+RoamAtlas is a travel planner that behaves like an illustrated encyclopedia.
+Users roam from Singapore into districts, attractions, zoo zones, animals,
 and anatomy plates, then save discoveries into a practical itinerary.
 
 ## Product Thesis
 
 Trip planning is usually a search results problem: lists, tabs, bookmarks, and
-generic itineraries. WanderSG turns planning into exploration. The user starts
+generic itineraries. RoamAtlas turns planning into exploration. The user starts
 with a visual world, drills into places and living things, learns why they
 matter, and converts the discoveries into a route they can actually follow.
 
@@ -72,7 +72,7 @@ Scope:
 
 ### Flipbook Prompt Depth
 
-WanderSG uses separate image prompt builders by page depth:
+RoamAtlas uses separate image prompt builders by page depth:
 
 - `homepage_overview` is sparse and acts as a visual table of contents.
 - Region pages are focused chapter pages for one Singapore area.
@@ -104,7 +104,7 @@ regions. Each click either:
 - Opens a known point of interest.
 - Shows an "unmapped detour" state if the area is not in the curated graph.
 
-The user should feel like they can wander freely, but the system should never
+The user should feel like they can roam freely, but the system should never
 invent factual claims about real places.
 
 ### 3. Drill Into a Place
@@ -265,7 +265,7 @@ Start with one high-quality deep path:
 - 8 to 12 animals.
 - 2 to 3 anatomy plates.
 
-The deep path is where WanderSG shows that it is more than a pretty travel map.
+The deep path is where RoamAtlas shows that it is more than a pretty travel map.
 
 ## Visual Product Language
 
@@ -286,7 +286,7 @@ images often misspell labels or invent details.
 
 ## Dynamic Scroll Experience
 
-WanderSG should feel closer to an interactive moving scroll than a normal travel
+RoamAtlas should feel closer to an interactive moving scroll than a normal travel
 website.
 
 The target interaction model:
@@ -327,7 +327,7 @@ Use a multi-layer scroll instead of a single flat image:
 
 ## Flipbook Page Interaction Model
 
-WanderSG follows an image-is-the-UI interaction model inspired by
+RoamAtlas follows an image-is-the-UI interaction model inspired by
 flipbook.page and openflipbook.
 
 Each exploration state is represented by one generated illustrated page. The
@@ -336,7 +336,7 @@ coordinates, and scene metadata to a click resolver. In production, that resolve
 may use a vision-language model to return a short phrase describing what the
 user clicked.
 
-That phrase is then matched against WanderSG's curated Singapore scene graph.
+That phrase is then matched against RoamAtlas' curated Singapore scene graph.
 
 If matched:
 
@@ -363,7 +363,7 @@ replaces it.
 ## Adaption Labs Design Reference
 
 Adaption Labs should be treated as a product design and interaction reference
-for WanderSG, not as the core image-generation backend.
+for RoamAtlas, not as the core image-generation backend.
 
 Use it to guide:
 
@@ -376,9 +376,9 @@ Use it to guide:
 - Design language refinement so the product feels like an explorable illustrated
   encyclopedia, not a normal map app with decorative images.
 
-Why it fits WanderSG:
+Why it fits RoamAtlas:
 
-- WanderSG is about adaptation between user, product, and environment. The user
+- RoamAtlas is about adaptation between user, product, and environment. The user
   is learning a city through a living visual interface, then turning that
   exploration into decisions.
 - The product has high cognitive load: places, animals, routes, facts, sources,
@@ -392,7 +392,7 @@ limits, the agent must ask the user before using them.
 
 ## Image Generation Strategy
 
-Use `gpt-image-2` as the preferred target image model for WanderSG image
+Use `gpt-image-2` as the preferred target image model for RoamAtlas image
 generation. Because image model availability can vary by environment, implement
 this through a configurable image provider adapter instead of scattering the
 model string through product code. If the runtime cannot access `gpt-image-2`,
@@ -503,7 +503,7 @@ Input fields:
 
 Primary action:
 
-- Generate Wander Map.
+- Generate RoamAtlas Map.
 
 ### Explorer
 

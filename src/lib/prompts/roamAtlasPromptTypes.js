@@ -1,5 +1,5 @@
 /**
- * @typedef {0 | 1 | 2 | 3 | 4} WanderZoomLevel
+ * @typedef {0 | 1 | 2 | 3 | 4} RoamAtlasZoomLevel
  *
  * @typedef {
  *   | "homepage_overview"
@@ -13,30 +13,30 @@
  *   | "cultural_object_plate"
  *   | "itinerary_board"
  *   | "ai_detour"
- * } WanderPageType
+ * } RoamAtlasPageType
  *
- * @typedef {"minimal" | "restrained" | "balanced" | "detailed"} WanderDensity
- * @typedef {"verified" | "curated" | "general" | "unverified_detour"} WanderFactMode
+ * @typedef {"minimal" | "restrained" | "balanced" | "detailed"} RoamAtlasDensity
+ * @typedef {"verified" | "curated" | "general" | "unverified_detour"} RoamAtlasFactMode
  *
- * @typedef {object} WanderPromptInput
+ * @typedef {object} RoamAtlasPromptInput
  * @property {string} nodeId
  * @property {string} nodeTitle
- * @property {WanderPageType} pageType
- * @property {WanderZoomLevel} zoomLevel
+ * @property {RoamAtlasPageType} pageType
+ * @property {RoamAtlasZoomLevel} zoomLevel
  * @property {string} visualContext
  * @property {string=} userVibe
  * @property {string=} parentNodeTitle
  * @property {string=} countryName
- * @property {WanderDensity=} density
- * @property {WanderFactMode=} factMode
+ * @property {RoamAtlasDensity=} density
+ * @property {RoamAtlasFactMode=} factMode
  * @property {"16:9" | "2:1" | "4:3" | "1:1"=} aspectRatio
  * @property {string[]=} knownChildNodeTitles
  *
- * @typedef {object} WanderPromptOutput
+ * @typedef {object} RoamAtlasPromptOutput
  * @property {string} prompt
  * @property {string} promptVersion
- * @property {WanderPageType} pageType
- * @property {WanderZoomLevel} zoomLevel
+ * @property {RoamAtlasPageType} pageType
+ * @property {RoamAtlasZoomLevel} zoomLevel
  * @property {string[]} recommendedNegativePromptTerms
  */
 

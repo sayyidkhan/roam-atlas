@@ -1,6 +1,6 @@
 import { buildTileCacheKey } from "../../domain/scrollScene.js";
 import { DEFAULT_IMAGE_MODEL } from "../../domain/imageProvider.js";
-import { buildWanderImagePrompt } from "../../domain/imagePromptBuilder.js";
+import { buildRoamAtlasImagePrompt } from "../../domain/imagePromptBuilder.js";
 
 const DATA_VERSION = "malaysia-starter-v1";
 const STYLE_VERSION = "atlas-qingming-v1";
@@ -11,7 +11,7 @@ const TILE_HEIGHT = 520;
 export const malaysiaSourceRegistry = {
   starter: {
     id: "malaysia-starter-pack",
-    title: "WanderSG Malaysia starter country pack",
+    title: "RoamAtlas Malaysia starter country pack",
     type: "ai_generated",
     url: null
   }
@@ -35,7 +35,7 @@ export const malaysiaNodes = {
     facts: [
       starterFact(
         "malaysia-starter-summary",
-        "Malaysia is mapped as a WanderSG starter explorer. Region notes are unconfirmed until source review."
+        "Malaysia is mapped as a RoamAtlas starter explorer. Region notes are unconfirmed until source review."
       )
     ]
   }),
@@ -78,7 +78,7 @@ export const malaysiaCountryPack = {
   sourceRegistry: malaysiaSourceRegistry,
   confidence: "unconfirmed",
   factBoundary:
-    "Malaysia is an actual WanderSG explorer route, but current facts are starter-map data until source review."
+    "Malaysia is an actual RoamAtlas explorer route, but current facts are starter-map data until source review."
 };
 
 function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
@@ -118,7 +118,7 @@ function createScene({ id, title, rootNodeId, columns, rows, hotspots }) {
           height: TILE_HEIGHT
         },
         status: "missing",
-        prompt: buildWanderImagePrompt({
+        prompt: buildRoamAtlasImagePrompt({
           nodeTitle: title,
           visualContext,
           pageType: "homepage_overview",

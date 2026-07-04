@@ -1,4 +1,4 @@
-export const WANDERSG_CONFIG = {
+export const ROAMATLAS_CONFIG = {
   ai: {
     textModel: "gpt-5.4-mini",
     vlmModel: "gpt-5.4-mini",
@@ -16,12 +16,12 @@ export const WANDERSG_CONFIG = {
   }
 };
 
-export function resolveWandersgConfig(env = {}) {
+export function resolveRoamAtlasConfig(env = {}) {
   return {
-    ai: { ...WANDERSG_CONFIG.ai },
-    image: { ...WANDERSG_CONFIG.image },
+    ai: { ...ROAMATLAS_CONFIG.ai },
+    image: { ...ROAMATLAS_CONFIG.image },
     server: {
-      port: Number(readConfigValue(env.PORT, WANDERSG_CONFIG.server.port))
+      port: Number(readConfigValue(env.PORT, ROAMATLAS_CONFIG.server.port))
     }
   };
 }

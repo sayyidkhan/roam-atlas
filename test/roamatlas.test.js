@@ -10,9 +10,9 @@ import {
   searchKnownNode
 } from "../src/data/sceneGraph.js";
 import {
-  WANDERSG_CONFIG,
-  resolveWandersgConfig
-} from "../src/config/wandersgConfig.js";
+  ROAMATLAS_CONFIG,
+  resolveRoamAtlasConfig
+} from "../src/config/roamAtlasConfig.js";
 import {
   getCountryBySlug,
   getCountryCardState,
@@ -37,7 +37,7 @@ import {
   resolveImageClick
 } from "../src/domain/clickResolver.js";
 import { matchClickPhraseToNode } from "../src/domain/nodeMatcher.js";
-import { buildWanderImagePrompt } from "../src/domain/imagePromptBuilder.js";
+import { buildRoamAtlasImagePrompt } from "../src/domain/imagePromptBuilder.js";
 import { planNextFlipbookPage } from "../src/domain/pagePlanner.js";
 import { getSceneArtwork } from "../src/data/sceneArtwork.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
@@ -51,10 +51,10 @@ import {
   buildHomepagePrompt,
   buildRegionPrompt,
   buildEncyclopediaPrompt,
-  buildWanderImagePrompt as buildPromptOutput
+  buildRoamAtlasImagePrompt as buildPromptOutput
 } from "../src/lib/prompts/index.js";
 import {
-  DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT,
+  DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT,
   normalizeImageModel
 } from "../src/domain/imageProvider.js";
 import {
@@ -105,6 +105,26 @@ test("country landing lists world countries with routable country shells", () =>
   assert.equal(getCountryBySlug("malaysia").code, "MY");
   assert.equal(routeForCountry(getCountryBySlug("malaysia")), "/malaysia");
   assert.equal(routeForCountryConfig(getCountryBySlug("austria")), "/austria/config");
+});
+
+test("country landing cards request country-specific media images", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+
+  assert.match(appSource, /country-card-photo/);
+  assert.match(appSource, /getCountryPhotoUrl/);
+  assert.match(appSource, /\/api\/country-image\?countrySlug=/);
+  assert.match(serverSource, /handleCountryImageRequest/);
+  assert.match(serverSource, /\/api\/country-image/);
+  assert.match(serverSource, /commons\.wikimedia\.org\/w\/api\.php/);
+  assert.match(serverSource, /wikimedia-commons-category/);
+  assert.match(serverSource, /api\/rest_v1\/page\/media-list/);
+  assert.match(serverSource, /COUNTRY_MEDIA_EXCLUDE_PATTERN/);
+  assert.match(serverSource, /COUNTRY_MEDIA_PLACE_PATTERN/);
+  assert.match(serverSource, /country-card-atlas\.jpg/);
+  assert.match(styleSource, /\.country-card-photo/);
+  assert.doesNotMatch(styleSource, /\.country-card:hover,\n\.country-card:focus-visible \{\n[^}]*background-image: url\("\/public\/art\/country-card-atlas\.jpg"\)/);
 });
 
 test("app routes send unmapped countries through config and mapped countries into explorer", () => {
@@ -202,7 +222,7 @@ test("saved discoveries produce an approximate itinerary with warnings", () => {
   assert.match(itinerary.days[0].items[0].startTime, /^approximate /);
   assert.ok(
     itinerary.days[0].warnings.some((warning) =>
-      warning.includes("Only curated WanderSG nodes")
+      warning.includes("Only curated RoamAtlas nodes")
     )
   );
   assert.ok(
@@ -409,7 +429,7 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
       node.facts.every((fact) => fact.confidence !== "confirmed" || fact.sourceType !== "ai_generated")
     )
   );
-  assert.match(pack.factBoundary, /actual WanderSG explorer route/);
+  assert.match(pack.factBoundary, /actual RoamAtlas explorer route/);
   assert.equal(starterMap.sourceType, "ai_generated");
   assert.equal(starterMap.confidence, "unconfirmed");
   assert.ok(starterMap.regions.every((region) => region.confidence === "unconfirmed"));
@@ -448,7 +468,7 @@ test("Singapore country pack can be projected into the starter map storage shape
   assert.equal(starterMap.confidence, "confirmed");
   assert.ok(starterMap.regions.some((region) => region.name === "Marina Bay and Civic District"));
   assert.ok(starterMap.themes.length > 0);
-  assert.match(starterMap.factBoundary, /curated WanderSG country pack/);
+  assert.match(starterMap.factBoundary, /curated RoamAtlas country pack/);
   assert.notEqual(starterMap.sourceType, "ai_generated");
 });
 
@@ -478,16 +498,16 @@ test("tile cache key changes across fact, prompt, style, and model versions", ()
 
 test("image model aliases normalize for OpenAI provider", () => {
   assert.equal(normalizeImageModel("image2"), "gpt-image-2");
-  assert.match(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /central 16:9 safe area/);
-  assert.match(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
-  assert.doesNotMatch(DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT, /\bSingapore\b/);
+  assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /central 16:9 safe area/);
+  assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
+  assert.doesNotMatch(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /\bSingapore\b/);
 });
 
 test("source config stores non-secret OpenAI model defaults", () => {
-  const defaults = resolveWandersgConfig({});
-  const withPortOverride = resolveWandersgConfig({ PORT: "5173" });
+  const defaults = resolveRoamAtlasConfig({});
+  const withPortOverride = resolveRoamAtlasConfig({ PORT: "5173" });
 
-  assert.equal(WANDERSG_CONFIG.image.provider, "openai");
+  assert.equal(ROAMATLAS_CONFIG.image.provider, "openai");
   assert.equal(defaults.image.provider, "openai");
   assert.equal(defaults.image.model, "gpt-image-2");
   assert.equal(defaults.image.fallbackModel, null);
@@ -502,10 +522,10 @@ test("source config stores non-secret OpenAI model defaults", () => {
 
 test("runtime cache paths live outside the repo and expose stable runtime urls", () => {
   const defaultCacheRoot = resolveRuntimeCacheRoot({
-    WANDERSG_RUNTIME_CACHE_DIR: ""
+    ROAMATLAS_RUNTIME_CACHE_DIR: ""
   });
   const cacheRoot = resolveRuntimeCacheRoot({
-    WANDERSG_RUNTIME_CACHE_DIR: "/tmp/wandersg-test-cache"
+    ROAMATLAS_RUNTIME_CACHE_DIR: "/tmp/roamatlas-test-cache"
   });
   const paths = createRuntimeCachePaths({
     cacheRoot,
@@ -522,9 +542,9 @@ test("runtime cache paths live outside the repo and expose stable runtime urls",
     countrySlug: "singapore"
   });
 
-  assert.ok(defaultCacheRoot.endsWith("wandersg-runtime-cache"));
+  assert.ok(defaultCacheRoot.endsWith("roamatlas-runtime-cache"));
   assert.notEqual(defaultCacheRoot, process.cwd());
-  assert.equal(cacheRoot, "/tmp/wandersg-test-cache");
+  assert.equal(cacheRoot, "/tmp/roamatlas-test-cache");
   assert.equal(paths.countrySlug, "singapore");
   assert.equal(paths.jobUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/image-jobs/node-cloud-forest.json`);
   assert.equal(paths.imageUrl, `${RUNTIME_CACHE_URL_PREFIX}/singapore/flipbook/node-cloud-forest.gpt-image-2.png`);
@@ -558,7 +578,7 @@ test("runtime cache paths live outside the repo and expose stable runtime urls",
 test("default artwork pre-generation is opt-in for interactive dev speed", () => {
   assert.equal(shouldQueueDefaultArtwork({}), false);
   assert.equal(
-    shouldQueueDefaultArtwork({ WANDERSG_PREGENERATE_DEFAULT_ARTWORK: "true" }),
+    shouldQueueDefaultArtwork({ ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK: "true" }),
     true
   );
 });
@@ -818,7 +838,7 @@ test("unmapped visible buildings do not get forced into nearby curated Marina no
 });
 
 test("image prompt builder enforces planning-board style and avoids dense atlas cues", () => {
-  const prompt = buildWanderImagePrompt({
+  const prompt = buildRoamAtlasImagePrompt({
     nodeTitle: "Marina Bay",
     visualContext: "Gardens by the Bay waterfront",
     density: "sparse"
@@ -840,7 +860,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "wandersg-flipbook-v4-country-context");
+  assert.equal(output.promptVersion, "roamatlas-flipbook-v4-country-context");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
@@ -884,7 +904,7 @@ test("Malaysia image prompts do not leak Singapore or app branding", () => {
   assert.match(combined, /Malaysia/);
   assert.match(homepage.prompt, /Do not fully render all of Malaysia/);
   assert.doesNotMatch(combined, /\bSingapore\b/);
-  assert.doesNotMatch(combined, /\bWanderSG\b/);
+  assert.doesNotMatch(combined, /\bRoamAtlas\b/);
 });
 
 test("region prompt focuses one region and puts short labels in the generated image", () => {
@@ -1097,7 +1117,7 @@ test("server persists country starter maps in country-scoped runtime storage", (
   assert.match(serverSource, /Update the country pack source files instead of AI-steering/);
   assert.match(serverSource, /handleCountryDraftConfirmRequest/);
   assert.match(serverSource, /confirmed_for_curation/);
-  assert.match(serverSource, /resolveWandersgConfig/);
+  assert.match(serverSource, /resolveRoamAtlasConfig/);
   assert.match(serverSource, /DEFAULT_IMAGE_PROVIDER/);
   assert.match(serverSource, /appConfig\.ai\.vlmModel/);
 });

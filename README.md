@@ -1,8 +1,8 @@
-# WanderSG
+# RoamAtlas
 
-WanderSG is a travel planner that behaves like an illustrated encyclopedia.
+RoamAtlas is a travel planner that behaves like an illustrated encyclopedia.
 
-Users can wander from Singapore into attractions, zones, animals, and anatomy
+Users can roam from Singapore into attractions, zones, animals, and anatomy
 plates, then save discoveries into a practical itinerary. The visual layer is
 AI-generated, while factual claims are grounded in curated and official data.
 
@@ -50,7 +50,7 @@ exists. Starter country packs may be registered, but their facts must stay
 
 ## OpenAI Setup
 
-WanderSG uses OpenAI only. Do not add parallel provider keys unless the product
+RoamAtlas uses OpenAI only. Do not add parallel provider keys unless the product
 direction changes.
 
 Never commit API keys. `.env` and `.env.*` are gitignored. For local generation,
@@ -60,7 +60,7 @@ create a private `.env` from `.env.example` and add the one secret the app uses:
 OPENAI_API_KEY="..."
 ```
 
-Non-secret model defaults live in `src/config/wandersgConfig.js`.
+Non-secret model defaults live in `src/config/roamAtlasConfig.js`.
 
 - Text, VLM, and environment models must stay on GPT-5-family or newer models.
 - Image generation uses OpenAI image models.
@@ -79,12 +79,12 @@ If a key is pasted into chat, rotate it after testing.
 
 Click-generated flipbook jobs and images are runtime artifacts. By default, the
 dev server stores them outside the repo at the OS temp path
-`wandersg-runtime-cache` and serves them through `/runtime-cache/...`.
+`roamatlas-runtime-cache` and serves them through `/runtime-cache/...`.
 
 Runtime artifacts are grouped by country slug:
 
 ```text
-wandersg-runtime-cache/
+roamatlas-runtime-cache/
   singapore/
     starter-map/
     image-jobs/
@@ -111,6 +111,6 @@ Malaysia currently ships as an actual country pack at `/malaysia`; its starter
 facts stay `ai_generated` and `unconfirmed` until replaced with source-backed
 facts.
 
-Set `WANDERSG_RUNTIME_CACHE_DIR` to point at another private local directory.
+Set `ROAMATLAS_RUNTIME_CACHE_DIR` to point at another private local directory.
 For production, keep job metadata in Redis and image files in object storage; do
 not commit generated runtime images to the codebase.

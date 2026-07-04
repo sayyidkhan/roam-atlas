@@ -1,6 +1,6 @@
-import { buildWanderImagePrompt as buildPromptOutput } from "../lib/prompts/buildWanderImagePrompt.js";
+import { buildRoamAtlasImagePrompt as buildPromptOutput } from "../lib/prompts/buildRoamAtlasImagePrompt.js";
 
-export function buildWanderImagePrompt({
+export function buildRoamAtlasImagePrompt({
   nodeId = "unknown-node",
   nodeTitle,
   visualContext,

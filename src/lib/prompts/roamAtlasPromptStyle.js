@@ -1,4 +1,4 @@
-export const WANDERSG_PROMPT_VERSION = "wandersg-flipbook-v4-country-context";
+export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v4-country-context";
 
 export const CORE_VISUAL_STYLE = `
 Core visual style:

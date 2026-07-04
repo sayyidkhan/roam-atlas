@@ -6,7 +6,7 @@ const DEFAULT_REVIEW_CHECKLIST = [
 ];
 
 const DEFAULT_WARNINGS = [
-  "This is an AI-generated expansion draft, not a curated WanderSG country pack.",
+  "This is an AI-generated expansion draft, not a curated RoamAtlas country pack.",
   "Generated candidates are not available to verified itinerary or fact flows yet."
 ];
 
@@ -30,7 +30,7 @@ export const COUNTRY_DRAFT_FACT_BOUNDARY =
 
 export function buildCountryDraftPrompt(country) {
   return [
-    "You are drafting a WanderSG country expansion scaffold.",
+    "You are drafting a RoamAtlas country expansion scaffold.",
     "The output is only for planning future curation. It is not verified user-facing travel data.",
     `Country: ${country.name}`,
     `ISO code: ${country.code}`,
@@ -71,7 +71,7 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
     : "No current starter map exists yet.";
 
   return [
-    "You are revising a WanderSG country expansion starter map.",
+    "You are revising a RoamAtlas country expansion starter map.",
     "The output is only for planning future curation. It is not verified user-facing travel data.",
     `Country: ${country.name}`,
     `ISO code: ${country.code}`,
@@ -135,8 +135,8 @@ export function createCountryPackStarterMap(pack, options = {}) {
     sourceType,
     factBoundary:
       pack.factBoundary ??
-      `This starter map is derived from the ${packLabel} WanderSG country pack.`,
-    summary: `${pack.title} is backed by a ${packLabel} WanderSG country pack with ${Object.keys(pack.nodes).length} nodes and ${Object.keys(pack.scenes).length} scenes.`,
+      `This starter map is derived from the ${packLabel} RoamAtlas country pack.`,
+    summary: `${pack.title} is backed by a ${packLabel} RoamAtlas country pack with ${Object.keys(pack.nodes).length} nodes and ${Object.keys(pack.scenes).length} scenes.`,
     regions: childNodes.slice(0, 8).map((node) => ({
       name: node.title,
       kind: packNodeKind(node.type),
@@ -249,7 +249,7 @@ export function normalizeCountryDraftPayload(payload, country, options = {}) {
   const generationStatus = options.generationStatus ?? "ready";
   const summary = safeText(
     payload?.summary,
-    `${country.name} has no curated WanderSG graph yet; this draft only suggests areas for review.`,
+    `${country.name} has no curated RoamAtlas graph yet; this draft only suggests areas for review.`,
     220
   );
 
@@ -300,7 +300,7 @@ function normalizeRegions(regions) {
         kind: normalizeRegionKind(item?.kind),
         why: safeText(
           item?.why,
-          "Review this candidate against official sources before adding it to WanderSG.",
+          "Review this candidate against official sources before adding it to RoamAtlas.",
           180
         ),
         confidence: "unconfirmed"
@@ -345,8 +345,8 @@ function countryPackNodeReason(node, { isConfirmedPack }) {
   const childCount = node.childIds?.length ?? 0;
   const childText = childCount === 1 ? "1 curated child node" : `${childCount} curated child nodes`;
   return isConfirmedPack
-    ? `${node.title} is part of the curated WanderSG graph with ${childText}.`
-    : `${node.title} is part of the starter WanderSG graph and needs source review.`;
+    ? `${node.title} is part of the curated RoamAtlas graph with ${childText}.`
+    : `${node.title} is part of the starter RoamAtlas graph and needs source review.`;
 }
 
 function countTags(nodes) {
