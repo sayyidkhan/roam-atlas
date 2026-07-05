@@ -934,7 +934,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "roamatlas-flipbook-v4-country-context");
+  assert.equal(output.promptVersion, "roamatlas-flipbook-v5-brandless");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
@@ -979,6 +979,7 @@ test("Malaysia image prompts do not leak Singapore or app branding", () => {
   assert.match(homepage.prompt, /Do not fully render all of Malaysia/);
   assert.doesNotMatch(combined, /\bSingapore\b/);
   assert.doesNotMatch(combined, /\bRoamAtlas\b/);
+  assert.doesNotMatch(combined, /WanderSG|Wander SG/i);
 });
 
 test("region prompt focuses one region and puts short labels in the generated image", () => {

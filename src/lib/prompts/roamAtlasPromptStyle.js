@@ -1,4 +1,4 @@
-export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v4-country-context";
+export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v5-brandless";
 
 export const CORE_VISUAL_STYLE = `
 Core visual style:
@@ -34,7 +34,7 @@ Global image rules:
 12. Frontend overlays remain the source of exact facts and source badges.
 13. Compose for a browser viewport: keep all important subjects, labels, callouts, and faces inside the central 16:9 safe area, with simple water, paper, sky, lawn, or path bleed near the outer edges.
 14. Do not place key text or landmarks at the extreme image edges.
-15. Never render app names, product logos, or old product names such as WanderSG or Wander SG.
+15. Never render app names, product logos, old product names, or brand-like decorative titles.
 `;
 
 export const NEGATIVE_STYLE_TERMS = [
