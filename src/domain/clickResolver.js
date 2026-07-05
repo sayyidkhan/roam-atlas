@@ -9,7 +9,7 @@ export function resolveImageClick({ scene, point, nodes }) {
       nodeId: null,
       phrase: "unmapped illustrated detail",
       confidence: "unconfirmed",
-      reason: "No precomputed WanderSG region contains this click."
+      reason: "No precomputed RoamAtlas region contains this click."
     };
   }
 
@@ -30,7 +30,7 @@ export function resolveImageClick({ scene, point, nodes }) {
     phrase: hotspot.label ?? node.title,
     confidence: hotspot.confidence,
     action: hotspot.action,
-    reason: "Matched through precomputed click region and curated scene graph."
+    reason: "Matched through precomputed click region and mapped scene graph."
   };
 }
 

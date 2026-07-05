@@ -1,11 +1,10 @@
 {
-  "name": "wandersg",
+  "name": "roamatlas",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "dev": "node scripts/dev-server.js",
-    "generate:homepage": "node scripts/generate-homepage-art.js"
+    "dev": "node scripts/dev-server.js"
   }
 }

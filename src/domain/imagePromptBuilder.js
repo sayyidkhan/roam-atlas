@@ -1,6 +1,6 @@
-import { buildWanderImagePrompt as buildPromptOutput } from "../lib/prompts/buildWanderImagePrompt.js";
+import { buildRoamAtlasImagePrompt as buildPromptOutput } from "../lib/prompts/buildRoamAtlasImagePrompt.js";
 
-export function buildWanderImagePrompt({
+export function buildRoamAtlasImagePrompt({
   nodeId = "unknown-node",
   nodeTitle,
   visualContext,
@@ -9,7 +9,8 @@ export function buildWanderImagePrompt({
   density = "balanced",
   aspectRatio = "16:9",
   parentNodeTitle,
-  knownChildNodeTitles = []
+  knownChildNodeTitles = [],
+  countryName
 }) {
   return buildPromptOutput({
     nodeId,
@@ -20,7 +21,8 @@ export function buildWanderImagePrompt({
     density: normalizeDensity(density),
     aspectRatio: normalizeAspectRatio(aspectRatio),
     parentNodeTitle,
-    knownChildNodeTitles
+    knownChildNodeTitles,
+    countryName
   }).prompt;
 }
 
@@ -56,7 +58,6 @@ export function inferZoomLevelForNode(node) {
 
 function normalizePageType(pageType) {
   const legacy = {
-    singapore_overview_scroll: "homepage_overview",
     district_map: "region_overview",
     attraction_plate: "district_or_attraction",
     street_or_zone_plate: "street_or_zone",

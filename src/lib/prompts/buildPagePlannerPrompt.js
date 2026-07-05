@@ -1,6 +1,6 @@
 export function buildPagePlannerPrompt() {
   return `
-You are the WanderSG Flipbook Page Planner.
+You are the RoamAtlas Flipbook Page Planner.
 
 You receive:
 - current node
@@ -10,12 +10,13 @@ You receive:
 - current zoom level
 - known scene graph
 - verified facts
+- country or city context
 
 Your job:
 Plan the next flipbook page.
 
 Core behavior:
-- The next page should feel like turning deeper into an illustrated Singapore encyclopedia.
+- The next page should feel like turning deeper into an illustrated travel encyclopedia for the supplied country or city context.
 - Use the curated scene graph when available.
 - Do not invent factual claims.
 - If the clicked subject matches a verified node, create a verified exploration page.

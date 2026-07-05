@@ -3,21 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WanderSG</title>
-    <link rel="stylesheet" href="./src/styles.css" />
+    <title>RoamAtlas</title>
+    <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <main class="immersive-shell">
-      <section class="scroll-viewport" id="scroll-viewport" aria-label="WanderSG visual explorer">
+      <section class="country-landing" id="country-landing" aria-label="Choose a country">
+        <header class="country-hero">
+          <div>
+            <p class="eyebrow">RoamAtlas</p>
+            <h1>Choose a country</h1>
+            <p>Explore the world through visual country guides, curated discoveries, and itinerary-ready places.</p>
+          </div>
+        </header>
+
+        <section class="country-toolbar" aria-label="Country filters">
+          <label class="search-field">
+            <span>Search countries</span>
+            <input id="country-search" type="search" placeholder="Search by country name or code" autocomplete="off" />
+          </label>
+          <p id="country-count" class="country-count"></p>
+        </section>
+
+        <section id="country-notice" class="country-notice" aria-live="polite"></section>
+        <section class="country-grid" id="country-grid" aria-label="Country cards"></section>
+      </section>
+
+      <section class="country-shell is-hidden" id="country-shell" aria-label="Country overview"></section>
+
+      <section class="scroll-viewport is-hidden" id="scroll-viewport" aria-label="RoamAtlas visual explorer">
         <header class="scene-hud">
           <div>
-            <p class="eyebrow">WanderSG</p>
-            <h1 id="scene-title">Singapore Overview Scroll</h1>
+            <p class="eyebrow">RoamAtlas</p>
+            <h1 id="scene-title">Country Overview Scroll</h1>
             <p id="breadcrumb">Curated facts. Generated-style visuals.</p>
           </div>
         </header>
 
         <div class="corner-actions">
+          <button id="country-button" type="button" class="ghost-button">Countries</button>
           <button id="back-button" type="button" class="ghost-button">Back</button>
         </div>
 
@@ -31,6 +55,6 @@
       </section>
     </main>
 
-    <script type="module" src="./src/ui/app.js"></script>
+    <script type="module" src="/src/ui/app.js"></script>
   </body>
 </html>

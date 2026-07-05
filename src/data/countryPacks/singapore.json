@@ -1,0 +1,2537 @@
+{
+  "countryCode": "SG",
+  "countrySlug": "singapore",
+  "title": "Singapore",
+  "rootNodeId": "singapore",
+  "overviewSceneId": "singapore-overview",
+  "confidence": "confirmed",
+  "factBoundary": "Singapore uses a source-controlled RoamAtlas country pack. User-facing factual claims must stay backed by curated or official sources.",
+  "versions": {
+    "data": "data-v1",
+    "style": "atlas-qingming-v1",
+    "prompt": "prompt-v1"
+  },
+  "tileDefaults": {
+    "tileWidth": 420,
+    "tileHeight": 520,
+    "overlapPx": 32,
+    "imageModel": "default"
+  },
+  "sourceRegistry": {
+    "mandaiZoo": {
+      "id": "mandai-zoo",
+      "title": "Singapore Zoo official visitor page",
+      "type": "official",
+      "url": "https://www.mandai.com/en/singapore-zoo.html"
+    },
+    "mandaiTickets": {
+      "id": "mandai-zoo-admission",
+      "title": "Singapore Zoo official admission page",
+      "type": "official",
+      "url": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm"
+    },
+    "gardens": {
+      "id": "gardens-by-the-bay",
+      "title": "Gardens by the Bay official site",
+      "type": "official",
+      "url": "https://www.gardensbythebay.com.sg/"
+    },
+    "marinaBay": {
+      "id": "ura-marina-bay",
+      "title": "URA Marina Bay planning page",
+      "type": "official",
+      "url": "https://www.ura.gov.sg/Corporate/Data/Planning/Marina-Bay"
+    },
+    "sentosa": {
+      "id": "sentosa-overview",
+      "title": "Sentosa official overview",
+      "type": "official",
+      "url": "https://www.sentosa.gov.sg/who-we-are/overview/"
+    },
+    "curated": {
+      "id": "roamatlas-curated",
+      "title": "RoamAtlas curated MVP dataset",
+      "type": "curated",
+      "url": "docs/PRODUCT.md"
+    },
+    "generalBiology": {
+      "id": "general-biology",
+      "title": "General natural history background",
+      "type": "general_reference"
+    }
+  },
+  "nodes": {
+    "singapore": {
+      "childIds": [
+        "west-campus-scroll",
+        "marina-bay-scroll",
+        "heritage-belt-scroll",
+        "sentosa-south-scroll",
+        "changi-east-scroll",
+        "nature-wildlife-scroll"
+      ],
+      "facts": [
+        {
+          "id": "sg-curated",
+          "text": "Singapore is a confirmed RoamAtlas country pack in the current source-controlled dataset.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "overview",
+        "singapore"
+      ],
+      "id": "singapore",
+      "type": "country",
+      "title": "Singapore",
+      "artworkVisualContext": "A restrained Singapore overview page with clear visual icon clusters for west-side NUS, NTU, and Jurong Lake Gardens; Marina Bay and Gardens by the Bay; Chinatown, Kampong Glam, and Little India; Sentosa; east-side Changi Airport, Jewel Changi, and East Coast Park; and north-side Mandai Wildlife Reserve and Singapore Zoo. Use large open water and green space, sparse roads, and short readable curated anchor labels only."
+    },
+    "marina-bay-scroll": {
+      "childIds": [
+        "marina-bay-sands",
+        "gardens-by-the-bay",
+        "merlion-park"
+      ],
+      "facts": [
+        {
+          "id": "marina-bay-ura",
+          "text": "Marina Bay is presented by URA as a waterfront district with major leisure destinations and civic space.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.ura.gov.sg/Corporate/Data/Planning/Marina-Bay",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "skyline",
+        "photography",
+        "waterfront"
+      ],
+      "id": "marina-bay-scroll",
+      "type": "district",
+      "title": "Marina Bay and Civic District",
+      "parentId": "singapore",
+      "itineraryHints": {
+        "typicalDurationMinutes": 120,
+        "bestTimeOfDay": "evening",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "gardens-by-the-bay"
+        ]
+      },
+      "artworkVisualContext": "A clean Marina Bay chapter page with Marina Bay Sands, Gardens by the Bay, waterfront paths, water, civic space, bridges, and short labels for major clickable subjects."
+    },
+    "west-campus-scroll": {
+      "childIds": [
+        "nus",
+        "ntu",
+        "jurong-lake-gardens"
+      ],
+      "facts": [
+        {
+          "id": "west-campus-curated",
+          "text": "This MVP groups NUS, NTU, and Jurong Lake Gardens as west-side curated exploration nodes.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "west",
+        "campus",
+        "gardens",
+        "architecture"
+      ],
+      "id": "west-campus-scroll",
+      "type": "district",
+      "title": "West Campus and Gardens",
+      "parentId": "singapore",
+      "itineraryHints": {
+        "typicalDurationMinutes": 180,
+        "bestTimeOfDay": "morning",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "jurong-lake-gardens"
+        ]
+      }
+    },
+    "heritage-belt-scroll": {
+      "childIds": [
+        "chinatown",
+        "kampong-glam",
+        "little-india"
+      ],
+      "facts": [
+        {
+          "id": "heritage-curated",
+          "text": "This MVP groups Chinatown, Kampong Glam, and Little India as a culture-focused exploration belt.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "culture",
+        "food",
+        "walking"
+      ],
+      "id": "heritage-belt-scroll",
+      "type": "district",
+      "title": "Heritage Belt",
+      "parentId": "singapore",
+      "itineraryHints": {
+        "typicalDurationMinutes": 180,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "chinatown"
+        ]
+      }
+    },
+    "sentosa-south-scroll": {
+      "childIds": [
+        "sentosa-island",
+        "southern-ridges"
+      ],
+      "facts": [
+        {
+          "id": "sentosa-official",
+          "text": "Sentosa is Singapore's island resort destination and includes beaches, attractions, resorts, and leisure experiences.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.sentosa.gov.sg/who-we-are/overview/",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "family",
+        "beach",
+        "resort"
+      ],
+      "id": "sentosa-south-scroll",
+      "type": "district",
+      "title": "Sentosa and Southern Waterfront",
+      "parentId": "singapore",
+      "itineraryHints": {
+        "typicalDurationMinutes": 240,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "sentosa-island"
+        ]
+      },
+      "artworkVisualContext": "A calm Sentosa and southern waterfront chapter page with beach, resort coast, green ridges, water, paths, and spacious visual clusters."
+    },
+    "changi-east-scroll": {
+      "childIds": [
+        "changi-airport",
+        "jewel-changi",
+        "east-coast-park"
+      ],
+      "facts": [
+        {
+          "id": "changi-east-curated",
+          "text": "This MVP groups Changi Airport, Jewel Changi, and East Coast Park as east-side curated exploration nodes.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "east",
+        "airport",
+        "food",
+        "waterfront"
+      ],
+      "id": "changi-east-scroll",
+      "type": "district",
+      "title": "Changi and East Coast",
+      "parentId": "singapore",
+      "itineraryHints": {
+        "typicalDurationMinutes": 180,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "jewel-changi"
+        ]
+      }
+    },
+    "nature-wildlife-scroll": {
+      "childIds": [
+        "mandai-scroll",
+        "botanic-gardens",
+        "east-coast-park"
+      ],
+      "facts": [
+        {
+          "id": "nature-curated",
+          "text": "This MVP uses Mandai as the confirmed wildlife deep-dive path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "nature",
+        "wildlife",
+        "family"
+      ],
+      "id": "nature-wildlife-scroll",
+      "type": "district",
+      "title": "Nature and Wildlife",
+      "parentId": "singapore",
+      "itineraryHints": {
+        "typicalDurationMinutes": 240,
+        "bestTimeOfDay": "morning",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "mandai-scroll"
+        ]
+      },
+      "artworkVisualContext": "A nature and wildlife chapter page with Mandai wildlife, botanic gardens, parkland, water, forest edges, and clear sparse clickable clusters."
+    },
+    "marina-bay-sands": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "mbs-stb",
+          "text": "Singapore Tourism Board identifies Marina Bay Sands as one of Singapore's two integrated resorts.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.stb.gov.sg/industries-experience-development/integrated-resorts/",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "skyline",
+        "architecture",
+        "photography"
+      ],
+      "id": "marina-bay-sands",
+      "type": "attraction",
+      "title": "Marina Bay Sands",
+      "parentId": "marina-bay-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 90,
+        "bestTimeOfDay": "evening",
+        "budgetLevel": "high",
+        "nearbyNodeIds": [
+          "gardens-by-the-bay"
+        ]
+      }
+    },
+    "gardens-by-the-bay": {
+      "childIds": [
+        "supertree-grove",
+        "flower-dome",
+        "cloud-forest"
+      ],
+      "facts": [
+        {
+          "id": "gbtb-official",
+          "text": "Gardens by the Bay describes itself as a garden destination with attractions including Cloud Forest, Flower Dome, Floral Fantasy, and Supertree Observatory.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.gardensbythebay.com.sg/",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "nature",
+        "skyline",
+        "family",
+        "glass",
+        "conservatories",
+        "domes",
+        "supertrees"
+      ],
+      "id": "gardens-by-the-bay",
+      "type": "attraction",
+      "title": "Gardens by the Bay",
+      "parentId": "marina-bay-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 150,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "marina-bay-sands"
+        ]
+      },
+      "artworkVisualContext": "A focused Gardens by the Bay planning illustration with glass conservatories, Supertree Grove, Cloud Forest, Flower Dome, paths, lawns, water, and short callout labels."
+    },
+    "supertree-grove": {
+      "childIds": [
+        "supertree-structure-plate"
+      ],
+      "facts": [
+        {
+          "id": "supertree-curated",
+          "text": "Supertree Grove is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "supertree",
+        "trees",
+        "canopy",
+        "garden",
+        "vertical",
+        "grove"
+      ],
+      "id": "supertree-grove",
+      "type": "zone",
+      "title": "Supertree Grove",
+      "parentId": "gardens-by-the-bay",
+      "artworkVisualContext": "A Supertree Grove encyclopedia-style page with several Supertrees, canopy forms, garden paths, an optional elevated walkway, and diagram-like short labels."
+    },
+    "flower-dome": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "flower-dome-curated",
+          "text": "Flower Dome is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "flower",
+        "dome",
+        "conservatory",
+        "glass",
+        "garden"
+      ],
+      "id": "flower-dome",
+      "type": "zone",
+      "title": "Flower Dome",
+      "parentId": "gardens-by-the-bay"
+    },
+    "cloud-forest": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "cloud-forest-curated",
+          "text": "Cloud Forest is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "cloud",
+        "forest",
+        "conservatory",
+        "glass",
+        "waterfall",
+        "dome"
+      ],
+      "id": "cloud-forest",
+      "type": "zone",
+      "title": "Cloud Forest",
+      "parentId": "gardens-by-the-bay"
+    },
+    "supertree-structure-plate": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "supertree-plate-general",
+          "text": "This structure plate is a general visual explanation, not proof of hidden structural details.",
+          "sourceType": "general_reference",
+          "confidence": "general"
+        }
+      ],
+      "tags": [
+        "supertree",
+        "structure",
+        "canopy",
+        "cutaway",
+        "vertical garden"
+      ],
+      "id": "supertree-structure-plate",
+      "type": "anatomy_plate",
+      "title": "Supertree Structure Plate",
+      "parentId": "supertree-grove"
+    },
+    "merlion-park": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "merlion-curated",
+          "text": "Merlion Park is included as a curated photo stop in the Marina Bay demo path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "photography",
+        "waterfront"
+      ],
+      "id": "merlion-park",
+      "type": "attraction",
+      "title": "Merlion Park",
+      "parentId": "marina-bay-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 30,
+        "bestTimeOfDay": "evening",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "marina-bay-sands"
+        ]
+      }
+    },
+    "chinatown": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "chinatown-curated",
+          "text": "Chinatown is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "culture",
+        "food"
+      ],
+      "id": "chinatown",
+      "type": "attraction",
+      "title": "Chinatown",
+      "parentId": "heritage-belt-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 120,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "heritage-belt-scroll"
+        ]
+      }
+    },
+    "kampong-glam": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "kampong-glam-curated",
+          "text": "Kampong Glam is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "culture",
+        "shopping"
+      ],
+      "id": "kampong-glam",
+      "type": "attraction",
+      "title": "Kampong Glam",
+      "parentId": "heritage-belt-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 90,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "heritage-belt-scroll"
+        ]
+      }
+    },
+    "little-india": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "little-india-curated",
+          "text": "Little India is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "culture",
+        "food"
+      ],
+      "id": "little-india",
+      "type": "attraction",
+      "title": "Little India",
+      "parentId": "heritage-belt-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 90,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "heritage-belt-scroll"
+        ]
+      }
+    },
+    "sentosa-island": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "sentosa-island-curated",
+          "text": "Sentosa Island is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "family",
+        "beach"
+      ],
+      "id": "sentosa-island",
+      "type": "attraction",
+      "title": "Sentosa Island",
+      "parentId": "sentosa-south-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 180,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "sentosa-south-scroll"
+        ]
+      }
+    },
+    "southern-ridges": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "southern-ridges-curated",
+          "text": "Southern Ridges is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "nature",
+        "walking"
+      ],
+      "id": "southern-ridges",
+      "type": "attraction",
+      "title": "Southern Ridges",
+      "parentId": "sentosa-south-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 120,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "sentosa-south-scroll"
+        ]
+      }
+    },
+    "nus": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "nus-curated",
+          "text": "NUS is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "campus",
+        "architecture",
+        "west"
+      ],
+      "id": "nus",
+      "type": "attraction",
+      "title": "NUS",
+      "parentId": "west-campus-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 90,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "west-campus-scroll"
+        ]
+      }
+    },
+    "ntu": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "ntu-curated",
+          "text": "NTU is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "campus",
+        "architecture",
+        "west"
+      ],
+      "id": "ntu",
+      "type": "attraction",
+      "title": "NTU",
+      "parentId": "west-campus-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 90,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "west-campus-scroll"
+        ]
+      }
+    },
+    "jurong-lake-gardens": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "jurong-lake-gardens-curated",
+          "text": "Jurong Lake Gardens is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "nature",
+        "gardens",
+        "west"
+      ],
+      "id": "jurong-lake-gardens",
+      "type": "attraction",
+      "title": "Jurong Lake Gardens",
+      "parentId": "west-campus-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 120,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "west-campus-scroll"
+        ]
+      }
+    },
+    "changi-airport": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "changi-airport-curated",
+          "text": "Changi Airport is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "airport",
+        "east",
+        "architecture"
+      ],
+      "id": "changi-airport",
+      "type": "attraction",
+      "title": "Changi Airport",
+      "parentId": "changi-east-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 90,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "changi-east-scroll"
+        ]
+      }
+    },
+    "jewel-changi": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "jewel-changi-curated",
+          "text": "Jewel Changi is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "airport",
+        "waterfall",
+        "shopping"
+      ],
+      "id": "jewel-changi",
+      "type": "attraction",
+      "title": "Jewel Changi",
+      "parentId": "changi-east-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 120,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "changi-east-scroll"
+        ]
+      }
+    },
+    "botanic-gardens": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "botanic-gardens-curated",
+          "text": "Singapore Botanic Gardens is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "nature",
+        "family"
+      ],
+      "id": "botanic-gardens",
+      "type": "attraction",
+      "title": "Singapore Botanic Gardens",
+      "parentId": "nature-wildlife-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 150,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "nature-wildlife-scroll"
+        ]
+      }
+    },
+    "east-coast-park": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "east-coast-park-curated",
+          "text": "East Coast Park is included as a curated RoamAtlas first-slice point of interest.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "food",
+        "cycling"
+      ],
+      "id": "east-coast-park",
+      "type": "attraction",
+      "title": "East Coast Park",
+      "parentId": "nature-wildlife-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 150,
+        "bestTimeOfDay": "afternoon",
+        "budgetLevel": "low",
+        "nearbyNodeIds": [
+          "nature-wildlife-scroll"
+        ]
+      }
+    },
+    "mandai-scroll": {
+      "childIds": [
+        "singapore-zoo"
+      ],
+      "facts": [
+        {
+          "id": "mandai-destination",
+          "text": "Mandai Wildlife Reserve presents itself as Singapore's wildlife destination with multiple wildlife attractions.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.mandai.com/en/visit.html",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "wildlife",
+        "family",
+        "nature"
+      ],
+      "id": "mandai-scroll",
+      "type": "district",
+      "title": "Mandai Wildlife Reserve",
+      "parentId": "nature-wildlife-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 240,
+        "bestTimeOfDay": "morning",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "singapore-zoo"
+        ]
+      },
+      "artworkVisualContext": "A Mandai Wildlife Reserve planning illustration with zoo entry, wildlife landscape zones, visitor paths, water, pavilions, shade, and restrained guide labels."
+    },
+    "singapore-zoo": {
+      "childIds": [
+        "wild-africa",
+        "primate-kingdom",
+        "fragile-forest"
+      ],
+      "facts": [
+        {
+          "id": "zoo-official",
+          "text": "Singapore Zoo is an official Mandai Wildlife Reserve attraction.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.mandai.com/en/singapore-zoo.html",
+          "checkedAt": "2026-05-09"
+        },
+        {
+          "id": "zoo-animal-count",
+          "text": "Mandai describes Singapore Zoo as home to over 4,200 animals.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.mandai.com/en/singapore-zoo.html",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "wildlife",
+        "family",
+        "animals"
+      ],
+      "id": "singapore-zoo",
+      "type": "attraction",
+      "title": "Singapore Zoo",
+      "parentId": "mandai-scroll",
+      "itineraryHints": {
+        "typicalDurationMinutes": 240,
+        "bestTimeOfDay": "morning",
+        "budgetLevel": "medium",
+        "nearbyNodeIds": [
+          "mandai-scroll"
+        ]
+      },
+      "artworkVisualContext": "A Singapore Zoo chapter page with habitat zones, visitor paths, shaded planting, water, pavilions, animals suggested as simple visual forms, and short zone labels."
+    },
+    "wild-africa": {
+      "childIds": [
+        "giraffe",
+        "white-rhinoceros",
+        "zebra"
+      ],
+      "facts": [
+        {
+          "id": "wild-africa-feeding",
+          "text": "Mandai's admission add-ons list giraffe, zebra, and white rhino feeding experiences at Wild Africa.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "wildlife",
+        "zone",
+        "animals"
+      ],
+      "id": "wild-africa",
+      "type": "zone",
+      "title": "Wild Africa",
+      "parentId": "singapore-zoo"
+    },
+    "primate-kingdom": {
+      "childIds": [
+        "orangutan",
+        "colobus-monkey"
+      ],
+      "facts": [
+        {
+          "id": "primate-kingdom-curated",
+          "text": "Primate Kingdom is included as a zoo-zone node for the RoamAtlas demo path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "wildlife",
+        "zone"
+      ],
+      "id": "primate-kingdom",
+      "type": "zone",
+      "title": "Primate Kingdom",
+      "parentId": "singapore-zoo"
+    },
+    "fragile-forest": {
+      "childIds": [
+        "ring-tailed-lemur",
+        "two-toed-sloth"
+      ],
+      "facts": [
+        {
+          "id": "fragile-forest-curated",
+          "text": "Fragile Forest is included as a zoo-zone node for the RoamAtlas demo path.",
+          "sourceType": "curated",
+          "confidence": "confirmed",
+          "sourceUrl": "docs/PRODUCT.md"
+        }
+      ],
+      "tags": [
+        "wildlife",
+        "zone"
+      ],
+      "id": "fragile-forest",
+      "type": "zone",
+      "title": "Fragile Forest",
+      "parentId": "singapore-zoo"
+    },
+    "giraffe": {
+      "childIds": [
+        "giraffe-anatomy-plate"
+      ],
+      "facts": [
+        {
+          "id": "giraffe-exhibit",
+          "text": "Giraffe is confirmed in the current Singapore Zoo Wild Africa demo path from Mandai's official feeding listing.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",
+          "checkedAt": "2026-05-09"
+        },
+        {
+          "id": "giraffe-biology",
+          "text": "Giraffes are herbivorous mammals known for long necks and high browsing behavior.",
+          "sourceType": "general_reference",
+          "confidence": "general"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "giraffe",
+      "type": "animal",
+      "title": "Giraffe",
+      "parentId": "wild-africa"
+    },
+    "white-rhinoceros": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "rhino-exhibit",
+          "text": "White rhino is confirmed in the current Wild Africa demo path from Mandai's official feeding listing.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "white-rhinoceros",
+      "type": "animal",
+      "title": "White Rhinoceros",
+      "parentId": "wild-africa"
+    },
+    "zebra": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "zebra-exhibit",
+          "text": "Zebra is confirmed in the current Wild Africa demo path from Mandai's official feeding listing.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "zebra",
+      "type": "animal",
+      "title": "Zebra",
+      "parentId": "wild-africa"
+    },
+    "orangutan": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "orangutan-zoo",
+          "text": "Mandai's Singapore Zoo visitor page names orangutans among wildlife guests may meet.",
+          "sourceType": "official",
+          "confidence": "confirmed",
+          "sourceUrl": "https://www.mandai.com/en/singapore-zoo.html",
+          "checkedAt": "2026-05-09"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "orangutan",
+      "type": "animal",
+      "title": "Orangutan",
+      "parentId": "primate-kingdom"
+    },
+    "colobus-monkey": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "colobus-general",
+          "text": "Colobus monkey content is included as general encyclopedia background until attraction-specific sourcing is reviewed.",
+          "sourceType": "general_reference",
+          "confidence": "general"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "colobus-monkey",
+      "type": "animal",
+      "title": "Colobus Monkey",
+      "parentId": "primate-kingdom"
+    },
+    "ring-tailed-lemur": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "lemur-general",
+          "text": "Ring-tailed lemur content is included as general encyclopedia background until attraction-specific sourcing is reviewed.",
+          "sourceType": "general_reference",
+          "confidence": "general"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "ring-tailed-lemur",
+      "type": "animal",
+      "title": "Ring-tailed Lemur",
+      "parentId": "fragile-forest"
+    },
+    "two-toed-sloth": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "sloth-general",
+          "text": "Two-toed sloth content is included as general encyclopedia background until attraction-specific sourcing is reviewed.",
+          "sourceType": "general_reference",
+          "confidence": "general"
+        }
+      ],
+      "tags": [
+        "animal",
+        "wildlife"
+      ],
+      "id": "two-toed-sloth",
+      "type": "animal",
+      "title": "Two-toed Sloth",
+      "parentId": "fragile-forest"
+    },
+    "giraffe-anatomy-plate": {
+      "childIds": [],
+      "facts": [
+        {
+          "id": "giraffe-neck-general",
+          "text": "The anatomy plate is general biology content, not proof of a specific live exhibit.",
+          "sourceType": "general_reference",
+          "confidence": "general"
+        }
+      ],
+      "tags": [
+        "animal",
+        "anatomy",
+        "general"
+      ],
+      "id": "giraffe-anatomy-plate",
+      "type": "anatomy_plate",
+      "title": "Giraffe Anatomy Plate",
+      "parentId": "giraffe"
+    }
+  },
+  "scenes": {
+    "singapore-overview": {
+      "id": "singapore-overview",
+      "title": "Singapore Overview Scroll",
+      "rootNodeId": "singapore",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "sparse",
+      "tileGrid": {
+        "columns": 4,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A simplified Singapore overview with visual icon clusters for west-side NUS, NTU, and Jurong Lake Gardens; Marina Bay and Gardens by the Bay; heritage districts; Sentosa; east-side Changi Airport, Jewel Changi, and East Coast Park; and north-side Mandai Wildlife Reserve and Singapore Zoo. Use open water, garden districts, calm roads, bridges, transit lines, modern towers, and spacious green areas.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "hotspot-west-campus",
+          "nodeId": "west-campus-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 155,
+            "y": 185,
+            "width": 365,
+            "height": 160
+          },
+          "zIndex": 2,
+          "label": "NTU / NUS",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "west-campus-scroll"
+          }
+        },
+        {
+          "id": "hotspot-marina",
+          "nodeId": "marina-bay-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 500,
+            "y": 175,
+            "width": 380,
+            "height": 190
+          },
+          "zIndex": 2,
+          "label": "Marina Bay",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "marina-bay-scroll"
+          }
+        },
+        {
+          "id": "hotspot-heritage",
+          "nodeId": "heritage-belt-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 95,
+            "width": 250,
+            "height": 120
+          },
+          "zIndex": 2,
+          "label": "Heritage Belt",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "heritage-belt-scroll"
+          }
+        },
+        {
+          "id": "hotspot-nature",
+          "nodeId": "nature-wildlife-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 980,
+            "y": 130,
+            "width": 320,
+            "height": 155
+          },
+          "zIndex": 2,
+          "label": "Nature",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "nature-wildlife-scroll"
+          }
+        },
+        {
+          "id": "hotspot-changi",
+          "nodeId": "changi-east-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 1285,
+            "y": 165,
+            "width": 330,
+            "height": 185
+          },
+          "zIndex": 2,
+          "label": "Changi",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "changi-east-scroll"
+          }
+        },
+        {
+          "id": "hotspot-sentosa",
+          "nodeId": "sentosa-south-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 900,
+            "y": 345,
+            "width": 500,
+            "height": 130
+          },
+          "zIndex": 2,
+          "label": "Sentosa",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "sentosa-south-scroll"
+          }
+        },
+        {
+          "id": "hotspot-zoo",
+          "nodeId": "singapore-zoo",
+          "kind": "region",
+          "shape": {
+            "x": 1065,
+            "y": 230,
+            "width": 130,
+            "height": 55
+          },
+          "zIndex": 3,
+          "label": "Singapore Zoo",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "singapore-zoo-scroll"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "west-campus-scroll": {
+      "id": "west-campus-scroll",
+      "title": "West Campus Scroll",
+      "rootNodeId": "west-campus-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A west-side Singapore chapter page with NUS, NTU, Jurong Lake Gardens, campus architecture, garden paths, water, transit hints, and spacious green clusters.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "west-campus-scroll-nus",
+          "nodeId": "nus",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "NUS",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "nus"
+          }
+        },
+        {
+          "id": "west-campus-scroll-ntu",
+          "nodeId": "ntu",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "NTU",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "ntu"
+          }
+        },
+        {
+          "id": "west-campus-scroll-jurong-lake-gardens",
+          "nodeId": "jurong-lake-gardens",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Jurong Lake Gardens",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "jurong-lake-gardens"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "marina-bay-scroll": {
+      "id": "marina-bay-scroll",
+      "title": "Marina Bay Scroll",
+      "rootNodeId": "marina-bay-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "Gardens by the Bay and nearby Marina Bay waterfront with two glass conservatories, Supertrees, calm blue water canals, a few bridges, simple roads, a landscaped park, simplified towers, and light transit infrastructure.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "marina-bay-scroll-marina-bay-sands",
+          "nodeId": "marina-bay-sands",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Marina Bay Sands",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "marina-bay-sands"
+          }
+        },
+        {
+          "id": "marina-bay-scroll-gardens-by-the-bay",
+          "nodeId": "gardens-by-the-bay",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Gardens by the Bay",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "gardens-by-the-bay"
+          }
+        },
+        {
+          "id": "marina-bay-scroll-merlion-park",
+          "nodeId": "merlion-park",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Merlion Park",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "merlion-park"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "heritage-belt-scroll": {
+      "id": "heritage-belt-scroll",
+      "title": "Heritage Belt Scroll",
+      "rootNodeId": "heritage-belt-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A compact heritage district with shophouse blocks, shaded walkways, small courtyards, calm roads, planted plazas, and a few modern edges.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "heritage-belt-scroll-chinatown",
+          "nodeId": "chinatown",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Chinatown",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "chinatown"
+          }
+        },
+        {
+          "id": "heritage-belt-scroll-kampong-glam",
+          "nodeId": "kampong-glam",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Kampong Glam",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "kampong-glam"
+          }
+        },
+        {
+          "id": "heritage-belt-scroll-little-india",
+          "nodeId": "little-india",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Little India",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "little-india"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "sentosa-south-scroll": {
+      "id": "sentosa-south-scroll",
+      "title": "Sentosa South Scroll",
+      "rootNodeId": "sentosa-south-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 2,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A clean southern waterfront district with coastline, simple resort blocks, greenery, paths, bridges, light transit, and open water.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "sentosa-south-scroll-sentosa-island",
+          "nodeId": "sentosa-island",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Sentosa Island",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "sentosa-island"
+          }
+        },
+        {
+          "id": "sentosa-south-scroll-southern-ridges",
+          "nodeId": "southern-ridges",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Southern Ridges",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "southern-ridges"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "changi-east-scroll": {
+      "id": "changi-east-scroll",
+      "title": "Changi East Scroll",
+      "rootNodeId": "changi-east-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A clean east-side Singapore chapter page with airport architecture, Jewel-style indoor garden hints, coastal parkland, cycling paths, water, transit access, and spacious visual clusters.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "changi-east-scroll-changi-airport",
+          "nodeId": "changi-airport",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Changi Airport",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "changi-airport"
+          }
+        },
+        {
+          "id": "changi-east-scroll-jewel-changi",
+          "nodeId": "jewel-changi",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Jewel Changi",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "jewel-changi"
+          }
+        },
+        {
+          "id": "changi-east-scroll-east-coast-park",
+          "nodeId": "east-coast-park",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "East Coast Park",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "east-coast-park"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "nature-wildlife-scroll": {
+      "id": "nature-wildlife-scroll",
+      "title": "Nature and Wildlife Scroll",
+      "rootNodeId": "nature-wildlife-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A spacious nature and wildlife district with forest edges, habitat-like clearings, paths, water, light visitor infrastructure, and simple transit access.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "nature-wildlife-scroll-mandai-scroll",
+          "nodeId": "mandai-scroll",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Mandai Wildlife Reserve",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "mandai-scroll"
+          }
+        },
+        {
+          "id": "nature-wildlife-scroll-botanic-gardens",
+          "nodeId": "botanic-gardens",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Singapore Botanic Gardens",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "botanic-gardens"
+          }
+        },
+        {
+          "id": "nature-wildlife-scroll-east-coast-park",
+          "nodeId": "east-coast-park",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "East Coast Park",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "east-coast-park"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "mandai-scroll": {
+      "id": "mandai-scroll",
+      "title": "Mandai Scroll",
+      "rootNodeId": "mandai-scroll",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 2,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A clean wildlife reserve planning illustration with forest paths, habitat zones, water edges, visitor pavilions, and light transit access.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "mandai-scroll-singapore-zoo",
+          "nodeId": "singapore-zoo",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Singapore Zoo",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "singapore-zoo-scroll"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "singapore-zoo-scroll": {
+      "id": "singapore-zoo-scroll",
+      "title": "Singapore Zoo Scroll",
+      "rootNodeId": "singapore-zoo",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A zoo planning illustration with habitat zones, shaded visitor paths, pavilions, water, planted areas, and a calm readable layout.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "singapore-zoo-scroll-wild-africa",
+          "nodeId": "wild-africa",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Wild Africa",
+          "confidence": "confirmed",
+          "action": {
+            "type": "enter_scene",
+            "sceneId": "wild-africa-scroll"
+          }
+        },
+        {
+          "id": "singapore-zoo-scroll-primate-kingdom",
+          "nodeId": "primate-kingdom",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Primate Kingdom",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "primate-kingdom"
+          }
+        },
+        {
+          "id": "singapore-zoo-scroll-fragile-forest",
+          "nodeId": "fragile-forest",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Fragile Forest",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "fragile-forest"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    },
+    "wild-africa-scroll": {
+      "id": "wild-africa-scroll",
+      "title": "Wild Africa Scroll",
+      "rootNodeId": "wild-africa",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1,
+        "tileWidth": 420,
+        "tileHeight": 520,
+        "overlapPx": 32
+      },
+      "visualContext": "A simplified wildlife habitat zone with open grassy areas, paths, water, trees, viewing shelters, and a few distant animal silhouettes.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Singapore scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, or official logos.",
+      "hotspots": [
+        {
+          "id": "wild-africa-scroll-giraffe",
+          "nodeId": "giraffe",
+          "kind": "region",
+          "shape": {
+            "x": 80,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Giraffe",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "giraffe"
+          }
+        },
+        {
+          "id": "wild-africa-scroll-white-rhinoceros",
+          "nodeId": "white-rhinoceros",
+          "kind": "region",
+          "shape": {
+            "x": 400,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "White Rhinoceros",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "white-rhinoceros"
+          }
+        },
+        {
+          "id": "wild-africa-scroll-zebra",
+          "nodeId": "zebra",
+          "kind": "region",
+          "shape": {
+            "x": 720,
+            "y": 170,
+            "width": 230,
+            "height": 190
+          },
+          "zIndex": 3,
+          "label": "Zebra",
+          "confidence": "confirmed",
+          "action": {
+            "type": "open_node",
+            "nodeId": "zebra"
+          }
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 0.34
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.32,
+            "width": 1,
+            "height": 0.46
+          },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0.44,
+            "width": 1,
+            "height": 0.42
+          },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": {
+            "unit": "ratio",
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 1
+          },
+          "zoom": 1
+        }
+      ]
+    }
+  }
+}

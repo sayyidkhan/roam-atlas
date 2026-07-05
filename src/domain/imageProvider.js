@@ -1,11 +1,12 @@
-export const DEFAULT_IMAGE_MODEL = "gpt-image-2";
-export const DEFAULT_IMAGE_SIZE = "1024x1024";
-export const DEFAULT_FAL_IMAGE_MODEL = "fal-ai/nano-banana-2";
-export const DEFAULT_FAL_IMAGE_RESOLUTION = "1K";
-export const DEFAULT_WANDERSG_IMAGE_SYSTEM_PROMPT = `
-You are the WanderSG Image Prompt Compiler and visual style director.
+import { ROAMATLAS_CONFIG } from "../config/roamAtlasConfig.js";
 
-Always generate images in WanderSG's restrained flipbook encyclopedia style:
+export const DEFAULT_IMAGE_PROVIDER = ROAMATLAS_CONFIG.image.provider;
+export const DEFAULT_IMAGE_MODEL = ROAMATLAS_CONFIG.image.model;
+export const DEFAULT_IMAGE_SIZE = ROAMATLAS_CONFIG.image.size;
+export const DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT = `
+You are the travel image prompt compiler and visual style director.
+
+Always generate images in this app's restrained flipbook encyclopedia style:
 - clean isometric or lightly axonometric architectural planning illustration
 - precise thin grey ink outlines
 - flat muted pastel colors
@@ -16,10 +17,10 @@ Always generate images in WanderSG's restrained flipbook encyclopedia style:
 - calm urban planning proposal board feeling
 - illustrated encyclopedia / museum guide page feeling
 
-The image should feel like a clean Singapore visual encyclopedia page, not a
+The image should feel like a clean travel visual encyclopedia page, not a
 tourist poster, not a dense atlas, not a fantasy city, and not a children's book.
 
-Short readable text is allowed only when it is supplied by WanderSG: page titles,
+Short readable text is allowed only when it is supplied by the app: page titles,
 curated node names, short chapter labels, numbers, and one- to three-word callout
 headings. Do not invent prices, opening hours, route times, official signage,
 source citations, marketing copy, or long factual paragraphs.
@@ -32,32 +33,16 @@ off the important content.
 
 export function normalizeImageModel(model = DEFAULT_IMAGE_MODEL) {
   const value = String(model).trim();
-  if (value === "image1" || value === "image-1" || value === "gpt image 1") {
-    return "gpt-image-1";
-  }
   if (value === "image2" || value === "image-2" || value === "gpt image 2") {
     return "gpt-image-2";
   }
   return value || DEFAULT_IMAGE_MODEL;
 }
 
-export function normalizeFalImageModel(model = DEFAULT_FAL_IMAGE_MODEL) {
-  const value = String(model).trim();
-  if (
-    value === "nano-banana-2" ||
-    value === "banana2" ||
-    value === "nano banana 2" ||
-    value === "nano-banana2"
-  ) {
-    return DEFAULT_FAL_IMAGE_MODEL;
-  }
-  return value || DEFAULT_FAL_IMAGE_MODEL;
-}
-
 export class ImageProviderNotConfiguredError extends Error {
   constructor(model = DEFAULT_IMAGE_MODEL) {
     super(
-      `Image provider is not configured. Preferred model is ${model}; configure an explicit provider or fallback before generating tiles.`
+      `OpenAI image generation is not configured. Preferred model is ${model}; set OPENAI_API_KEY before generating tiles.`
     );
     this.name = "ImageProviderNotConfiguredError";
   }
@@ -88,7 +73,7 @@ export async function generateTileImageWithOpenAI({
   apiKey,
   model = DEFAULT_IMAGE_MODEL,
   prompt,
-  fallbackModel = process.env.WANDERSG_FALLBACK_IMAGE_MODEL ?? "gpt-image-1",
+  fallbackModel = ROAMATLAS_CONFIG.image.fallbackModel,
   size = DEFAULT_IMAGE_SIZE
 }) {
   const requestedModel = normalizeImageModel(model);
@@ -135,62 +120,8 @@ export async function generateTileImageWithOpenAI({
     b64Json: image.b64_json,
     revisedPrompt: image.revised_prompt,
     model: requestedModel,
-    size
-  };
-}
-
-export async function generateTileImageWithFal({
-  apiKey,
-  model = DEFAULT_FAL_IMAGE_MODEL,
-  prompt,
-  aspectRatio = "16:9",
-  resolution = DEFAULT_FAL_IMAGE_RESOLUTION,
-  systemPrompt
-}) {
-  const requestedModel = normalizeFalImageModel(model);
-  if (!apiKey) {
-    throw new ImageProviderNotConfiguredError(requestedModel);
-  }
-
-  const response = await fetch(`https://fal.run/${requestedModel}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      prompt,
-      num_images: 1,
-      aspect_ratio: aspectRatio,
-      resolution,
-      output_format: "png",
-      ...(systemPrompt ? { system_prompt: systemPrompt } : {})
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`fal image generation failed: ${response.status} ${await response.text()}`);
-  }
-
-  const payload = await response.json();
-  const image = payload.images?.[0] ?? payload.image ?? payload.data?.images?.[0];
-  const imageUrl = typeof image === "string" ? image : image?.url;
-  if (!imageUrl) {
-    throw new Error("fal image generation returned no image URL.");
-  }
-
-  const imageResponse = await fetch(imageUrl);
-  if (!imageResponse.ok) {
-    throw new Error(`fal image download failed: ${imageResponse.status} ${await imageResponse.text()}`);
-  }
-
-  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-  return {
-    b64Json: imageBuffer.toString("base64"),
-    revisedPrompt: payload.revised_prompt ?? payload.prompt ?? null,
-    model: requestedModel,
-    size: `${aspectRatio} ${resolution}`,
-    provider: "fal"
+    size,
+    provider: DEFAULT_IMAGE_PROVIDER
   };
 }
 

@@ -1,10 +1,10 @@
 import {
-  buildWanderImagePrompt,
+  buildRoamAtlasImagePrompt,
   inferPageTypeForNode,
   inferZoomLevelForNode
 } from "./imagePromptBuilder.js";
 
-export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }) {
+export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, countryName = "selected country" }) {
   if (!matchedNode) {
     const currentZoomLevel = inferZoomLevelForNode(currentNode);
     const shouldUseDetailPlate =
@@ -23,20 +23,21 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
       zoomLevel,
       title,
       visualContext,
-      imagePrompt: buildWanderImagePrompt({
+      imagePrompt: buildRoamAtlasImagePrompt({
         nodeId: "unmapped-detour",
         nodeTitle: title,
         visualContext,
         pageType,
         zoomLevel,
         density: "restrained",
-        parentNodeTitle: currentNode?.title
+        parentNodeTitle: currentNode?.title,
+        countryName
       }),
       factMode: "unverified_detour",
       frontendOverlays: [
         {
           type: "fact",
-          text: "This is an AI-imagined detour, not a confirmed WanderSG node.",
+          text: "This is an AI-imagined detour, not a confirmed RoamAtlas node.",
           anchor: clickedPhrase
         }
       ],
@@ -47,6 +48,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
   const pageType = inferPageTypeForNode(matchedNode);
   const zoomLevel = inferZoomLevelForNode(matchedNode);
   const visualContext = visualContextForNode(matchedNode);
+  const isUnconfirmedNode = hasUnconfirmedNodeFacts(matchedNode);
 
   return {
     nextNodeId: matchedNode.id,
@@ -54,14 +56,15 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
     zoomLevel,
     title: matchedNode.title,
     visualContext,
-    imagePrompt: buildWanderImagePrompt({
+    imagePrompt: buildRoamAtlasImagePrompt({
       nodeId: matchedNode.id,
       nodeTitle: matchedNode.title,
       visualContext,
       pageType,
       zoomLevel,
-      density: zoomLevel === 0 ? "minimal" : "balanced",
-      parentNodeTitle: currentNode?.title
+      density: isUnconfirmedNode || zoomLevel === 0 ? "minimal" : "balanced",
+      parentNodeTitle: currentNode?.title,
+      countryName
     }),
     frontendOverlays: [
       {
@@ -73,15 +76,25 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase }
     clickTargetsToPrecompute: matchedNode.childIds.map((nodeId) => ({
       targetName: nodeId,
       likelyNodeId: nodeId,
-      whyClickable: "Child node in the curated WanderSG scene graph."
+      whyClickable: "Child node in the mapped RoamAtlas scene graph."
     })),
-    factMode: "verified"
+    factMode: isUnconfirmedNode ? "unconfirmed" : "verified"
   };
 }
 
 function visualContextForNode(node) {
+  if (hasUnconfirmedNodeFacts(node)) {
+    return [
+      `${node.title} as an unconfirmed starter-map page.`,
+      "Show a generic atlas composition with terrain, water, paths, trees, transit hints, and anonymous city or landscape forms.",
+      `Use the supplied page title "${node.title}" only.`,
+      "Do not invent named attractions, street names, walk names, districts, official signs, opening hours, prices, routes, citations, rankings, or factual captions.",
+      "If labels are needed, use only generic labels such as city core, waterfront, green space, old town texture, island area, forest, hills, coast, or transit hint."
+    ].join(" ");
+  }
+
   if (node.type === "country") {
-    return "A calm whole-Singapore overview with multiple sparse region anchors, open water, green corridors, roads, transit, and distinct district entry points.";
+    return `A calm whole-country overview for ${node.title} with multiple sparse region anchors, open water, green corridors, roads, transit hints, and distinct district entry points.`;
   }
   if (node.type === "district") {
     return `${node.title} as a spacious district planning board with roads, water, parks, paths, simplified landmarks, and clear region geometry.`;
@@ -100,6 +113,12 @@ function visualContextForNode(node) {
   }
 
   return `${node.title} as a restrained illustrated encyclopedia page.`;
+}
+
+function hasUnconfirmedNodeFacts(node) {
+  return node.facts?.some(
+    (fact) => fact.confidence === "unconfirmed" || fact.sourceType === "ai_generated"
+  );
 }
 
 function isFineGrainedDetourPhrase(phrase) {

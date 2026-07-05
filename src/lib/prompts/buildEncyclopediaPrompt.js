@@ -2,8 +2,9 @@ import {
   GLOBAL_IMAGE_RULES,
   CORE_VISUAL_STYLE,
   NEGATIVE_STYLE_TERMS,
-  WANDERSG_PROMPT_VERSION
-} from "./wandersgPromptStyle.js";
+  ROAMATLAS_PROMPT_VERSION
+} from "./roamAtlasPromptStyle.js";
+import { getPromptCountryName } from "./promptContext.js";
 
 function getDetailTreatment(pageType) {
   switch (pageType) {
@@ -38,9 +39,10 @@ Show one main subject with optional inset diagrams, blank callout panels, fine l
 
 export function buildEncyclopediaPrompt(input) {
   const detailTreatment = getDetailTreatment(input.pageType);
+  const countryName = getPromptCountryName(input);
 
   const prompt = `
-Create a restrained illustrated encyclopedia plate for ${input.nodeTitle} in Singapore.
+Create a restrained illustrated encyclopedia plate for ${input.nodeTitle} in ${countryName}.
 
 Page type:
 ${input.pageType}
@@ -58,7 +60,7 @@ Scene / subject:
 ${input.visualContext}
 
 Parent context:
-${input.parentNodeTitle ? `This page is reached from ${input.parentNodeTitle}. Preserve subtle stylistic continuity, but shift into a more focused study-plate layout.` : "Preserve WanderSG's calm restrained visual language."}
+${input.parentNodeTitle ? `This page is reached from ${input.parentNodeTitle}. Preserve subtle stylistic continuity, but shift into a more focused study-plate layout.` : `Preserve the ${countryName} explorer's calm restrained visual language.`}
 
 Encyclopedia treatment:
 ${detailTreatment}
@@ -104,7 +106,7 @@ Additional style for detail pages:
 ${GLOBAL_IMAGE_RULES}
 
 Labels:
-Readable image text is allowed for page title, supplied subject names, numbered anchors, short category labels, and one- to three-word callout headings. No logo. No official signage. No prices. No hours. No route times. No source citations. No long factual captions. Frontend overlays render exact source-backed facts only when needed.
+Readable image text is allowed for page title, supplied subject names, numbered anchors, short category labels, and one- to three-word callout headings. Do not render any product logo or app name as a logo or title. No official signage. No prices. No hours. No route times. No source citations. No long factual captions. Frontend overlays render exact source-backed facts only when needed.
 
 Avoid:
 ${NEGATIVE_STYLE_TERMS.join(", ")}, busy scientific poster, dense callouts, long readable captions, textbook page full of words, photorealistic rendering.
@@ -115,7 +117,7 @@ ${input.aspectRatio ?? "16:9"}.
 
   return {
     prompt,
-    promptVersion: WANDERSG_PROMPT_VERSION,
+    promptVersion: ROAMATLAS_PROMPT_VERSION,
     pageType: input.pageType,
     zoomLevel: input.zoomLevel,
     recommendedNegativePromptTerms: [

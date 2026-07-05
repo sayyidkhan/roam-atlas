@@ -14,10 +14,10 @@ export function buildItinerary({ days, pace, savedNodeIds, nodes }) {
   const dayCount = Math.max(1, Math.min(Number(days) || 1, 3));
   const buckets = Array.from({ length: dayCount }, (_, index) => ({
     day: index + 1,
-    theme: index === 0 ? "Visual Singapore highlights" : "Curated discoveries",
+    theme: index === 0 ? "Visual country highlights" : "Curated discoveries",
     items: [],
     warnings: [
-      "Only curated WanderSG nodes are used. Times are approximate and do not claim live opening hours."
+      "Only curated RoamAtlas nodes are used. Times are approximate and do not claim live opening hours."
     ]
   }));
 
@@ -49,7 +49,7 @@ export function createUnmappedDetour(query) {
     title: query,
     confidence: "unconfirmed",
     message:
-      "This is not mapped in WanderSG's verified data yet. You can explore it as an AI-imagined detour, but it will not be treated as a confirmed travel fact until reviewed."
+      "This is not mapped in RoamAtlas' verified data yet. You can explore it as an AI-imagined detour, but it will not be treated as a confirmed travel fact until reviewed."
   };
 }
 
@@ -64,7 +64,7 @@ function reasonForNode(node) {
     return `${node.title} fits wildlife and family exploration from the curated graph.`;
   }
   if (node.tags.includes("skyline")) {
-    return `${node.title} anchors the skyline portion of the Singapore scroll.`;
+    return `${node.title} anchors a skyline-focused part of the country scroll.`;
   }
   if (node.tags.includes("culture")) {
     return `${node.title} adds cultural texture without leaving the verified graph.`;

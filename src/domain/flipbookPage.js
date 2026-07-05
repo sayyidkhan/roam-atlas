@@ -6,6 +6,8 @@ import { planNextFlipbookPage } from "./pagePlanner.js";
 
 export function createFlipbookPage({
   id,
+  countrySlug = "default-country",
+  countryName = "selected country",
   sceneId,
   nodeId,
   imageUrl,
@@ -16,6 +18,8 @@ export function createFlipbookPage({
 }) {
   return {
     id,
+    countrySlug,
+    countryName,
     sceneId,
     nodeId,
     imageUrl,
@@ -34,7 +38,8 @@ export function resolveFlipbookClick({
   resolvedPhrase = null,
   scenes,
   nodes,
-  sceneArtwork
+  sceneArtwork,
+  countryName = currentPage.countryName ?? "selected country"
 }) {
   const scene = scenes[currentPage.sceneId];
   const point = {
@@ -86,7 +91,8 @@ export function resolveFlipbookClick({
   const plan = planNextFlipbookPage({
     currentNode: nodes[currentPage.nodeId],
     matchedNode,
-    clickedPhrase: click.phrase
+    clickedPhrase: click.phrase,
+    countryName
   });
 
   if (click.status === "unmapped") {
@@ -99,6 +105,8 @@ export function resolveFlipbookClick({
           phrase: click.phrase,
           normalizedClick
         }),
+        countrySlug: currentPage.countrySlug ?? "default-country",
+        countryName,
         sceneId: currentPage.sceneId,
         nodeId: null,
         imageUrl: currentPage.imageUrl,
@@ -133,6 +141,8 @@ export function resolveFlipbookClick({
         phrase: click.phrase,
         normalizedClick
       }),
+      countrySlug: currentPage.countrySlug ?? "default-country",
+      countryName,
       sceneId: nextSceneId,
       nodeId: plan.nextNodeId ?? click.nodeId,
       imageUrl: artwork?.imageUrl ?? null,
@@ -181,7 +191,7 @@ function resolveLocalPageClick({ currentNode, scene, point, scenes, nodes }) {
       nodeId: null,
       phrase: "unmapped illustrated detail",
       confidence: "unconfirmed",
-      reason: "No precomputed WanderSG region contains this click."
+      reason: "No precomputed RoamAtlas region contains this click."
     };
   }
 
