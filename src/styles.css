@@ -134,7 +134,7 @@ a {
   background: rgba(255, 250, 240, 0.92);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   outline: none;
 }
@@ -178,8 +178,9 @@ a {
 
 .country-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+  width: 100%;
   max-width: 1180px;
   margin: 0 auto 30px;
 }
@@ -191,21 +192,16 @@ a {
   grid-template-rows: 1fr auto;
   align-items: end;
   gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  aspect-ratio: 1 / 1;
   min-height: 188px;
-  height: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
   background:
-    url("/public/art/country-card-atlas.jpg"),
-    rgba(255, 250, 240, 0.78);
-  background-position:
-    var(--country-picture-x, 50%) var(--country-picture-y, 50%),
-    center;
-  background-size:
-    380% auto,
-    cover;
-  background-repeat: no-repeat;
+    radial-gradient(circle at 78% 18%, rgba(109, 167, 184, 0.32), transparent 34%),
+    linear-gradient(135deg, rgba(38, 91, 82, 0.76), rgba(24, 38, 35, 0.92));
   color: #fffaf0;
   text-align: left;
   box-shadow: 0 12px 30px rgba(31, 44, 42, 0.08);
@@ -316,7 +312,7 @@ a {
   padding: 2px 7px;
   background: rgba(255, 250, 240, 0.82);
   color: var(--ink);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 850;
   letter-spacing: 0;
   text-align: right;
@@ -325,11 +321,11 @@ a {
 .country-name {
   position: relative;
   z-index: 3;
-  align-self: end;
+  flex: 1 1 auto;
   min-width: 0;
-  margin: 48px 0 0;
+  margin: 0;
   color: #fffaf0;
-  font-size: 17px;
+  font-size: 14px;
   line-height: 1.16;
   font-weight: 780;
   overflow-wrap: anywhere;
@@ -340,15 +336,15 @@ a {
   position: relative;
   z-index: 3;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 6px;
   width: 100%;
   min-width: 0;
 }
 
 .country-status {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   width: max-content;
   max-width: 100%;
   border: 1px solid rgba(255, 250, 240, 0.34);
@@ -356,7 +352,7 @@ a {
   padding: 3px 8px;
   background: rgba(255, 250, 240, 0.82);
   color: var(--accent);
-  font-size: 11.5px;
+  font-size: 10px;
   font-weight: 800;
 }
 
@@ -380,14 +376,20 @@ a {
 
 .country-shell-panel {
   display: grid;
-  width: min(760px, 100%);
+  gap: 16px;
+  width: min(820px, 100%);
   max-height: calc(100vh - 56px);
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 22px;
+  padding: 24px;
   background: rgba(255, 250, 240, 0.9);
   box-shadow: 0 16px 50px rgba(31, 44, 42, 0.08);
+}
+
+.country-config-hero {
+  display: grid;
+  gap: 8px;
 }
 
 .country-shell-panel h1 {
@@ -403,11 +405,29 @@ a {
   line-height: 1.5;
 }
 
+.primary-command {
+  min-height: 54px;
+  border-radius: 8px;
+  padding: 0 22px;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
 .country-shell-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 18px;
+}
+
+.country-shell-actions button {
+  width: 100%;
+}
+
+.country-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .danger-button {
@@ -448,13 +468,10 @@ a {
   display: grid;
   gap: 14px;
   min-height: 0;
-  max-height: min(520px, 46vh);
-  overflow: auto;
+  overflow: visible;
   overscroll-behavior: contain;
-  margin-top: 18px;
   border-top: 1px solid var(--line);
   padding-top: 18px;
-  padding-right: 4px;
 }
 
 .country-draft h2,
@@ -475,6 +492,43 @@ a {
 
 .country-draft p {
   margin: 0;
+}
+
+.country-draft-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(360px, 100%);
+  border: 1px solid rgba(31, 44, 42, 0.14);
+  border-radius: 8px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.country-draft-tabs button {
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.country-draft-tabs button.is-active {
+  background: rgba(36, 95, 82, 0.12);
+  color: var(--accent);
+}
+
+.country-draft-loading {
+  display: grid;
+  gap: 8px;
+  min-height: 180px;
+  place-content: center;
+  border: 1px dashed rgba(31, 44, 42, 0.18);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .country-draft-header {
@@ -534,6 +588,10 @@ a {
 .draft-review {
   display: grid;
   gap: 8px;
+  border: 1px solid rgba(31, 44, 42, 0.12);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .draft-review ul {
@@ -559,6 +617,20 @@ a {
 .draft-confirmation--ready {
   border-color: rgba(36, 95, 82, 0.28);
   background: rgba(36, 95, 82, 0.1);
+}
+
+.draft-confirmation--loading {
+  border-color: rgba(36, 95, 82, 0.24);
+  background: rgba(36, 95, 82, 0.08);
+}
+
+.draft-confirmation--failed {
+  border-color: rgba(122, 55, 45, 0.26);
+  background: rgba(122, 55, 45, 0.08);
+}
+
+.draft-confirmation--failed h3 {
+  color: #7a372d;
 }
 
 .draft-confirmation h3 {
@@ -661,33 +733,6 @@ a {
 .draft-chat-form textarea:focus {
   border-color: rgba(36, 95, 82, 0.5);
   box-shadow: 0 0 0 3px rgba(36, 95, 82, 0.1);
-}
-
-.coverage-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.coverage-item {
-  border-color: rgba(31, 44, 42, 0.12);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.42);
-}
-
-.coverage-item strong {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.coverage-item span {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
 }
 
 .scroll-viewport {
@@ -1864,7 +1909,7 @@ a {
   }
 
   .country-grid {
-    grid-template-columns: repeat(auto-fill, minmax(136px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
   }
 
   .country-card {
@@ -1881,7 +1926,12 @@ a {
     place-items: start stretch;
   }
 
-  .coverage-row {
+  .country-shell-panel {
+    max-height: none;
+    padding: 18px;
+  }
+
+  .country-shell-actions {
     grid-template-columns: 1fr;
   }
 

@@ -58,7 +58,6 @@ export function inferZoomLevelForNode(node) {
 
 function normalizePageType(pageType) {
   const legacy = {
-    singapore_overview_scroll: "homepage_overview",
     district_map: "region_overview",
     attraction_plate: "district_or_attraction",
     street_or_zone_plate: "street_or_zone",

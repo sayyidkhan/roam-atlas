@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 
 export const RUNTIME_CACHE_URL_PREFIX = "/runtime-cache";
-export const DEFAULT_RUNTIME_COUNTRY_SLUG = "singapore";
+export const DEFAULT_RUNTIME_COUNTRY_SLUG = "default-country";
 
 export function resolveRuntimeCacheRoot(env = process.env) {
   return path.resolve(env.ROAMATLAS_RUNTIME_CACHE_DIR || path.join(os.tmpdir(), "roamatlas-runtime-cache"));

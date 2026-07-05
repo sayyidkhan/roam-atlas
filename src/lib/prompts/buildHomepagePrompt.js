@@ -74,7 +74,7 @@ ${CORE_VISUAL_STYLE}
 ${GLOBAL_IMAGE_RULES}
 
 Labels:
-Readable image text is allowed only for short curated anchor labels and the page title. Do not render any product logo or app name as a logo or title. No legend. No prices. No hours. No route times. No official claims. Frontend overlays render exact facts and source badges.
+Readable image text is allowed only for short curated anchor labels and the country title "${countryName}". Do not invent any product logo, app name, brand word, or decorative title. Never render WanderSG or Wander SG. No legend. No prices. No hours. No route times. No official claims. Frontend overlays render exact facts and source badges.
 
 Avoid:
 ${NEGATIVE_STYLE_TERMS.join(", ")}.

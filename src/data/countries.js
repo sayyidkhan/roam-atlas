@@ -198,11 +198,18 @@ const COUNTRY_CODES = [
 
 const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
 
+const COUNTRY_DISPLAY_CODE_OVERRIDES = {
+  AE: "UAE",
+  GB: "UK",
+  US: "USA"
+};
+
 export const worldCountries = COUNTRY_CODES.map((code) => ({
   code,
+  displayCode: COUNTRY_DISPLAY_CODE_OVERRIDES[code] ?? code,
   name: displayNames.of(code) ?? code,
   slug: slugifyCountryName(displayNames.of(code) ?? code),
-  status: code === "SG" || code === "MY" ? "mapped" : "available"
+  status: "available"
 })).sort((a, b) => a.name.localeCompare(b.name));
 
 export function getCountryCardState(code) {

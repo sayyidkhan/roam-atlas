@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync, inflateSync } from "node:zlib";
@@ -14,7 +14,8 @@ import {
 import {
   DEFAULT_COUNTRY_SLUG,
   countryPacks,
-  getCountryPack
+  getCountryPack,
+  isSourceControlledCountryPack
 } from "../src/data/countryPacks/index.js";
 import { getCountryBySlug } from "../src/data/countries.js";
 import {
@@ -51,6 +52,11 @@ import {
   resolveRuntimeCacheRoot
 } from "../src/domain/runtimeCache.js";
 import { matchClickPhraseToNode } from "../src/domain/nodeMatcher.js";
+import {
+  ENVIRONMENT_PLAN_PROMPT_VERSION,
+  ENVIRONMENT_PLAN_SCHEMA_VERSION,
+  buildEnvironmentPlanPrompt
+} from "../src/lib/prompts/buildEnvironmentPlanPrompt.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -62,9 +68,8 @@ const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 const processingJobs = new Set();
 const countryDraftCache = new Map();
 const countryImageCache = new Map();
-const COUNTRY_IMAGE_FALLBACK_PATH = "/public/art/country-card-atlas.jpg";
-const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v1";
-const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v2";
+const COUNTRY_CARD_IMAGE_PUBLIC_PREFIX = "/public/country-cards";
+const COUNTRY_CARD_IMAGE_PUBLIC_DIR = path.join(root, "public", "country-cards");
 const COUNTRY_MEDIA_PAGE_OVERRIDES = {
   BA: "Bosnia and Herzegovina",
   BO: "Bolivia",
@@ -93,6 +98,41 @@ const COUNTRY_MEDIA_EXCLUDE_PATTERN =
   /(^|[^a-z])(?:flag|coat|arms|emblem|seal|orthographic|projection|location|locator|map|population|density|diagram|chart|graph|gdp|growth|economic|economy|stamp|coin|portrait|president|minister|king|queen|parliament|battle|war|army|military|police|navy|aircraft|letter|logo|manuscript|document|pdf|djvu|text|plate|script|inscription|passport|visa|banknote|currency|montage|collage)([^a-z]|$)/i;
 const COUNTRY_MEDIA_PLACE_PATTERN =
   /(?:village|town|city|cidade|capital|skyline|coast|harbou?r|beach|island|mountain|valley|river|lake|lagoon|reef|shoreline|forest|desert|waterfall|falls|park|garden|palace|pavilion|tower|gate|bridge|hall|temple|church|cathedral|mosque|castle|fort|fortress|street|old town|landscape|view|bay|port|plain|plateau|reserve|road|reservoir|market|monument|cave|arch|ruins|heritage|luanda)/i;
+const COUNTRY_MEDIA_GENERIC_TOPIC_TERMS = new Set([
+  "bay",
+  "beach",
+  "bridge",
+  "capital",
+  "castle",
+  "cathedral",
+  "city",
+  "coast",
+  "desert",
+  "falls",
+  "fort",
+  "fortress",
+  "garden",
+  "harbor",
+  "harbour",
+  "island",
+  "lake",
+  "lagoon",
+  "monastery",
+  "monument",
+  "mosque",
+  "mountain",
+  "museum",
+  "national",
+  "old",
+  "palace",
+  "park",
+  "river",
+  "skyline",
+  "temple",
+  "tower",
+  "towers",
+  "valley"
+]);
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -122,6 +162,11 @@ createServer(async (request, response) => {
     }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/country-image") {
       await handleCountryImageRequest(url, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/country-packs") {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ defaultCountrySlug: DEFAULT_COUNTRY_SLUG, countryPacks }));
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/country-draft") {
@@ -672,37 +717,56 @@ async function handleCountryImageRequest(url, response) {
   const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
   const country = getCountryBySlug(countrySlug);
   if (!country) {
-    redirectCountryImageFallback(response, null);
+    respondCountryImageNotFound(response, null);
     return;
   }
 
   const image = await resolveCountryMediaImage(country);
   if (!image?.imageUrl) {
-    redirectCountryImageFallback(response, country);
+    respondCountryImageNotFound(response, country);
     return;
   }
 
   response.writeHead(302, {
-    Location: image.imageUrl,
+    Location: withCountryImageCacheVersion(image.imageUrl, url.searchParams.get("v")),
     "Cache-Control": "public, max-age=86400",
     "X-RoamAtlas-Image-Source": image.source,
-    "X-RoamAtlas-Image-Page": image.pageTitle
+    "X-RoamAtlas-Image-Page": toSafeHeaderValue(image.pageTitle)
   });
   response.end();
 }
 
-function redirectCountryImageFallback(response, country) {
-  response.writeHead(302, {
-    Location: country ? `https://flagcdn.com/w640/${country.code.toLowerCase()}.png` : COUNTRY_IMAGE_FALLBACK_PATH,
-    "Cache-Control": "public, max-age=3600",
-    "X-RoamAtlas-Image-Source": country ? "flag-fallback" : "fallback"
+function withCountryImageCacheVersion(imageUrl, version) {
+  const cleanVersion = String(version ?? "").trim();
+  if (!cleanVersion || !imageUrl.startsWith(COUNTRY_CARD_IMAGE_PUBLIC_PREFIX)) {
+    return imageUrl;
+  }
+  const separator = imageUrl.includes("?") ? "&" : "?";
+  return `${imageUrl}${separator}v=${encodeURIComponent(cleanVersion)}`;
+}
+
+function respondCountryImageNotFound(response, country) {
+  response.writeHead(404, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-RoamAtlas-Image-Source": "not-found"
   });
-  response.end();
+  response.end(JSON.stringify({
+    error: country
+      ? `No country media image found for ${country.name}`
+      : "Unknown country"
+  }));
 }
 
 async function resolveCountryMediaImage(country) {
   if (countryImageCache.has(country.slug)) {
     return countryImageCache.get(country.slug);
+  }
+
+  const localImage = await resolveLocalCountryCardImage(country);
+  if (localImage) {
+    countryImageCache.set(country.slug, localImage);
+    return localImage;
   }
 
   const pageTitle = getCountryMediaPageTitle(country);
@@ -715,6 +779,9 @@ async function resolveCountryMediaImage(country) {
       }
     : null;
   if (!result) {
+    result = await resolveCountryWikipediaArticleImage(country, pageTitle);
+  }
+  if (!result) {
     result = await resolveCountryLandmarkSearchImage(country, pageTitle);
   }
   if (!result) {
@@ -722,9 +789,131 @@ async function resolveCountryMediaImage(country) {
   }
 
   if (result) {
-    countryImageCache.set(country.slug, result);
+    result = await persistCountryCardImage(country, result);
+    if (result.imageUrl.startsWith(COUNTRY_CARD_IMAGE_PUBLIC_PREFIX)) {
+      countryImageCache.set(country.slug, result);
+    }
   }
   return result;
+}
+
+async function resolveLocalCountryCardImage(country) {
+  const localPath = await findExistingCountryCardImagePath(country);
+  if (!localPath) return null;
+  return {
+    imageUrl: localPath.url,
+    source: "local-country-card",
+    pageTitle: country.name
+  };
+}
+
+async function findExistingCountryCardImagePath(country) {
+  for (const ext of [".jpg", ".jpeg", ".png", ".webp"]) {
+    const filePath = path.join(COUNTRY_CARD_IMAGE_PUBLIC_DIR, `${country.slug}${ext}`);
+    try {
+      const fileStat = await stat(filePath);
+      if (fileStat.isFile()) {
+        return {
+          filePath,
+          url: `${COUNTRY_CARD_IMAGE_PUBLIC_PREFIX}/${country.slug}${ext}`
+        };
+      }
+    } catch {
+      // Try the next supported image extension.
+    }
+  }
+  return null;
+}
+
+async function persistCountryCardImage(country, image) {
+  if (!image?.imageUrl || image.imageUrl.startsWith(COUNTRY_CARD_IMAGE_PUBLIC_PREFIX)) {
+    return image;
+  }
+
+  try {
+    const imageResponse = await fetch(image.imageUrl, createCountryImageDownloadOptions());
+    if (!imageResponse.ok) return image;
+    const contentType = imageResponse.headers.get("content-type") ?? "";
+    if (!contentType.startsWith("image/")) return image;
+
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    if (imageBuffer.length === 0) return image;
+
+    const extension = getCountryCardImageExtension(contentType, image.imageUrl);
+    await mkdir(COUNTRY_CARD_IMAGE_PUBLIC_DIR, { recursive: true });
+    const filePath = path.join(COUNTRY_CARD_IMAGE_PUBLIC_DIR, `${country.slug}${extension}`);
+    await writeFile(filePath, imageBuffer);
+
+    return {
+      ...image,
+      imageUrl: `${COUNTRY_CARD_IMAGE_PUBLIC_PREFIX}/${country.slug}${extension}`,
+      source: `${image.source}:local-cache`
+    };
+  } catch {
+    return image;
+  }
+}
+
+function toSafeHeaderValue(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]+/g, "")
+    .slice(0, 240);
+}
+
+function getCountryCardImageExtension(contentType, imageUrl) {
+  if (contentType.includes("image/webp")) return ".webp";
+  if (contentType.includes("image/png")) return ".png";
+  if (contentType.includes("image/jpeg") || contentType.includes("image/jpg")) return ".jpg";
+  try {
+    const pathname = new URL(imageUrl).pathname.toLowerCase();
+    const extension = path.extname(pathname);
+    if ([".jpg", ".jpeg", ".png", ".webp"].includes(extension)) return extension;
+  } catch {
+    // Fall through to jpeg as the most common Wikimedia thumbnail format.
+  }
+  return ".jpg";
+}
+
+async function resolveCountryWikipediaArticleImage(country, pageTitle) {
+  const candidateTitles = getCountryWikipediaArticleCandidates(country, pageTitle);
+  if (!candidateTitles.length) return null;
+
+  const pageImageUrl = new URL("https://en.wikipedia.org/w/api.php");
+  pageImageUrl.search = new URLSearchParams({
+    action: "query",
+    titles: candidateTitles.join("|"),
+    redirects: "1",
+    prop: "pageimages",
+    piprop: "thumbnail",
+    pithumbsize: "960",
+    format: "json",
+    origin: "*"
+  }).toString();
+
+  try {
+    const pageImageResponse = await fetch(pageImageUrl, createCountryImageFetchOptions());
+    if (!pageImageResponse.ok) return null;
+    const contentType = pageImageResponse.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) return null;
+    const payload = await pageImageResponse.json();
+    const image = selectCountryArticleImage(
+      Object.values(payload?.query?.pages ?? {}),
+      candidateTitles,
+      pageTitle
+    );
+    if (image) {
+      return {
+        ...image,
+        source: "wikipedia-article-pageimage",
+        pageTitle: image.pageTitle
+      };
+    }
+  } catch {
+    // Try the Commons search path if Wikipedia throttles or has no article thumbnail.
+  }
+
+  return null;
 }
 
 async function resolveCountryLandmarkSearchImage(country, pageTitle) {
@@ -801,6 +990,110 @@ async function resolveCountryCommonsCategoryImage(pageTitle) {
   return null;
 }
 
+function getCountryWikipediaArticleCandidates(country, pageTitle) {
+  const candidates = [];
+  for (const topic of getCountryImageTopics(country)) {
+    const normalizedTopic = normalizeCountryArticleTitle(topic);
+    if (!normalizedTopic) continue;
+
+    candidates.push(normalizedTopic);
+    for (const variant of getCountryNameVariants(country, pageTitle)) {
+      const stripped = normalizedTopic.replace(new RegExp(`^${escapeRegExp(variant)}\\s+`, "i"), "").trim();
+      if (stripped && stripped !== normalizedTopic) {
+        candidates.push(stripped);
+      }
+    }
+
+    const words = normalizedTopic.split(/\s+/).filter(Boolean);
+    for (let dropCount = 1; dropCount <= Math.min(5, words.length - 1); dropCount += 1) {
+      const suffix = words.slice(dropCount).join(" ");
+      if (suffix.length >= 4) {
+        candidates.push(suffix);
+      }
+    }
+  }
+
+  return [...new Set(candidates)]
+    .filter((title) => title && !isCountryArticleTitleTooGeneric(title, country, pageTitle))
+    .slice(0, 14);
+}
+
+function getCountryNameVariants(country, pageTitle) {
+  return [
+    pageTitle,
+    country.name,
+    country.name.replace(/\s*&\s*/g, " and "),
+    country.name.replace(/^St\.\s+/i, "Saint "),
+    country.code
+  ]
+    .map(normalizeCountryArticleTitle)
+    .filter(Boolean);
+}
+
+function normalizeCountryArticleTitle(value) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/[’]/g, "'")
+    .trim();
+}
+
+function isCountryArticleTitleTooGeneric(title, country, pageTitle) {
+  const normalizedTitle = title.toLowerCase();
+  return (
+    normalizedTitle === country.name.toLowerCase() ||
+    normalizedTitle === pageTitle.toLowerCase() ||
+    normalizedTitle === country.code.toLowerCase() ||
+    ["city", "capital city", "skyline", "beach", "lagoon", "island"].includes(normalizedTitle)
+  );
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function selectCountryArticleImage(pages, candidateTitles, pageTitle) {
+  const candidateRanks = new Map(
+    candidateTitles.map((title, index) => [title.toLowerCase(), index])
+  );
+  const candidates = pages
+    .map((page) => {
+      const pageTitleValue = String(page?.title ?? "");
+      const imageUrl = page?.thumbnail?.source ?? null;
+      const rank = candidateRanks.get(pageTitleValue.toLowerCase()) ?? candidateTitles.length;
+      return {
+        pageTitle: pageTitleValue,
+        imageUrl,
+        score: scoreCountryArticleImage(pageTitleValue, imageUrl, pageTitle, rank)
+      };
+    })
+    .filter((candidate) =>
+      candidate.imageUrl &&
+      candidate.score > 0 &&
+      isAllowedCountryMediaUrl(candidate.imageUrl) &&
+      !COUNTRY_MEDIA_EXCLUDE_PATTERN.test(candidate.pageTitle) &&
+      !COUNTRY_MEDIA_EXCLUDE_PATTERN.test(decodeURIComponent(candidate.imageUrl))
+    )
+    .sort((a, b) => b.score - a.score || a.pageTitle.localeCompare(b.pageTitle));
+
+  return candidates[0]
+    ? {
+        imageUrl: candidates[0].imageUrl,
+        pageTitle: candidates[0].pageTitle
+      }
+    : null;
+}
+
+function scoreCountryArticleImage(pageTitleValue, imageUrl, pageTitle, rank) {
+  if (!pageTitleValue || !imageUrl) return 0;
+  let score = Math.max(1, 16 - rank);
+  if (COUNTRY_MEDIA_PLACE_PATTERN.test(pageTitleValue)) score += 4;
+  if (pageTitleValue.toLowerCase().includes(pageTitle.toLowerCase())) score += 2;
+  if (/\.(?:jpe?g|webp)(?:$|[/?#])/i.test(imageUrl)) score += 2;
+  if (/\.(?:svg|png)(?:$|[/?#])/i.test(imageUrl)) score -= 2;
+  if (COUNTRY_MEDIA_EXCLUDE_PATTERN.test(pageTitleValue)) score = 0;
+  return score;
+}
+
 function selectCountrySearchImage(pages, topic, pageTitle) {
   const topicTerms = normalizeMediaSearchTerms(topic);
   const candidates = pages
@@ -808,15 +1101,18 @@ function selectCountrySearchImage(pages, topic, pageTitle) {
       const imageInfo = page?.imageinfo?.[0];
       const imageUrl = imageInfo?.thumburl ?? imageInfo?.url ?? null;
       const title = String(page?.title ?? "");
+      const relevance = getCountryMediaRelevance(title, topicTerms, pageTitle);
       return {
         title,
         imageUrl,
         mime: String(imageInfo?.mime ?? ""),
-        score: scoreCountrySearchCandidate(title, topicTerms, pageTitle)
+        score: scoreCountrySearchCandidate(title, topicTerms, pageTitle, relevance),
+        relevance
       };
     })
     .filter((candidate) =>
       candidate.imageUrl &&
+      candidate.relevance.isRelevant &&
       candidate.mime.startsWith("image/") &&
       isAllowedCountryMediaUrl(candidate.imageUrl) &&
       !COUNTRY_MEDIA_EXCLUDE_PATTERN.test(candidate.title) &&
@@ -831,20 +1127,39 @@ function selectCountrySearchImage(pages, topic, pageTitle) {
     : null;
 }
 
+function getCountryMediaRelevance(title, topicTerms, pageTitle) {
+  const normalizedTitle = String(title ?? "").toLowerCase();
+  const matchedTerms = topicTerms.filter((term) => normalizedTitle.includes(term));
+  const distinctiveMatchedTerms = matchedTerms.filter(
+    (term) => !COUNTRY_MEDIA_GENERIC_TOPIC_TERMS.has(term)
+  );
+  const includesCountryPageTitle = normalizedTitle.includes(pageTitle.toLowerCase());
+  return {
+    matchedTerms,
+    distinctiveMatchedTerms,
+    includesCountryPageTitle,
+    isRelevant:
+      distinctiveMatchedTerms.length > 0 ||
+      matchedTerms.length >= 2 ||
+      includesCountryPageTitle
+  };
+}
+
 function normalizeMediaSearchTerms(value) {
   return String(value ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .split(" ")
-    .filter((term) => term.length > 2 && !["the", "and", "city"].includes(term));
+      .filter((term) => term.length > 2 && !["the", "and", "city"].includes(term));
 }
 
-function scoreCountrySearchCandidate(title, topicTerms, pageTitle) {
+function scoreCountrySearchCandidate(title, topicTerms, pageTitle, relevance) {
   const normalizedTitle = String(title ?? "").toLowerCase();
   let score = 0;
   for (const term of topicTerms) {
     if (normalizedTitle.includes(term)) score += 3;
   }
+  score += relevance.distinctiveMatchedTerms.length * 4;
   if (COUNTRY_MEDIA_PLACE_PATTERN.test(normalizedTitle)) score += 3;
   if (normalizedTitle.includes(pageTitle.toLowerCase())) score += 2;
   if (/\.(?:jpe?g|webp)$/i.test(normalizedTitle)) score += 2;
@@ -900,6 +1215,18 @@ function createCountryImageFetchOptions() {
   return fetchOptions;
 }
 
+function createCountryImageDownloadOptions() {
+  const fetchOptions = {
+    headers: {
+      "User-Agent": "RoamAtlas/0.1 local-dev country-card-media"
+    }
+  };
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    fetchOptions.signal = AbortSignal.timeout(30000);
+  }
+  return fetchOptions;
+}
+
 function getCountryMediaPageTitle(country) {
   return (
     COUNTRY_MEDIA_PAGE_OVERRIDES[country.code] ??
@@ -944,7 +1271,7 @@ async function handleCountryDraftRequest(url, response) {
   }
 
   const countryPack = getCountryPack(country.slug);
-  if (countryPack) {
+  if (isSourceControlledCountryPack(countryPack)) {
     if (!forceGenerate) {
       const storedPackSnapshot = await readStoredCountryDraft(country);
       if (storedPackSnapshot?.mode === "curated_pack_snapshot") {
@@ -1051,7 +1378,7 @@ async function handleCountryDraftInfluenceRequest(request, response) {
 }
 
 function isSourceReviewedCountryPack(countryPack) {
-  return Boolean(countryPack) && countryPack.confidence !== "unconfirmed";
+  return isSourceControlledCountryPack(countryPack) && countryPack.confidence !== "unconfirmed";
 }
 
 async function handleCountryDraftConfirmRequest(request, response) {
@@ -1064,10 +1391,10 @@ async function handleCountryDraftConfirmRequest(request, response) {
     return;
   }
 
-  if (getCountryPack(country.slug)) {
+  if (isSourceControlledCountryPack(country.slug)) {
     response.writeHead(409, { "Content-Type": "application/json" });
     response.end(JSON.stringify({
-      error: `${country.name} is already backed by a curated country pack.`
+      error: `${country.name} is already registered as a country pack. Confirm-for-curation only creates draft artifacts for countries that are not registered yet. For ${country.name}, move reviewed changes into the source-controlled country pack instead.`
     }));
     return;
   }
@@ -1128,19 +1455,14 @@ async function flushCountryGeneratedRuntimeCache(countrySlug) {
     throw new Error(`Unsafe runtime cache path for ${countrySlug}.`);
   }
 
-  const generatedFolders = ["image-jobs", "flipbook", "understanding", "environment"];
   clearProcessingJobsForCountry(countryCacheRoot);
-  await Promise.all(
-    generatedFolders.map((folder) =>
-      rm(path.join(countryCacheRoot, folder), { recursive: true, force: true })
-    )
-  );
+  await rm(countryCacheRoot, { recursive: true, force: true });
 
   return {
     flushed: true,
-    removedFolders: generatedFolders,
-    preservedFolders: ["starter-map", "country-pack-draft"],
-    factBoundary: "Only generated visual/runtime cache was flushed. Country-pack data and starter-map review artifacts were preserved."
+    removedRuntimeRoot: countryCacheRoot,
+    removedFolders: ["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft"],
+    factBoundary: "Country runtime cache was cleared. Source-controlled country pack data was not changed."
   };
 }
 
@@ -1593,14 +1915,11 @@ async function createEnvironmentPlanWithOpenAI(page) {
 
   const imageBytes = await readFile(imagePath);
   const mimeType = mimeTypeForImagePath(imagePath);
-  const prompt = buildEnvironmentPlanPrompt(page);
-  const models = [
-    appConfig.ai.environmentModel,
-    appConfig.ai.environmentFallbackModel
-  ].filter((model, index, list) => model && list.indexOf(model) === index);
+  const prompt = buildEnvironmentPlanPrompt(getEnvironmentPromptContext(page));
+  const model = appConfig.ai.environmentModel;
   let lastError = null;
 
-  for (const model of models) {
+  if (model) {
     const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -1627,7 +1946,7 @@ async function createEnvironmentPlanWithOpenAI(page) {
 
     if (!openaiResponse.ok) {
       lastError = `${model}: ${await openaiResponse.text()}`;
-      continue;
+      return createEnvironmentFallbackPlan(page, lastError);
     }
 
     const payload = await openaiResponse.json();
@@ -1645,29 +1964,15 @@ async function createEnvironmentPlanWithOpenAI(page) {
   return createEnvironmentFallbackPlan(page, lastError ?? "No environment planner model is configured.");
 }
 
-function buildEnvironmentPlanPrompt(page) {
+function getEnvironmentPromptContext(page) {
   const pack = getCountryPackForPage(page);
   const title = page.plan?.title ?? page.title ?? page.nodeId ?? page.sceneId ?? "current atlas page";
   const pageType = page.plan?.pageType ?? page.pageType ?? "atlas_page";
-  return [
-    "You are RoamAtlas' environment planner for a generated travel-atlas illustration.",
-    "Inspect the actual image and choose small safe regions for code-rendered ambience overlays.",
-    "The overlays are decorative only. They must not imply verified travel facts, wildlife sightings, routes, prices, opening hours, or official claims.",
-    `Country: ${pack.title}.`,
-    `Page title: ${title}.`,
-    `Page type: ${pageType}.`,
-    "Return JSON only with this exact shape:",
-    `{"version":"${ENVIRONMENT_PLAN_SCHEMA_VERSION}","layers":[{"id":"short-id","kind":"cloud|water|foliage|light|marine_life|birds","bounds":{"x":0,"y":0,"width":0.2,"height":0.1},"intensity":"subtle|medium","safePlacement":"sky|open_air|open_water|foliage|open_light","avoid":["land","islands","buildings","labels","callouts","leader lines","people","animals"],"reason":"short visual reason"}],"warnings":["short warning"]}`,
-    "Bounds are normalized to the original image: x, y, width, and height must be between 0 and 1.",
-    "Use at most 6 layers.",
-    "Prefer small, sparse regions with empty visual space.",
-    "Clouds and birds may only go in clear sky or open air.",
-    "Water shimmer and marine_life may only go on clear open water. Never place them over land, islands, buildings, bridges, boats, labels, numbered markers, callouts, or leader lines.",
-    "Marine_life means a tiny decorative jumping silhouette, not a factual dolphin claim. If there is a large uncluttered open-water area, include one small marine_life layer; skip it only when it would overlap land, islands, labels, boats, buildings, bridges, people, or animals.",
-    "Foliage may only go over dense tree canopy or vegetation, never over buildings or labels.",
-    "If you cannot identify safe regions, return an empty layers array with a warning.",
-    "Do not ask for generated code. Do not describe animation implementation."
-  ].join("\n");
+  return {
+    countryName: pack.title,
+    title,
+    pageType
+  };
 }
 
 function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
@@ -2029,9 +2334,11 @@ async function resolveClickPhraseWithOpenAI({
     };
   }
 
+  const pack = getCountryPack(countrySlug) ?? defaultCountryPack;
+  const fallbackSceneId = pack?.overviewSceneId;
   const artwork = imageUrl
     ? { imageUrl }
-    : getSceneArtwork(sceneId) ?? getSceneArtwork("singapore-overview");
+    : getSceneArtwork(sceneId) ?? (fallbackSceneId ? getSceneArtwork(fallbackSceneId) : null);
   if (!artwork?.imageUrl) {
     return {
       status: "image_missing",
@@ -2064,7 +2371,6 @@ async function resolveClickPhraseWithOpenAI({
     : normalizedClick
     ? `Click coordinates normalized to the visible viewport: x=${normalizedClick.x}, y=${normalizedClick.y}.`
     : `Click coordinates in displayed image space: x=${point?.x}, y=${point?.y}.`;
-  const pack = getCountryPack(countrySlug) ?? defaultCountryPack;
   const candidateText = getSceneCandidateText(sceneId, pack);
   const prompt = [
     "You are RoamAtlas' click resolver.",

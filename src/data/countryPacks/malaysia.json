@@ -1,0 +1,288 @@
+{
+  "countryCode": "MY",
+  "countrySlug": "malaysia",
+  "title": "Malaysia",
+  "rootNodeId": "malaysia",
+  "overviewSceneId": "malaysia-overview",
+  "confidence": "unconfirmed",
+  "factBoundary": "Malaysia is an actual RoamAtlas explorer route, but current facts are starter-map data until source review.",
+  "versions": {
+    "data": "malaysia-starter-v1",
+    "style": "atlas-qingming-v1",
+    "prompt": "prompt-v1"
+  },
+  "tileDefaults": {
+    "tileWidth": 320,
+    "tileHeight": 520,
+    "overlapPx": 32,
+    "imageModel": "default"
+  },
+  "sourceRegistry": {
+    "starter": {
+      "id": "malaysia-starter-pack",
+      "title": "RoamAtlas Malaysia starter country pack",
+      "type": "ai_generated",
+      "url": null
+    }
+  },
+  "nodes": {
+    "malaysia": {
+      "id": "malaysia",
+      "type": "country",
+      "title": "Malaysia",
+      "childIds": [
+        "malaysia-kuala-lumpur",
+        "malaysia-penang",
+        "malaysia-langkawi",
+        "malaysia-johor",
+        "malaysia-sabah",
+        "malaysia-sarawak",
+        "malaysia-melaka"
+      ],
+      "tags": ["overview", "malaysia", "starter-map"],
+      "facts": [
+        {
+          "id": "malaysia-starter-summary",
+          "text": "Malaysia is mapped as a RoamAtlas starter explorer. Region notes are unconfirmed until source review.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-kuala-lumpur": {
+      "id": "malaysia-kuala-lumpur",
+      "type": "district",
+      "title": "Kuala Lumpur",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["city", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-kuala-lumpur-starter-note",
+          "text": "Kuala Lumpur is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-penang": {
+      "id": "malaysia-penang",
+      "type": "district",
+      "title": "Penang",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-penang-starter-note",
+          "text": "Penang is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-langkawi": {
+      "id": "malaysia-langkawi",
+      "type": "district",
+      "title": "Langkawi",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["region", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-langkawi-starter-note",
+          "text": "Langkawi is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-johor": {
+      "id": "malaysia-johor",
+      "type": "district",
+      "title": "Johor",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-johor-starter-note",
+          "text": "Johor is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-sabah": {
+      "id": "malaysia-sabah",
+      "type": "district",
+      "title": "Sabah",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-sabah-starter-note",
+          "text": "Sabah is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-sarawak": {
+      "id": "malaysia-sarawak",
+      "type": "district",
+      "title": "Sarawak",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-sarawak-starter-note",
+          "text": "Sarawak is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    },
+    "malaysia-melaka": {
+      "id": "malaysia-melaka",
+      "type": "district",
+      "title": "Melaka",
+      "parentId": "malaysia",
+      "childIds": [],
+      "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
+      "facts": [
+        {
+          "id": "malaysia-melaka-starter-note",
+          "text": "Melaka is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "sourceType": "ai_generated",
+          "confidence": "unconfirmed",
+          "sourceUrl": null
+        }
+      ]
+    }
+  },
+  "scenes": {
+    "malaysia-overview": {
+      "id": "malaysia-overview",
+      "title": "Malaysia Overview Scroll",
+      "rootNodeId": "malaysia",
+      "pageType": "homepage_overview",
+      "zoomLevel": 0,
+      "density": "minimal",
+      "tileGrid": {
+        "columns": 4,
+        "rows": 1
+      },
+      "visualContext": "A restrained Malaysia overview page for a travel explorer. Show broad candidate region clusters for Kuala Lumpur, Penang, Langkawi, Johor, Sabah, Sarawak, and Melaka as clickable atlas areas. Use warm paper texture, clean ink outlines, terrain washes, coast and island hints, forest and city clusters, calm water, and short readable anchor labels only. Do not add opening hours, prices, official claims, source citations, routes, or long factual captions.",
+      "continuityPromptTemplate": "This tile is part of a larger panoramic Malaysia scroll. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep paper texture, line weight, lighting, perspective, and density consistent. Do not add readable labels, fake signs, ticket prices, opening hours, official claims, source citations, routes, or official logos.",
+      "hotspots": [
+        {
+          "id": "hotspot-kl",
+          "nodeId": "malaysia-kuala-lumpur",
+          "kind": "region",
+          "shape": { "x": 90, "y": 150, "width": 260, "height": 128 },
+          "zIndex": 2,
+          "label": "Kuala Lumpur",
+          "confidence": "unconfirmed"
+        },
+        {
+          "id": "hotspot-penang",
+          "nodeId": "malaysia-penang",
+          "kind": "region",
+          "shape": { "x": 382, "y": 150, "width": 250, "height": 128 },
+          "zIndex": 2,
+          "label": "Penang",
+          "confidence": "unconfirmed"
+        },
+        {
+          "id": "hotspot-langkawi",
+          "nodeId": "malaysia-langkawi",
+          "kind": "region",
+          "shape": { "x": 664, "y": 150, "width": 250, "height": 128 },
+          "zIndex": 2,
+          "label": "Langkawi",
+          "confidence": "unconfirmed"
+        },
+        {
+          "id": "hotspot-johor",
+          "nodeId": "malaysia-johor",
+          "kind": "region",
+          "shape": { "x": 944, "y": 150, "width": 246, "height": 128 },
+          "zIndex": 2,
+          "label": "Johor",
+          "confidence": "unconfirmed"
+        },
+        {
+          "id": "hotspot-sabah",
+          "nodeId": "malaysia-sabah",
+          "kind": "region",
+          "shape": { "x": 170, "y": 324, "width": 250, "height": 128 },
+          "zIndex": 2,
+          "label": "Sabah",
+          "confidence": "unconfirmed"
+        },
+        {
+          "id": "hotspot-sarawak",
+          "nodeId": "malaysia-sarawak",
+          "kind": "region",
+          "shape": { "x": 510, "y": 324, "width": 250, "height": 128 },
+          "zIndex": 2,
+          "label": "Sarawak",
+          "confidence": "unconfirmed"
+        },
+        {
+          "id": "hotspot-melaka",
+          "nodeId": "malaysia-melaka",
+          "kind": "region",
+          "shape": { "x": 850, "y": 324, "width": 250, "height": 128 },
+          "zIndex": 2,
+          "label": "Melaka",
+          "confidence": "unconfirmed"
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": { "unit": "ratio", "x": 0, "y": 0, "width": 1, "height": 1 },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-clouds",
+          "kind": "cloud",
+          "bounds": { "unit": "ratio", "x": 0, "y": 0, "width": 1, "height": 0.36 },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": { "unit": "ratio", "x": 0, "y": 0.28, "width": 1, "height": 0.58 },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": { "unit": "ratio", "x": 0, "y": 0.36, "width": 1, "height": 0.5 },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "overview",
+          "label": "Overview",
+          "targetBounds": { "unit": "ratio", "x": 0, "y": 0, "width": 1, "height": 1 },
+          "zoom": 1
+        }
+      ]
+    }
+  }
+}

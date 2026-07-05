@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -77,8 +77,7 @@ import {
   routeForCountry,
   routeForCountryConfig,
   routeForNode,
-  routeForPlace,
-  routeForSingaporeOverview
+  routeForPlace
 } from "../src/domain/routes.js";
 import {
   buildCountryDraftInfluencePrompt,
@@ -103,9 +102,12 @@ test("country landing lists world countries with routable country shells", () =>
       )
     )
   );
-  assert.equal(getCountryCardState("SG").status, "mapped");
-  assert.equal(getCountryCardState("MY").status, "mapped");
+  assert.equal(getCountryCardState("SG").status, "available");
+  assert.equal(getCountryCardState("MY").status, "available");
   assert.equal(getCountryCardState("US").status, "available");
+  assert.equal(getCountryCardState("AE").displayCode, "UAE");
+  assert.equal(getCountryCardState("GB").displayCode, "UK");
+  assert.equal(getCountryCardState("US").displayCode, "USA");
   assert.equal(getCountryBySlug("malaysia").code, "MY");
   assert.equal(routeForCountry(getCountryBySlug("malaysia")), "/malaysia");
   assert.equal(routeForCountryConfig(getCountryBySlug("austria")), "/austria/config");
@@ -122,20 +124,32 @@ test("country landing cards request country-specific media images", () => {
   assert.deepEqual(getCountryImageTopics(getCountryBySlug("malaysia")).slice(0, 1), [
     "Malaysia Petronas Towers"
   ]);
+  assert.deepEqual(getCountryImageTopics(getCountryBySlug("united-arab-emirates")).slice(0, 1), [
+    "Dubai Burj Al Arab"
+  ]);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("singapore")), /Marina_Bay_Sands/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("malaysia")), /Petronas/);
+  assert.match(getCountryImageOverrideUrl(getCountryBySlug("united-arab-emirates")), /Burj_Al-Arab/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
   assert.match(appSource, /country-card-photo/);
   assert.match(appSource, /getCountryPhotoUrl/);
   assert.match(appSource, /\/api\/country-image\?countrySlug=/);
-  assert.match(appSource, /country-media-v4/);
+  assert.match(appSource, /country-media-v6/);
   assert.match(appSource, /observeCountryCardPhotos/);
+  assert.match(appSource, /resetCountryPhotoQueue/);
   assert.match(appSource, /IntersectionObserver/);
   assert.match(appSource, /COUNTRY_CARD_IMAGE_CONCURRENCY = 2/);
   assert.match(appSource, /queueCountryCardPhoto/);
   assert.match(serverSource, /handleCountryImageRequest/);
   assert.match(serverSource, /\/api\/country-image/);
-  assert.match(serverSource, /if \(result\) \{\n    countryImageCache\.set/);
+  assert.match(serverSource, /result = await persistCountryCardImage\(country, result\);/);
+  assert.match(serverSource, /result\.imageUrl\.startsWith\(COUNTRY_CARD_IMAGE_PUBLIC_PREFIX\)/);
+  assert.match(serverSource, /resolveCountryWikipediaArticleImage/);
+  assert.match(serverSource, /wikipedia-article-pageimage/);
+  assert.match(serverSource, /COUNTRY_CARD_IMAGE_PUBLIC_PREFIX = "\/public\/country-cards"/);
+  assert.match(serverSource, /withCountryImageCacheVersion/);
+  assert.match(serverSource, /persistCountryCardImage/);
+  assert.match(serverSource, /local-country-card/);
   assert.match(serverSource, /resolveCountryLandmarkSearchImage/);
   assert.match(serverSource, /country-image-override/);
   assert.match(serverSource, /wikimedia-commons-search/);
@@ -143,16 +157,17 @@ test("country landing cards request country-specific media images", () => {
   assert.match(serverSource, /wikimedia-commons-category/);
   assert.match(serverSource, /COUNTRY_MEDIA_EXCLUDE_PATTERN/);
   assert.match(serverSource, /COUNTRY_MEDIA_PLACE_PATTERN/);
-  assert.match(serverSource, /flag-fallback/);
-  assert.match(serverSource, /country-card-atlas\.jpg/);
+  assert.doesNotMatch(serverSource, /flag-fallback/);
+  assert.doesNotMatch(serverSource, /flagcdn\.com\/w640/);
   assert.match(styleSource, /\.country-card-photo/);
-  assert.doesNotMatch(styleSource, /\.country-card:hover,\n\.country-card:focus-visible \{\n[^}]*background-image: url\("\/public\/art\/country-card-atlas\.jpg"\)/);
+  assert.doesNotMatch(styleSource, /country-card-atlas\.jpg/);
 });
 
-test("app routes send unmapped countries through config and mapped countries into explorer", () => {
+test("app routes send every country through a registered explorer pack", () => {
   const routeContext = { countries: worldCountries, countryPacks };
   const singaporePack = countryPacks.singapore;
   const malaysiaPack = countryPacks.malaysia;
+  const austriaPack = countryPacks.austria;
 
   assert.deepEqual(resolveAppRoute("/", routeContext), {
     type: "country_landing"
@@ -170,15 +185,16 @@ test("app routes send unmapped countries through config and mapped countries int
     pack: malaysiaPack
   });
   assert.deepEqual(resolveAppRoute("/austria", routeContext), {
-    type: "country_needs_config",
+    type: "country_overview",
     country: getCountryBySlug("austria"),
-    countrySlug: "austria"
+    countrySlug: "austria",
+    pack: austriaPack
   });
   assert.deepEqual(resolveAppRoute("/austria/config", routeContext), {
     type: "country_config",
     country: getCountryBySlug("austria"),
     countrySlug: "austria",
-    pack: null
+    pack: austriaPack
   });
   assert.deepEqual(resolveAppRoute("/malaysia/config", routeContext), {
     type: "country_config",
@@ -198,14 +214,17 @@ test("app routes send unmapped countries through config and mapped countries int
     nodeId: "not-real",
     pack: singaporePack
   });
-  assert.equal(routeForSingaporeOverview(), "/singapore");
   assert.equal(routeForPlace("singapore", "giraffe"), "/singapore/place/giraffe");
   assert.equal(routeForPlace("malaysia", "malaysia-johor"), "/malaysia/place/malaysia-johor");
-  assert.equal(routeForNode("giraffe"), "/singapore/place/giraffe");
+  assert.equal(routeForNode("singapore", "giraffe"), "/singapore/place/giraffe");
   assert.equal(canonicalRouteForNode("singapore", "singapore", singaporePack), "/singapore");
   assert.equal(canonicalRouteForNode("singapore", "giraffe", singaporePack), "/singapore/place/giraffe");
   assert.equal(canonicalRouteForNode("malaysia", "malaysia", malaysiaPack), "/malaysia");
   assert.equal(canonicalRouteForNode("malaysia", "malaysia-johor", malaysiaPack), "/malaysia/place/malaysia-johor");
+  assert.equal(Object.keys(countryPacks).length, worldCountries.length);
+  assert.equal(austriaPack.confidence, "unconfirmed");
+  assert.equal(austriaPack.rootNodeId, "austria");
+  assert.equal(austriaPack.overviewSceneId, "austria-overview");
 });
 
 test("planner only uses curated itinerary nodes and rejects unknown ids", () => {
@@ -479,6 +498,40 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
   assert.match(result.page.plan.visualContext, /Use the supplied page title/);
 });
 
+test("country packs load source data dynamically instead of hardcoding every pack", () => {
+  const registrySource = readFileSync(new URL("../src/data/countryPacks/index.js", import.meta.url), "utf8");
+  const packFiles = readdirSync(new URL("../src/data/countryPacks/", import.meta.url));
+  const malaysiaSource = readFileSync(new URL("../src/data/countryPacks/malaysia.json", import.meta.url), "utf8");
+  const singaporeSource = readFileSync(new URL("../src/data/countryPacks/singapore.json", import.meta.url), "utf8");
+  const malaysiaData = JSON.parse(malaysiaSource);
+  const singaporeData = JSON.parse(singaporeSource);
+  const scene = countryPacks.malaysia.scenes["malaysia-overview"];
+
+  assert.match(registrySource, /loadCountryPacksFromDirectory/);
+  assert.match(registrySource, /compileCountryPackData/);
+  assert.doesNotMatch(registrySource, /malaysiaCountryPack/);
+  assert.doesNotMatch(registrySource, /loadJsCountryPack/);
+  assert.ok(packFiles.includes("malaysia.json"));
+  assert.ok(packFiles.includes("singapore.json"));
+  assert.ok(!packFiles.includes("malaysia.js"));
+  assert.ok(!packFiles.includes("singapore.js"));
+  assert.equal(malaysiaData.countrySlug, "malaysia");
+  assert.equal(singaporeData.countrySlug, "singapore");
+  assert.equal(singaporeData.graphSource, undefined);
+  assert.ok(singaporeData.nodes.singapore);
+  assert.ok(singaporeData.scenes["singapore-overview"]);
+  assert.equal(singaporeData.scenes["singapore-overview"].ambientLayers.length, 4);
+  assert.equal(singaporeData.scenes["singapore-overview"].cameraPresets[0].id, "overview");
+  assert.match(singaporeData.scenes["singapore-overview"].visualContext, /Singapore overview/);
+  assert.equal(malaysiaData.scenes["malaysia-overview"].ambientLayers.length, 4);
+  assert.equal(malaysiaData.scenes["malaysia-overview"].cameraPresets[0].id, "overview");
+  assert.deepEqual(
+    scene.ambientLayers.map((layer) => layer.kind),
+    ["light", "cloud", "water", "foliage"]
+  );
+  assert.equal(scene.cameraPresets[0].targetBounds.width, scene.coordinateSpace.width);
+});
+
 test("Singapore country pack can be projected into the starter map storage shape", () => {
   const starterMap = createCountryPackStarterMap(countryPacks.singapore, {
     generatedAt: "2026-07-02T00:00:00.000Z"
@@ -490,7 +543,7 @@ test("Singapore country pack can be projected into the starter map storage shape
   assert.equal(starterMap.confidence, "confirmed");
   assert.ok(starterMap.regions.some((region) => region.name === "Marina Bay and Civic District"));
   assert.ok(starterMap.themes.length > 0);
-  assert.match(starterMap.factBoundary, /curated RoamAtlas country pack/);
+  assert.match(starterMap.factBoundary, /source-controlled RoamAtlas country pack/);
   assert.notEqual(starterMap.sourceType, "ai_generated");
 });
 
@@ -537,7 +590,6 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(defaults.ai.textModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.vlmModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.environmentModel, "gpt-5.5");
-  assert.equal(defaults.ai.environmentFallbackModel, "gpt-5");
   assert.ok(Object.values(defaults.ai).every((model) => /^gpt-5(?:\.|$|-)/.test(model)));
   assert.equal(withPortOverride.server.port, 5173);
 });
@@ -886,7 +938,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
-  assert.match(output.prompt, /Do not fully render the entire island/);
+  assert.match(output.prompt, /Do not fully render all of Singapore/);
   assert.match(output.prompt, /Readable image text is allowed/);
   assert.match(output.prompt, /central 16:9 safe area/);
   assert.match(output.prompt, /dense tourist map/);
@@ -1066,19 +1118,22 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
 test("country shell uses starter map wording instead of generated draft wording", () => {
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
 
-  assert.match(appSource, /Build starter map/);
-  assert.match(appSource, /Rebuild starter map/);
+  assert.match(appSource, /Back to countries/);
+  assert.match(appSource, /Reset generated data/);
+  assert.match(appSource, /Rebuild starter info/);
+  assert.match(appSource, /reset-map-data/);
+  assert.match(appSource, /reset-metadata/);
   assert.match(appSource, /AI starter map/);
-  assert.match(appSource, /Steer starter map/);
+  assert.match(appSource, /Edit starter map/);
   assert.match(appSource, /data-country-chat-form/);
   assert.match(appSource, /\/api\/country-draft\/influence/);
   assert.match(appSource, /Confirm for curation/);
   assert.match(appSource, /\/api\/country-draft\/confirm/);
-  assert.match(appSource, /Flush generated cache/);
+  assert.match(appSource, /Resetting/);
   assert.match(appSource, /Starter country pack/);
   assert.match(appSource, /Facts remain unconfirmed/);
   assert.match(appSource, /Source-reviewed country pack/);
-  assert.match(appSource, /data-country-action="flush-runtime-cache"/);
+  assert.match(appSource, /requestCountryRuntimeCacheFlush\(country, \{ confirm: false \}\)/);
   assert.match(appSource, /\/api\/runtime-cache\/flush/);
   assert.match(appSource, /clearCountryGeneratedState/);
   assert.match(appSource, /loadStoredCountryDraft/);
@@ -1099,14 +1154,15 @@ test("server exposes country-scoped generated cache flushing", () => {
   assert.match(serverSource, /pathname === "\/api\/runtime-cache\/flush"/);
   assert.match(serverSource, /handleRuntimeCacheFlushRequest/);
   assert.match(serverSource, /flushCountryGeneratedRuntimeCache/);
-  assert.match(serverSource, /\["image-jobs", "flipbook", "understanding", "environment"\]/);
-  assert.match(serverSource, /preservedFolders: \["starter-map", "country-pack-draft"\]/);
+  assert.match(serverSource, /\["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft"\]/);
+  assert.match(serverSource, /Source-controlled country pack data was not changed/);
   assert.match(serverSource, /isPathInside/);
-  assert.match(serverSource, /rm\(path\.join\(countryCacheRoot, folder\), \{ recursive: true, force: true \}\)/);
+  assert.match(serverSource, /rm\(countryCacheRoot, \{ recursive: true, force: true \}\)/);
 });
 
 test("server creates image-specific environment plans for generated artwork", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const promptSource = readFileSync(new URL("../src/lib/prompts/buildEnvironmentPlanPrompt.js", import.meta.url), "utf8");
 
   assert.match(serverSource, /ensureEnvironmentPlanForPage/);
   assert.match(serverSource, /createEnvironmentPlanWithOpenAI/);
@@ -1114,9 +1170,10 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /url\.searchParams\.get\("nodeId"\)/);
   assert.match(serverSource, /jobKind: nodeId \? "interactive" : "artwork"/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
-  assert.match(serverSource, /environment-plan-v1/);
-  assert.match(serverSource, /marine_life may only go on clear open water/);
-  assert.match(serverSource, /Never place them over land, islands, buildings, bridges, boats, labels/);
+  assert.match(serverSource, /buildEnvironmentPlanPrompt/);
+  assert.match(promptSource, /environment-plan-v1/);
+  assert.match(promptSource, /marine_life may only go on clear open water/);
+  assert.match(promptSource, /Never place them over land, islands, buildings, bridges, boats, labels/);
   assert.match(serverSource, /Environment overlays are decorative code-rendered ambience only and are not fact sources/);
 });
 

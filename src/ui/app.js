@@ -3,7 +3,8 @@ import {
   DEFAULT_COUNTRY_SLUG,
   countryPacks,
   getCountryPack,
-  hasCountryPack
+  hasCountryPack,
+  isSourceControlledCountryPack
 } from "../data/countryPacks/index.js";
 import { generatedTiles } from "../data/generatedTiles.js";
 import { factConfidenceLabel } from "../domain/guardrails.js";
@@ -16,7 +17,7 @@ import {
 } from "../domain/routes.js";
 
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
-const COUNTRY_CARD_IMAGE_VERSION = "country-media-v4";
+const COUNTRY_CARD_IMAGE_VERSION = "country-media-v6";
 const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
@@ -29,6 +30,7 @@ const state = {
   activePack: defaultCountryPack,
   countryQuery: "",
   countryDrafts: new Map(),
+  countryDraftTabs: new Map(),
   countryCacheFlushes: new Map(),
   checkedStoredDrafts: new Set(),
   currentPage: createRootPage(defaultCountryPack),
@@ -148,10 +150,6 @@ function bindCountryShell() {
       enterCountryLanding();
       return;
     }
-    if (action === "singapore") {
-      enterMappedCountry(getCountryPack(DEFAULT_COUNTRY_SLUG));
-      return;
-    }
     if (action === "country-map" && state.selectedCountry && hasCountryPack(state.selectedCountry.slug)) {
       enterMappedCountry(getCountryPack(state.selectedCountry.slug));
       return;
@@ -161,6 +159,22 @@ function bindCountryShell() {
       requestCountryDraft(state.selectedCountry, { force: Boolean(draftState?.draft) });
       return;
     }
+    if (action === "reset-country" && state.selectedCountry) {
+      resetCountry(state.selectedCountry);
+      return;
+    }
+    if (action === "reset-map-data" && state.selectedCountry) {
+      requestCountryRuntimeCacheFlush(state.selectedCountry, { confirm: false });
+      return;
+    }
+    if (action === "reset-metadata" && state.selectedCountry) {
+      requestCountryDraft(state.selectedCountry, { force: true });
+      return;
+    }
+    if (action === "reset-open-country" && state.selectedCountry) {
+      resetCountryAndOpenMap(state.selectedCountry);
+      return;
+    }
     if (action === "confirm-starter-map" && state.selectedCountry) {
       requestCountryDraftConfirmation(state.selectedCountry);
       return;
@@ -168,6 +182,13 @@ function bindCountryShell() {
     if (action === "flush-runtime-cache" && state.selectedCountry) {
       requestCountryRuntimeCacheFlush(state.selectedCountry);
     }
+  });
+
+  elements.countryShell.addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-country-draft-tab]")?.dataset.countryDraftTab;
+    if (!tab || !state.selectedCountry) return;
+    state.countryDraftTabs.set(state.selectedCountry.slug, tab);
+    render();
   });
 
   elements.countryShell.addEventListener("submit", (event) => {
@@ -187,22 +208,26 @@ function renderCountryLanding() {
     if (!query) return true;
     return (
       normalizeCountryQuery(country.name).includes(query) ||
-      country.code.toLowerCase().includes(query)
+      country.code.toLowerCase().includes(query) ||
+      country.displayCode.toLowerCase().includes(query)
     );
   });
 
   elements.countryCount.textContent = `${filteredCountries.length} of ${worldCountries.length} countries`;
+  resetCountryPhotoQueue();
   elements.countryGrid.replaceChildren(...filteredCountries.map(renderCountryCard));
   observeCountryCardPhotos(elements.countryGrid);
 }
 
 function renderCountryCard(country) {
-  const isMapped = hasCountryPack(country.slug);
+  const pack = getCountryPack(country.slug);
+  const isConfirmedPack = pack?.confidence !== "unconfirmed";
+  const cardState = isConfirmedPack ? "mapped" : "available";
   const card = document.createElement("button");
   card.type = "button";
-  card.className = `country-card country-card--${country.status}`;
+  card.className = `country-card country-card--${cardState}`;
   card.dataset.countryCode = country.code;
-  card.setAttribute("aria-label", `${country.name}, ${isMapped ? "mapped explorer" : "country page available"}`);
+  card.setAttribute("aria-label", `${country.name}, ${isConfirmedPack ? "source-reviewed explorer" : "starter explorer"}`);
   const picturePosition = getCountryPicturePosition(country.code);
   card.style.setProperty("--country-picture-x", picturePosition.x);
   card.style.setProperty("--country-picture-y", picturePosition.y);
@@ -237,13 +262,13 @@ function renderCountryCard(country) {
   flag.addEventListener("error", () => {
     flag.remove();
     visual.classList.add("country-card-visual--fallback");
-    visual.textContent = country.code;
+    visual.textContent = country.displayCode;
   });
   visual.append(flag);
 
   const code = document.createElement("span");
   code.className = "country-code";
-  code.textContent = country.code;
+  code.textContent = country.displayCode;
 
   const title = document.createElement("span");
   title.className = "country-name";
@@ -251,13 +276,13 @@ function renderCountryCard(country) {
 
   const status = document.createElement("span");
   status.className = "country-status";
-  status.textContent = isMapped ? "Mapped" : "Open";
+  status.textContent = isConfirmedPack ? "Mapped" : "Open";
 
   const footer = document.createElement("span");
   footer.className = "country-card-footer";
-  footer.append(status, code);
+  footer.append(title, status, code);
 
-  card.append(photo, visual, title, footer);
+  card.append(photo, visual, footer);
   return card;
 }
 
@@ -290,6 +315,15 @@ function observeCountryCardPhotos(container) {
   );
 
   photos.forEach((photo) => countryPhotoObserver.observe(photo));
+}
+
+function resetCountryPhotoQueue() {
+  if (countryPhotoObserver) {
+    countryPhotoObserver.disconnect();
+    countryPhotoObserver = null;
+  }
+  countryPhotoQueue = [];
+  activeCountryPhotoLoads = 0;
 }
 
 function queueCountryCardPhoto(photo) {
@@ -343,63 +377,77 @@ function renderCountryShell() {
   const flushState = state.countryCacheFlushes.get(country.slug);
   const isDraftLoading = draftState?.status === "loading" || draftState?.isSending;
   const isCacheFlushing = flushState?.status === "loading";
-  const hasStarterMap = Boolean(draftState?.draft);
-  const description = isMapped
-    ? `${country.name} already has a mapped explorer. Use this config page for starter-map snapshots and curation controls.`
-    : `Configure an unconfirmed starter map for ${country.name} before it becomes a live country explorer.`;
-  const graphStatus = isMapped ? "Mapped country pack" : "No mapped country pack";
-  const factBoundary = isMapped
-    ? pack.confidence === "unconfirmed"
-      ? "Mapped pack, facts unconfirmed"
-      : "Mapped pack, source-reviewed"
-    : "Starter only, not verified";
   const mapAction = isMapped
-    ? `<button type="button" class="ghost-button" data-country-action="country-map">Open ${escapeHtml(country.name)} map</button>`
-    : `<button type="button" class="ghost-button" data-country-action="singapore">Open Singapore demo</button>`;
+    ? renderCountryActionButton({
+        action: "country-map",
+        label: `Open ${country.name} map`,
+        info: `Open the current ${country.name} explorer.`
+      })
+    : renderCountryActionButton({
+        action: "build-starter-map",
+        label: `Build ${country.name} starter map`,
+        info: `Create an unconfirmed starter map for ${country.name}.`
+      });
 
   elements.countryShell.innerHTML = `
     <article class="country-shell-panel">
-      <p class="eyebrow">${country.code} country config</p>
-      <h1>${country.name}</h1>
-      <p>${escapeHtml(description)}</p>
-      <div class="coverage-row" aria-label="Country coverage status">
-        <div class="coverage-item">
-          <strong>Route</strong>
-          <span>${routeForCountryConfig(country)}</span>
+      <header class="country-config-hero">
+        <div>
+          <p class="eyebrow">${country.code} country config</p>
+          <h1>${country.name}</h1>
+          <p>Manage ${country.name} generated map data and starter information before opening the explorer.</p>
         </div>
-        <div class="coverage-item">
-          <strong>Explorer graph</strong>
-          <span>${escapeHtml(graphStatus)}</span>
-        </div>
-        <div class="coverage-item">
-          <strong>Fact boundary</strong>
-          <span>${escapeHtml(factBoundary)}</span>
-        </div>
-      </div>
-      <div class="country-shell-actions">
-        <button type="button" data-country-action="countries">All countries</button>
-        <button type="button" data-country-action="build-starter-map" ${isDraftLoading ? "disabled" : ""}>
-          ${isDraftLoading ? "Building starter map" : hasStarterMap ? "Rebuild starter map" : "Build starter map"}
-        </button>
+      </header>
+
+      <section class="country-shell-actions" aria-label="Manual country actions">
+        ${renderCountryActionButton({
+          action: "countries",
+          label: "Back to countries",
+          info: "Return to the full country list."
+        })}
+        ${renderCountryActionButton({
+          action: "reset-map-data",
+          label: isCacheFlushing ? "Resetting data" : "Reset generated data",
+          info: `Delete generated ${country.name} runtime data, including map images, click data, and stored starter-map artifacts.`,
+          disabled: isCacheFlushing
+        })}
+        ${renderCountryActionButton({
+          action: "reset-metadata",
+          label: isDraftLoading ? "Rebuilding info" : "Rebuild starter info",
+          info: `Rebuild ${country.name} candidate regions, summary, and research themes.`,
+          disabled: isDraftLoading
+        })}
         ${mapAction}
-        <button type="button" class="ghost-button danger-button" data-country-action="flush-runtime-cache" ${isCacheFlushing ? "disabled" : ""}>
-          ${isCacheFlushing ? "Flushing cache" : "Flush generated cache"}
-        </button>
-      </div>
+      </section>
       ${renderCountryCacheFlushNotice(flushState)}
       ${renderCountryDraftPanel(country, draftState)}
     </article>
   `;
 }
 
+function renderCountryActionButton({ action, label, info, disabled = false }) {
+  return `
+    <button
+      type="button"
+      class="ghost-button country-action-button"
+      data-country-action="${escapeHtml(action)}"
+      title="${escapeHtml(info)}"
+      aria-label="${escapeHtml(`${label}. ${info}`)}"
+      ${disabled ? "disabled" : ""}
+    >
+      <span>${escapeHtml(label)}</span>
+    </button>
+  `;
+}
+
 function renderCountryCacheFlushNotice(flushState) {
   if (!flushState || flushState.status === "idle") return "";
   const title = flushState.status === "ready"
-    ? "Generated cache flushed"
+    ? "Generated data reset"
     : flushState.status === "failed"
-    ? "Cache flush failed"
-    : "Flushing generated cache";
-  const message = flushState.message ?? "Clearing generated images, environment plans, image jobs, and click-understanding files.";
+    ? "Reset failed"
+    : "Resetting generated data";
+  const message = flushState.message ?? "Clearing generated runtime data.";
   const className = flushState.status === "failed"
     ? "cache-flush-notice cache-flush-notice--failed"
     : "cache-flush-notice";
@@ -425,9 +473,11 @@ function renderCountryDraftPanel(country, draftState) {
   if (draftState.status === "loading") {
     return `
       <section class="country-draft" aria-label="AI starter map">
-        <p class="eyebrow">Building</p>
-        <h2>Preparing ${escapeHtml(country.name)}</h2>
-        <p>Creating unconfirmed research leads. This does not add facts to the curated graph.</p>
+        <section class="country-draft-loading" aria-live="polite">
+          <p class="eyebrow">Resetting metadata</p>
+          <h2>Clearing starter map info</h2>
+          <p>Rebuilding candidate regions, summary, and research themes.</p>
+        </section>
       </section>
     `;
   }
@@ -449,23 +499,40 @@ function renderCountryDraftPanel(country, draftState) {
   const themes = draft.themes.length
     ? draft.themes.map(renderDraftTheme).join("")
     : `<p class="muted">No candidate themes were returned.</p>`;
+  const activeTab = state.countryDraftTabs.get(country.slug) ?? "map";
 
   return `
     <section class="country-draft" aria-label="AI starter map">
+      <div class="country-draft-tabs" role="tablist" aria-label="Starter map sections">
+        <button
+          type="button"
+          role="tab"
+          class="${activeTab === "map" ? "is-active" : ""}"
+          aria-selected="${activeTab === "map"}"
+          data-country-draft-tab="map"
+        >AI starter map</button>
+        <button
+          type="button"
+          role="tab"
+          class="${activeTab === "steer" ? "is-active" : ""}"
+          aria-selected="${activeTab === "steer"}"
+          data-country-draft-tab="steer"
+        >Edit starter map</button>
+      </div>
+      ${activeTab === "steer" ? renderDraftChat(draftState) : `
       <div class="country-draft-header">
         <div>
           <p class="eyebrow">AI starter map</p>
           <h2>${escapeHtml(draft.countryName)}</h2>
         </div>
-        <div class="badge-row">
-          <span class="badge">${escapeHtml(draft.confidence)}</span>
-          <span class="badge">${escapeHtml(draft.sourceType)}</span>
-          <span class="badge">${escapeHtml(draft.generationStatus)}</span>
-        </div>
       </div>
       <p>${escapeHtml(draft.summary)}</p>
       ${draft.unavailableReason ? `<p class="muted">${escapeHtml(draft.unavailableReason)}</p>` : ""}
-      ${renderDraftConfirmation(draftState)}
+      ${renderDraftConfirmation(draftState, {
+        countryName: country.name,
+        isRegisteredCountryPack: isSourceControlledCountryPack(country.slug)
+      })}
+      ${renderDraftReview(draft)}
       <div class="draft-grid">
         <section>
           <h3>Candidate regions</h3>
@@ -476,18 +543,23 @@ function renderCountryDraftPanel(country, draftState) {
           <div class="draft-list">${themes}</div>
         </section>
       </div>
-      <section class="draft-review">
-        <h3>Before promotion</h3>
-        <ul>
-          ${draft.reviewChecklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </section>
-      ${renderDraftChat(draftState)}
+      `}
     </section>
   `;
 }
 
-function renderDraftConfirmation(draftState) {
+function renderDraftReview(draft) {
+  return `
+    <section class="draft-review">
+      <h3>Before promotion</h3>
+      <ul>
+        ${draft.reviewChecklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
+}
+
+function renderDraftConfirmation(draftState, { countryName, isRegisteredCountryPack } = {}) {
   const draft = draftState.draft;
   if (draft.mode === "curated_pack_snapshot") {
     const isUnconfirmedPack = draft.confidence === "unconfirmed";
@@ -501,17 +573,52 @@ function renderDraftConfirmation(draftState) {
     `;
   }
 
+  if (isRegisteredCountryPack) {
+    return `
+      <section class="draft-confirmation">
+        <div>
+          <h3>Preview only</h3>
+          <p>${escapeHtml(countryName ?? "This country")} already has a source-controlled country pack. Use this starter map to explore changes, then update the country pack source file to make them permanent.</p>
+        </div>
+      </section>
+    `;
+  }
+
   if (draftState.confirmation) {
     return `
       <section class="draft-confirmation draft-confirmation--ready">
         <div>
           <h3>Confirmed for curation</h3>
-          <p>Country-pack draft generated. Facts still require source review before this becomes a live explorer.</p>
+          <p>Country-pack draft artifact generated. You can open the review files below.</p>
         </div>
         <div class="draft-links">
           <a href="${escapeHtml(draftState.confirmation.paths.confirmationUrl)}" target="_blank" rel="noreferrer">confirmation</a>
           <a href="${escapeHtml(draftState.confirmation.paths.countryPackDraftUrl)}" target="_blank" rel="noreferrer">country pack draft</a>
         </div>
+      </section>
+    `;
+  }
+
+  if (draftState.confirmationError) {
+    return `
+      <section class="draft-confirmation draft-confirmation--failed" aria-live="polite">
+        <div>
+          <h3>Confirmation failed</h3>
+          <p>${escapeHtml(draftState.confirmationError)}</p>
+        </div>
+        <button type="button" data-country-action="confirm-starter-map">Try again</button>
+      </section>
+    `;
+  }
+
+  if (draftState.isConfirming) {
+    return `
+      <section class="draft-confirmation draft-confirmation--loading" aria-live="polite">
+        <div>
+          <h3>Confirming for curation</h3>
+          <p>Generating the country-pack draft artifact for source review.</p>
+        </div>
+        <button type="button" disabled>Confirming</button>
       </section>
     `;
   }
@@ -562,14 +669,14 @@ function renderDraftChat(draftState) {
 
   return `
     <section class="draft-chat" aria-label="Starter map chat">
-      <h3>Steer starter map</h3>
+      <h3>Edit starter map</h3>
       <div class="draft-chat-log" aria-live="polite">${log}</div>
       <form class="draft-chat-form" data-country-chat-form>
         <textarea
           name="instruction"
           rows="2"
           maxlength="420"
-          placeholder="Example: focus on states first, then cities near Singapore"
+          placeholder="Example: focus on regions first, then nearby cities"
           ${isSending ? "disabled" : ""}
         ></textarea>
         <button type="submit" ${isSending ? "disabled" : ""}>${isSending ? "Applying" : "Apply"}</button>
@@ -590,15 +697,15 @@ function renderDraftChatMessage(message) {
 
 async function requestCountryDraft(country, { force = false } = {}) {
   const existing = state.countryDrafts.get(country.slug);
-  if (existing?.status === "loading" || existing?.isSending) return;
+  if (existing?.status === "loading" || existing?.isSending) return false;
   const nextMessages = force ? [] : existing?.messages ?? [];
   const nextConfirmation = force ? null : existing?.confirmation ?? null;
 
   state.countryDrafts.set(country.slug, {
-    ...existing,
     status: "loading",
     messages: nextMessages,
-    confirmation: nextConfirmation
+    confirmation: nextConfirmation,
+    draft: null
   });
   render();
   try {
@@ -615,13 +722,16 @@ async function requestCountryDraft(country, { force = false } = {}) {
       messages: nextMessages,
       confirmation: nextConfirmation
     });
+    render();
+    return true;
   } catch (error) {
     state.countryDrafts.set(country.slug, {
       status: "failed",
       error: explainClickError(error)
     });
+    render();
+    return false;
   }
-  render();
 }
 
 async function loadStoredCountryDraft(country) {
@@ -712,10 +822,11 @@ async function requestCountryDraftConfirmation(country) {
   const existing = state.countryDrafts.get(country.slug);
   if (!existing?.draft || existing.isConfirming || existing.isSending || existing.status === "loading") return;
 
-  state.countryDrafts.set(country.slug, {
-    ...existing,
-    isConfirming: true
-  });
+    state.countryDrafts.set(country.slug, {
+      ...existing,
+      isConfirming: true,
+      confirmationError: null
+    });
   render();
 
   try {
@@ -727,39 +838,46 @@ async function requestCountryDraftConfirmation(country) {
         currentDraft: existing.draft
       })
     });
-    if (!response.ok) throw new Error(`Starter map confirmation failed: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(await readResponseError(response, "Starter map confirmation failed"));
+    }
     const confirmation = await response.json();
     state.countryDrafts.set(country.slug, {
       ...existing,
       status: "ready",
       isConfirming: false,
+      confirmationError: null,
       confirmation
     });
   } catch (error) {
+    const message = explainClickError(error);
     state.countryDrafts.set(country.slug, {
       ...existing,
       status: "ready",
       isConfirming: false,
+      confirmationError: message,
       messages: [
         ...(existing.messages ?? []),
-        { role: "assistant", text: explainClickError(error) }
+        { role: "assistant", text: message }
       ].slice(-8)
     });
   }
   render();
 }
 
-async function requestCountryRuntimeCacheFlush(country) {
+async function requestCountryRuntimeCacheFlush(country, { confirm = true } = {}) {
   const existing = state.countryCacheFlushes.get(country.slug);
-  if (existing?.status === "loading") return;
-  const confirmed = window.confirm(
-    `Flush generated images, environment plans, and click cache for ${country.name}? This keeps the country pack and starter-map data.`
-  );
-  if (!confirmed) return;
+  if (existing?.status === "loading") return false;
+  if (confirm) {
+    const confirmed = window.confirm(
+      `Reset generated runtime data for ${country.name}? This clears generated images, click data, stored starter-map artifacts, and review artifacts. Source-controlled country pack data is not changed.`
+    );
+    if (!confirmed) return false;
+  }
 
   state.countryCacheFlushes.set(country.slug, {
     status: "loading",
-    message: "Clearing generated images, environment plans, image jobs, and click-understanding files."
+    message: `Clearing generated ${country.name} runtime data.`
   });
   render();
 
@@ -776,17 +894,60 @@ async function requestCountryRuntimeCacheFlush(country) {
 
     const result = await response.json();
     clearCountryGeneratedState(country.slug);
+    state.countryDrafts.delete(country.slug);
+    state.checkedStoredDrafts.delete(country.slug);
+    state.countryDraftTabs.set(country.slug, "map");
     state.countryCacheFlushes.set(country.slug, {
       status: "ready",
-      message: `Cleared ${result.removedFolders?.join(", ") ?? "generated cache"}. Open the map to regenerate fresh images.`
+      message: "Generated runtime data was cleared. Open the map or rebuild starter info to create fresh data."
     });
+    render();
+    return true;
   } catch (error) {
     state.countryCacheFlushes.set(country.slug, {
       status: "failed",
       message: explainClickError(error)
     });
+    render();
+    return false;
   }
+}
+
+async function resetCountryAndOpenMap(country) {
+  enterCountryLanding();
+  state.countryCacheFlushes.set(country.slug, {
+    status: "loading",
+    message: `Preparing ${country.name}: clearing generated cache.`
+  });
   render();
+
+  const flushed = await requestCountryRuntimeCacheFlush(country, { confirm: false });
+  if (!flushed) {
+    enterCountryShell(country);
+    return;
+  }
+
+  enterCountryShell(country, { replaceUrl: true });
+  const rebuilt = await requestCountryDraft(country, { force: true });
+  if (!rebuilt) return;
+
+  const pack = getCountryPack(country.slug);
+  if (pack) {
+    enterMappedCountry(pack);
+  }
+}
+
+async function resetCountry(country) {
+  state.countryCacheFlushes.set(country.slug, {
+    status: "loading",
+    message: `Resetting ${country.name}: clearing generated cache.`
+  });
+  render();
+
+  const flushed = await requestCountryRuntimeCacheFlush(country, { confirm: false });
+  if (!flushed) return;
+
+  await requestCountryDraft(country, { force: true });
 }
 
 function clearCountryGeneratedState(countrySlug) {

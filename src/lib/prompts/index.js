@@ -6,3 +6,4 @@ export * from "./buildEncyclopediaPrompt.js";
 export * from "./buildRoamAtlasImagePrompt.js";
 export * from "./buildClickResolverPrompt.js";
 export * from "./buildPagePlannerPrompt.js";
+export * from "./buildEnvironmentPlanPrompt.js";

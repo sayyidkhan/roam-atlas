@@ -4,7 +4,7 @@ import {
   inferZoomLevelForNode
 } from "./imagePromptBuilder.js";
 
-export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, countryName = "Singapore" }) {
+export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, countryName = "selected country" }) {
   if (!matchedNode) {
     const currentZoomLevel = inferZoomLevelForNode(currentNode);
     const shouldUseDetailPlate =

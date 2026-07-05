@@ -2,10 +2,6 @@ export function routeForCountryLanding() {
   return "/";
 }
 
-export function routeForSingaporeOverview() {
-  return "/singapore";
-}
-
 export function routeForCountry(country) {
   return `/${country.slug}`;
 }
@@ -18,17 +14,20 @@ export function routeForPlace(countrySlug, nodeId) {
   return `/${countrySlug}/place/${encodeURIComponent(nodeId)}`;
 }
 
-export function routeForNode(nodeId) {
-  return routeForPlace("singapore", nodeId);
+export function routeForNode(countrySlug, nodeId) {
+  if (!countrySlug) {
+    throw new Error("routeForNode requires an explicit country slug.");
+  }
+  return routeForPlace(countrySlug, nodeId);
 }
 
 export function canonicalRouteForNode(countrySlug, nodeId, pack) {
   if (!pack && typeof countrySlug !== "string") {
-    return routeForSingaporeOverview();
+    return routeForCountryLanding();
   }
 
   if (!pack) {
-    return routeForPlace("singapore", nodeId);
+    return countrySlug ? `/${countrySlug}` : routeForCountryLanding();
   }
 
   if (!nodeId || nodeId === pack.rootNodeId || !pack.nodes[nodeId]) {
@@ -101,7 +100,7 @@ export function findSceneIdForNode({ nodeId, nodes, scenes }) {
     currentNodeId = nodes[currentNodeId]?.parentId;
   }
 
-  return "singapore-overview";
+  return Object.values(scenes)[0]?.id ?? null;
 }
 
 function normalizePathname(pathname) {

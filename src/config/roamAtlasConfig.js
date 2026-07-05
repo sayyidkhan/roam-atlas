@@ -2,8 +2,7 @@ export const ROAMATLAS_CONFIG = {
   ai: {
     textModel: "gpt-5.4-mini",
     vlmModel: "gpt-5.4-mini",
-    environmentModel: "gpt-5.5",
-    environmentFallbackModel: "gpt-5"
+    environmentModel: "gpt-5.5"
   },
   image: {
     provider: "openai",
