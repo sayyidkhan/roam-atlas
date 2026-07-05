@@ -76,7 +76,7 @@ export function resolveAppRoute(pathname, { countries = [], countryPacks = {} } 
     const country = countries.find((item) => item.slug === slug);
     if (country) {
       const pack = countryPacks[slug] ?? null;
-      return pack
+      return isConfiguredCountryPack(pack)
         ? { type: "country_overview", country, countrySlug: slug, pack }
         : { type: "country_needs_config", country, countrySlug: slug };
     }
@@ -107,4 +107,8 @@ function normalizePathname(pathname) {
   const value = String(pathname || "/").trim();
   if (!value || value === "/") return "/";
   return value.replace(/\/+$/, "");
+}
+
+function isConfiguredCountryPack(pack) {
+  return pack?.registration === "source_controlled";
 }

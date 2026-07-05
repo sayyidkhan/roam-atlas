@@ -185,10 +185,9 @@ test("app routes send every country through a registered explorer pack", () => {
     pack: malaysiaPack
   });
   assert.deepEqual(resolveAppRoute("/austria", routeContext), {
-    type: "country_overview",
+    type: "country_needs_config",
     country: getCountryBySlug("austria"),
-    countrySlug: "austria",
-    pack: austriaPack
+    countrySlug: "austria"
   });
   assert.deepEqual(resolveAppRoute("/austria/config", routeContext), {
     type: "country_config",

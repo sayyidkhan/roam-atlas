@@ -3,7 +3,6 @@ import {
   DEFAULT_COUNTRY_SLUG,
   countryPacks,
   getCountryPack,
-  hasCountryPack,
   isSourceControlledCountryPack
 } from "../data/countryPacks/index.js";
 import { generatedTiles } from "../data/generatedTiles.js";
@@ -135,7 +134,7 @@ function bindCountryLanding() {
     if (!card) return;
     const country = worldCountries.find((item) => item.code === card.dataset.countryCode);
     if (!country) return;
-    if (hasCountryPack(country.slug)) {
+    if (isSourceControlledCountryPack(country.slug)) {
       enterMappedCountry(getCountryPack(country.slug));
       return;
     }
@@ -150,7 +149,7 @@ function bindCountryShell() {
       enterCountryLanding();
       return;
     }
-    if (action === "country-map" && state.selectedCountry && hasCountryPack(state.selectedCountry.slug)) {
+    if (action === "country-map" && state.selectedCountry && isSourceControlledCountryPack(state.selectedCountry.slug)) {
       enterMappedCountry(getCountryPack(state.selectedCountry.slug));
       return;
     }
@@ -221,13 +220,13 @@ function renderCountryLanding() {
 
 function renderCountryCard(country) {
   const pack = getCountryPack(country.slug);
-  const isConfirmedPack = pack?.confidence !== "unconfirmed";
-  const cardState = isConfirmedPack ? "mapped" : "available";
+  const hasConfiguredPack = isSourceControlledCountryPack(pack);
+  const cardState = hasConfiguredPack ? "mapped" : "available";
   const card = document.createElement("button");
   card.type = "button";
   card.className = `country-card country-card--${cardState}`;
   card.dataset.countryCode = country.code;
-  card.setAttribute("aria-label", `${country.name}, ${isConfirmedPack ? "source-reviewed explorer" : "starter explorer"}`);
+  card.setAttribute("aria-label", `${country.name}, ${hasConfiguredPack ? "configured explorer" : "starter explorer"}`);
   const picturePosition = getCountryPicturePosition(country.code);
   card.style.setProperty("--country-picture-x", picturePosition.x);
   card.style.setProperty("--country-picture-y", picturePosition.y);
@@ -276,7 +275,7 @@ function renderCountryCard(country) {
 
   const status = document.createElement("span");
   status.className = "country-status";
-  status.textContent = isConfirmedPack ? "Mapped" : "Open";
+  status.textContent = hasConfiguredPack ? "Mapped" : "Configure";
 
   const footer = document.createElement("span");
   footer.className = "country-card-footer";
@@ -372,7 +371,7 @@ function renderCountryShell() {
   const country = state.selectedCountry;
   if (!country) return;
   const pack = getCountryPack(country.slug);
-  const isMapped = Boolean(pack);
+  const isMapped = isSourceControlledCountryPack(pack);
   const draftState = state.countryDrafts.get(country.slug);
   const flushState = state.countryCacheFlushes.get(country.slug);
   const isDraftLoading = draftState?.status === "loading" || draftState?.isSending;
