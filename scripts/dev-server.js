@@ -48,6 +48,7 @@ import {
   DEFAULT_RUNTIME_COUNTRY_SLUG,
   RUNTIME_CACHE_URL_PREFIX,
   createCountryStarterMapCachePaths,
+  createPlaceImageCachePaths,
   createRuntimeCachePaths,
   resolveRuntimeCacheRoot
 } from "../src/domain/runtimeCache.js";
@@ -68,6 +69,8 @@ const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 const processingJobs = new Set();
 const countryDraftCache = new Map();
 const countryImageCache = new Map();
+const placeImageCache = new Map();
+const placeImageRequestsInFlight = new Map();
 const COUNTRY_CARD_IMAGE_PUBLIC_PREFIX = "/public/country-cards";
 const COUNTRY_CARD_IMAGE_PUBLIC_DIR = path.join(root, "public", "country-cards");
 const COUNTRY_MEDIA_PAGE_OVERRIDES = {
@@ -162,6 +165,10 @@ createServer(async (request, response) => {
     }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/country-image") {
       await handleCountryImageRequest(url, response);
+      return;
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/place-image") {
+      await handlePlaceImageRequest(url, response);
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/country-packs") {
@@ -861,6 +868,219 @@ function toSafeHeaderValue(value) {
     .slice(0, 240);
 }
 
+const PLACE_IMAGE_FACT_BOUNDARY =
+  "Reference photo from an external search result. It is not evidence of current appearance, availability, or official status.";
+
+async function handlePlaceImageRequest(url, response) {
+  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
+  const place = String(url.searchParams.get("place") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const context = String(url.searchParams.get("context") ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+  const country = getCountryBySlug(countrySlug);
+  if (!country || !place) {
+    respondPlaceImageNotFound(response, "unknown-country-or-place");
+    return;
+  }
+
+  const record = await resolvePlaceImage(country, place, context);
+  if (!record?.imageUrl) {
+    respondPlaceImageNotFound(response, record?.reason ?? "no-image-found");
+    return;
+  }
+
+  response.writeHead(302, {
+    Location: record.imageUrl,
+    "Cache-Control": "public, max-age=86400",
+    "X-RoamAtlas-Image-Source": toSafeHeaderValue(record.source),
+    "X-RoamAtlas-Image-Page": toSafeHeaderValue(record.sourceUrl)
+  });
+  response.end();
+}
+
+function respondPlaceImageNotFound(response, reason) {
+  response.writeHead(404, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-RoamAtlas-Image-Source": "not-found"
+  });
+  response.end(JSON.stringify({ error: "No place image found", reason }));
+}
+
+async function resolvePlaceImage(country, place, context) {
+  const paths = createPlaceImageCachePaths({
+    cacheRoot: runtimeCacheRoot,
+    countrySlug: country.slug,
+    place
+  });
+  const cacheKey = `${paths.countrySlug}:${paths.placeSlug}`;
+  if (placeImageCache.has(cacheKey)) {
+    return placeImageCache.get(cacheKey);
+  }
+  if (placeImageRequestsInFlight.has(cacheKey)) {
+    return placeImageRequestsInFlight.get(cacheKey);
+  }
+
+  const request = resolvePlaceImageUncached(country, place, context, paths)
+    .then((record) => {
+      placeImageCache.set(cacheKey, record);
+      return record;
+    })
+    .finally(() => {
+      placeImageRequestsInFlight.delete(cacheKey);
+    });
+  placeImageRequestsInFlight.set(cacheKey, request);
+  return request;
+}
+
+async function resolvePlaceImageUncached(country, place, context, paths) {
+  const storedRecord = await readStoredPlaceImageRecord(paths);
+  if (storedRecord) return storedRecord;
+
+  if (!process.env.EXA_API_KEY) {
+    // Do not persist provider-missing results; a key may be added later.
+    return { imageUrl: null, reason: "exa-key-missing" };
+  }
+
+  const candidates = await searchExaPlaceImageCandidates(country, place, context);
+  for (const candidate of candidates) {
+    const record = await persistPlaceImage(paths, {
+      country,
+      place,
+      candidate
+    });
+    if (record) return record;
+  }
+
+  const notFoundRecord = {
+    place,
+    countrySlug: country.slug,
+    imageUrl: null,
+    sourceUrl: null,
+    source: "exa_place_search",
+    reason: "no-image-found",
+    fetchedAt: new Date().toISOString(),
+    factBoundary: PLACE_IMAGE_FACT_BOUNDARY
+  };
+  await writeStoredPlaceImageRecord(paths, notFoundRecord);
+  return notFoundRecord;
+}
+
+async function readStoredPlaceImageRecord(paths) {
+  try {
+    const record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
+    if (!record.imageUrl) return record;
+    const imagePath = path.normalize(
+      path.join(runtimeCacheRoot, decodeURIComponent(record.imageUrl.slice(RUNTIME_CACHE_URL_PREFIX.length + 1)))
+    );
+    await stat(imagePath);
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredPlaceImageRecord(paths, record) {
+  try {
+    await mkdir(path.dirname(paths.metadataPath), { recursive: true });
+    await writeFile(paths.metadataPath, JSON.stringify(record, null, 2));
+  } catch (error) {
+    console.warn(`Place image metadata write failed for ${record.place}: ${String(error?.message ?? error)}`);
+  }
+}
+
+async function searchExaPlaceImageCandidates(country, place, context) {
+  const query = [place, country.name, context, "travel photo"].filter(Boolean).join(" ");
+  let exaResponse;
+  try {
+    exaResponse = await fetch("https://api.exa.ai/search", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.EXA_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        numResults: 5,
+        contents: { extras: { imageLinks: 2 } }
+      })
+    });
+  } catch (error) {
+    console.warn(`Exa place image search failed for ${place}: ${String(error?.message ?? error)}`);
+    return [];
+  }
+
+  if (!exaResponse.ok) {
+    console.warn(`Exa place image search failed for ${place}: ${exaResponse.status} ${await exaResponse.text()}`);
+    return [];
+  }
+
+  let payload;
+  try {
+    payload = await exaResponse.json();
+  } catch {
+    return [];
+  }
+
+  const candidates = [];
+  for (const result of Array.isArray(payload?.results) ? payload.results : []) {
+    const sourceUrl = String(result?.url ?? "").trim();
+    const imageUrls = [result?.image, ...(Array.isArray(result?.extras?.imageLinks) ? result.extras.imageLinks : [])];
+    for (const imageUrl of imageUrls) {
+      if (isUsablePlaceImageUrl(imageUrl)) {
+        candidates.push({ imageUrl: String(imageUrl).trim(), sourceUrl, query });
+      }
+    }
+  }
+  return candidates.slice(0, 6);
+}
+
+function isUsablePlaceImageUrl(value) {
+  const imageUrl = String(value ?? "").trim();
+  if (!imageUrl) return false;
+  try {
+    const parsed = new URL(imageUrl);
+    if (parsed.protocol !== "https:") return false;
+    const pathname = parsed.pathname.toLowerCase();
+    if (/\.(?:svg|ico|gif)$/.test(pathname)) return false;
+    if (/(?:logo|favicon|sprite|icon)s?[-_.]/.test(pathname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function persistPlaceImage(paths, { country, place, candidate }) {
+  try {
+    const imageResponse = await fetch(candidate.imageUrl, createCountryImageDownloadOptions());
+    if (!imageResponse.ok) return null;
+    const contentType = imageResponse.headers.get("content-type") ?? "";
+    if (!contentType.startsWith("image/") || contentType.includes("svg")) return null;
+
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    if (imageBuffer.length < 4096) return null;
+
+    const extension = getCountryCardImageExtension(contentType, candidate.imageUrl);
+    const imagePath = paths.imagePathForExtension(extension);
+    await mkdir(path.dirname(imagePath), { recursive: true });
+    await writeFile(imagePath, imageBuffer);
+
+    const record = {
+      place,
+      countrySlug: country.slug,
+      imageUrl: paths.imageUrlForExtension(extension),
+      remoteImageUrl: candidate.imageUrl,
+      sourceUrl: candidate.sourceUrl,
+      query: candidate.query,
+      source: "exa_place_search:local-cache",
+      fetchedAt: new Date().toISOString(),
+      factBoundary: PLACE_IMAGE_FACT_BOUNDARY
+    };
+    await writeStoredPlaceImageRecord(paths, record);
+    return record;
+  } catch {
+    return null;
+  }
+}
+
 function getCountryCardImageExtension(contentType, imageUrl) {
   if (contentType.includes("image/webp")) return ".webp";
   if (contentType.includes("image/png")) return ".png";
@@ -1461,7 +1681,7 @@ async function flushCountryGeneratedRuntimeCache(countrySlug) {
   return {
     flushed: true,
     removedRuntimeRoot: countryCacheRoot,
-    removedFolders: ["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft"],
+    removedFolders: ["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft", "place-images"],
     factBoundary: "Country runtime cache was cleared. Source-controlled country pack data was not changed."
   };
 }
@@ -1564,6 +1784,65 @@ function createStarterMapConfirmation(country, draft) {
   };
 }
 
+const EXA_GROUNDING_DOMAINS = [
+  "visitsingapore.com",
+  "stb.gov.sg",
+  "mandai.com",
+  "malaysia.travel",
+  "tourism.gov.my",
+  "wikipedia.org",
+  "gov.sg",
+  "gov.my"
+];
+
+const EXA_MIN_SNIPPET_TEXT_LENGTH = 200;
+
+async function searchExaGroundingSnippets(country) {
+  const apiKey = process.env.EXA_API_KEY;
+  if (!apiKey) return [];
+
+  const query = `Official tourism attractions, districts, and regions in ${country.name}`;
+  let exaResponse;
+  try {
+    exaResponse = await fetch("https://api.exa.ai/search", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query,
+        numResults: 8,
+        includeDomains: EXA_GROUNDING_DOMAINS,
+        contents: { text: { maxCharacters: 2000 } }
+      })
+    });
+  } catch (error) {
+    console.warn(`Exa grounding search failed for ${country.name}: ${String(error?.message ?? error)}`);
+    return [];
+  }
+
+  if (!exaResponse.ok) {
+    console.warn(`Exa grounding search failed for ${country.name}: ${exaResponse.status} ${await exaResponse.text()}`);
+    return [];
+  }
+
+  let payload;
+  try {
+    payload = await exaResponse.json();
+  } catch {
+    return [];
+  }
+
+  return (Array.isArray(payload?.results) ? payload.results : [])
+    .map((result) => ({
+      title: String(result?.title ?? "").trim(),
+      url: String(result?.url ?? "").trim(),
+      text: String(result?.text ?? "").trim()
+    }))
+    .filter((snippet) => snippet.url && snippet.text.length >= EXA_MIN_SNIPPET_TEXT_LENGTH);
+}
+
 async function generateCountryDraft(country, { instruction = null, currentDraft = null } = {}) {
   if (!process.env.OPENAI_API_KEY) {
     return createCountryDraftFallbackFromCurrent(
@@ -1575,9 +1854,10 @@ async function generateCountryDraft(country, { instruction = null, currentDraft 
   }
 
   const model = appConfig.ai.textModel;
+  const groundingSnippets = await searchExaGroundingSnippets(country);
   const prompt = instruction
-    ? buildCountryDraftInfluencePrompt({ country, instruction, currentDraft })
-    : buildCountryDraftPrompt(country);
+    ? buildCountryDraftInfluencePrompt({ country, instruction, currentDraft, groundingSnippets })
+    : buildCountryDraftPrompt(country, { groundingSnippets });
   let openaiResponse;
   try {
     openaiResponse = await fetch("https://api.openai.com/v1/responses", {
@@ -1629,7 +1909,8 @@ async function generateCountryDraft(country, { instruction = null, currentDraft 
 
   return normalizeCountryDraftPayload(parsed, country, {
     generationStatus: "ready",
-    model
+    model,
+    groundingSnippets
   });
 }
 
@@ -2749,7 +3030,10 @@ function normalizeRuntimeCacheRelativePath(relativePath) {
 }
 
 function isMutableRuntimeJsonPath(relativePath) {
-  return /^(?:[^/]+\/)?(?:image-jobs|codex-jobs|understanding|environment|starter-map|country-pack-draft)\//.test(relativePath);
+  return (
+    /^(?:[^/]+\/)?(?:image-jobs|codex-jobs|understanding|environment|starter-map|country-pack-draft)\//.test(relativePath) ||
+    /^(?:[^/]+\/)?place-images\/[^/]+\.json$/.test(relativePath)
+  );
 }
 
 function getImagePathFromUrl(imageUrl) {

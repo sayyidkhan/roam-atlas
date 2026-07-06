@@ -30,7 +30,8 @@ const state = {
   activePack: defaultCountryPack,
   countryQuery: "",
   countryDrafts: new Map(),
-  countryDraftTabs: new Map(),
+  countryDraftSectionTabs: new Map(),
+  countryDraftGenAiOpen: new Map(),
   countryCacheFlushes: new Map(),
   checkedStoredDrafts: new Set(),
   currentPage: createRootPage(defaultCountryPack),
@@ -179,25 +180,50 @@ function bindCountryShell() {
       requestCountryDraftConfirmation(state.selectedCountry);
       return;
     }
+    if (action === "toggle-genai-prompt" && state.selectedCountry) {
+      const slug = state.selectedCountry.slug;
+      const target = event.target.closest("[data-country-action]")?.dataset.genaiTarget ?? null;
+      if (state.countryDraftGenAiOpen.get(slug) === target) {
+        state.countryDraftGenAiOpen.delete(slug);
+      } else {
+        state.countryDraftGenAiOpen.set(slug, target);
+      }
+      render();
+      return;
+    }
     if (action === "flush-runtime-cache" && state.selectedCountry) {
       requestCountryRuntimeCacheFlush(state.selectedCountry);
     }
   });
 
   elements.countryShell.addEventListener("click", (event) => {
-    const tab = event.target.closest("[data-country-draft-tab]")?.dataset.countryDraftTab;
-    if (!tab || !state.selectedCountry) return;
-    state.countryDraftTabs.set(state.selectedCountry.slug, tab);
-    render();
+    const sectionTab = event.target.closest("[data-country-draft-section-tab]")?.dataset.countryDraftSectionTab;
+    if (sectionTab && state.selectedCountry) {
+      state.countryDraftSectionTabs.set(state.selectedCountry.slug, sectionTab);
+      render();
+    }
   });
 
   elements.countryShell.addEventListener("submit", (event) => {
-    const form = event.target.closest("[data-country-chat-form]");
+    const form = event.target.closest("[data-country-chat-form], [data-country-genai-form]");
     if (!form || !state.selectedCountry) return;
     event.preventDefault();
     const input = form.querySelector("[name='instruction']");
-    requestCountryDraftInfluence(state.selectedCountry, input?.value);
+    const instruction = String(input?.value ?? "").trim();
+    if (!instruction) return;
+    const target = form.dataset.genaiTarget;
+    requestCountryDraftInfluence(
+      state.selectedCountry,
+      target ? scopeInstructionToCandidate(target, instruction) : instruction
+    );
   });
+}
+
+function scopeInstructionToCandidate(target, instruction) {
+  const separatorIndex = target.indexOf(":");
+  const kind = target.slice(0, separatorIndex) === "theme" ? "research theme" : "candidate region";
+  const name = target.slice(separatorIndex + 1);
+  return `Only change the ${kind} "${name}". Keep every other candidate unchanged. ${instruction}`;
 }
 
 function renderCountryLanding() {
@@ -493,33 +519,22 @@ function renderCountryDraftPanel(country, draftState) {
   }
 
   const draft = draftState.draft;
+  const genAiContext = {
+    openTarget: state.countryDraftGenAiOpen.get(country.slug) ?? null,
+    draftState,
+    countrySlug: country.slug
+  };
   const regions = draft.regions.length
-    ? draft.regions.map(renderDraftRegion).join("")
-    : `<p class="muted">No candidate regions were returned.</p>`;
+    ? draft.regions.map((region, index) => renderDraftRegion(region, [index + 1], genAiContext)).join("")
+    : `<li class="muted">No candidate regions were returned.</li>`;
   const themes = draft.themes.length
-    ? draft.themes.map(renderDraftTheme).join("")
-    : `<p class="muted">No candidate themes were returned.</p>`;
-  const activeTab = state.countryDraftTabs.get(country.slug) ?? "map";
+    ? draft.themes.map((theme, index) => renderDraftTheme(theme, [index + 1], genAiContext)).join("")
+    : `<li class="muted">No candidate themes were returned.</li>`;
+  const activeSectionTab = state.countryDraftSectionTabs.get(country.slug) ?? "regions";
+  const editModal = getDraftEditModalContext(draft, genAiContext.openTarget);
 
   return `
     <section class="country-draft" aria-label="AI starter map">
-      <div class="country-draft-tabs" role="tablist" aria-label="Starter map sections">
-        <button
-          type="button"
-          role="tab"
-          class="${activeTab === "map" ? "is-active" : ""}"
-          aria-selected="${activeTab === "map"}"
-          data-country-draft-tab="map"
-        >AI starter map</button>
-        <button
-          type="button"
-          role="tab"
-          class="${activeTab === "steer" ? "is-active" : ""}"
-          aria-selected="${activeTab === "steer"}"
-          data-country-draft-tab="steer"
-        >Edit starter map</button>
-      </div>
-      ${activeTab === "steer" ? renderDraftChat(draftState) : `
       <div class="country-draft-header">
         <div>
           <p class="eyebrow">AI starter map</p>
@@ -533,17 +548,152 @@ function renderCountryDraftPanel(country, draftState) {
         isRegisteredCountryPack: isSourceControlledCountryPack(country.slug)
       })}
       ${renderDraftReview(draft)}
-      <div class="draft-grid">
-        <section>
-          <h3>Candidate regions</h3>
-          <div class="draft-list">${regions}</div>
-        </section>
-        <section>
-          <h3>Research themes</h3>
-          <div class="draft-list">${themes}</div>
-        </section>
+      <div class="draft-section-tabs" aria-label="Candidate regions, research themes, and starter map editing">
+        <div class="draft-section-tab-group" role="tablist" aria-label="Candidate regions and research themes">
+          <button
+            type="button"
+            role="tab"
+            class="${activeSectionTab === "regions" ? "is-active" : ""}"
+            aria-selected="${activeSectionTab === "regions"}"
+            data-country-draft-section-tab="regions"
+          >Candidate regions (${draft.regions.length})</button>
+          <button
+            type="button"
+            role="tab"
+            class="${activeSectionTab === "themes" ? "is-active" : ""}"
+            aria-selected="${activeSectionTab === "themes"}"
+            data-country-draft-section-tab="themes"
+          >Research themes (${draft.themes.length})</button>
+        </div>
+        <button
+          type="button"
+          class="draft-genai-button draft-section-edit-button ${genAiContext.openTarget === "starter-map" ? "is-active" : ""}"
+          data-country-action="toggle-genai-prompt"
+          data-genai-target="starter-map"
+          data-tooltip-title="GenAI edit"
+          data-tooltip="Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review."
+          title="Use GenAI to suggest starter-map edits. Changes stay unconfirmed until source review."
+          aria-label="Edit starter map with GenAI"
+          aria-haspopup="dialog"
+          aria-expanded="${genAiContext.openTarget === "starter-map"}"
+        >${renderGenAiIcon()}<span class="visually-hidden">Edit starter map with GenAI</span></button>
       </div>
-      `}
+      ${editModal ? renderDraftEditModal(draftState, editModal) : ""}
+      <section class="draft-section-panel">
+        ${activeSectionTab === "themes"
+          ? renderDraftTree(draft.countryName, themes, draft.themes.length)
+          : renderDraftTree(draft.countryName, regions, draft.regions.length)}
+      </section>
+    </section>
+  `;
+}
+
+function renderDraftTree(countryName, childItemsHtml, childCount) {
+  return `
+    <ul class="draft-tree">
+      <li class="draft-tree-root">
+        <div class="draft-tree-root-header">
+          <div>
+            <strong>${escapeHtml(countryName)}</strong>
+            <span class="muted">${childCount} parent node${childCount === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+        <ul class="draft-list">${childItemsHtml}</ul>
+      </li>
+    </ul>
+  `;
+}
+
+function renderDraftGenAiButton(target, label, genAiContext) {
+  if (!genAiContext) return "";
+  const isOpen = genAiContext.openTarget === target;
+  const tooltip = `Suggest edits for ${label}. Changes stay unconfirmed until source review.`;
+  return `
+    <button
+      type="button"
+      class="draft-genai-button ${isOpen ? "is-active" : ""}"
+      data-country-action="toggle-genai-prompt"
+      data-genai-target="${escapeHtml(target)}"
+      data-tooltip-title="GenAI edit"
+      data-tooltip="${escapeHtml(tooltip)}"
+      title="${escapeHtml(tooltip)}"
+      aria-label="Edit ${escapeHtml(label)} with GenAI"
+      aria-haspopup="dialog"
+      aria-expanded="${isOpen}"
+    >${renderGenAiIcon()}<span class="visually-hidden">Edit ${escapeHtml(label)} with GenAI</span></button>
+  `;
+}
+
+function renderGenAiIcon() {
+  return `
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+      <path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3z"></path>
+      <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15z"></path>
+    </svg>
+  `;
+}
+
+function getDraftEditModalContext(draft, target) {
+  if (!target) return null;
+  if (target === "starter-map") {
+    return {
+      target,
+      label: "starter map",
+      title: "Steer the starter map",
+      placeholder: "Example: make the candidate regions more family-friendly, or focus the themes on food and nature",
+      note: "Edits only change the starter map direction. Sources are still required before promotion."
+    };
+  }
+
+  const [kind, name] = target.split(":");
+  const decodedName = name ?? "";
+  const isKnownRegion = kind === "region" && draft.regions.some((region) => region.name === decodedName);
+  const isKnownTheme = kind === "theme" && draft.themes.some((theme) => theme.label === decodedName);
+  if (!isKnownRegion && !isKnownTheme) return null;
+
+  return {
+    target,
+    label: decodedName,
+    title: `Steer ${decodedName}`,
+    placeholder: `Example: rename ${decodedName}, or change why it matters`,
+    note: `This edit is scoped to ${decodedName}. It only changes the starter map direction; sources are still required before promotion.`
+  };
+}
+
+function renderDraftEditModal(draftState, modal) {
+  const isSending = Boolean(draftState?.isSending);
+  const lastAssistantMessage = [...(draftState?.messages ?? [])]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  return `
+    <section class="draft-edit-modal-backdrop" role="presentation">
+      <section class="draft-edit-modal" role="dialog" aria-modal="true" aria-label="Edit ${escapeHtml(modal.label)} with GenAI">
+        <header>
+          <div>
+            <p class="eyebrow">GenAI edit</p>
+            <h3>${escapeHtml(modal.title)}</h3>
+          </div>
+          <button
+            type="button"
+            class="sheet-close"
+            data-country-action="toggle-genai-prompt"
+            data-genai-target="${escapeHtml(modal.target)}"
+            aria-label="Close GenAI edit modal"
+          >×</button>
+        </header>
+        <form class="draft-genai-form" data-country-genai-form data-genai-target="${escapeHtml(modal.target)}">
+          <textarea
+            name="instruction"
+            rows="4"
+            maxlength="420"
+            placeholder="${escapeHtml(modal.placeholder)}"
+            ${isSending ? "disabled" : ""}
+          ></textarea>
+          <button type="submit" ${isSending ? "disabled" : ""}>${isSending ? "Applying" : "Apply"}</button>
+          ${lastAssistantMessage ? `<p class="muted">${escapeHtml(lastAssistantMessage.text)}</p>` : ""}
+          <p class="muted">${escapeHtml(modal.note)}</p>
+        </form>
+      </section>
     </section>
   `;
 }
@@ -636,28 +786,174 @@ function renderDraftConfirmation(draftState, { countryName, isRegisteredCountryP
   `;
 }
 
-function renderDraftRegion(region) {
+function renderDraftRegion(region, indexPath, genAiContext) {
+  const nested = [`<li>${escapeHtml(region.why)}</li>`];
+  if (region.sourceUrl) {
+    nested.push(
+      `<li>Source: <a href="${escapeHtml(region.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(region.sourceUrl)}</a></li>`
+    );
+  }
   return `
-    <article class="draft-item">
-      <div>
+    <li class="draft-item">
+      <div class="draft-item-heading">
+        ${renderDraftPlacePhoto(region.name, region.children, genAiContext)}
+        ${renderDraftItemCounter(indexPath)}
         <strong>${escapeHtml(region.name)}</strong>
-        <span>${escapeHtml(region.kind)} · ${escapeHtml(region.confidence)}</span>
+        ${renderDraftMetadata(region.kind, region.confidence)}
+        ${renderDraftGenAiButton(`region:${region.name}`, region.name, genAiContext)}
       </div>
-      <p>${escapeHtml(region.why)}</p>
-    </article>
+      <ul class="draft-item-nested">
+        ${nested.join("")}
+      </ul>
+      ${renderDraftChildNodes(region.children, indexPath)}
+    </li>
   `;
 }
 
-function renderDraftTheme(theme) {
+function renderDraftPlacePhoto(placeName, children, genAiContext) {
+  if (!genAiContext?.countrySlug) return "";
+  const context = (Array.isArray(children) ? children : [])
+    .slice(0, 3)
+    .map((child) => child.name)
+    .join(" ");
+  const src = apiPath(
+    `/api/place-image?countrySlug=${encodeURIComponent(genAiContext.countrySlug)}&place=${encodeURIComponent(placeName)}${
+      context ? `&context=${encodeURIComponent(context)}` : ""
+    }`
+  );
+  // Reference photo only; it must never be treated as evidence about the place.
   return `
-    <article class="draft-item">
-      <div>
-        <strong>${escapeHtml(theme.label)}</strong>
-        <span>${escapeHtml(theme.confidence)}</span>
-      </div>
-      <p>${escapeHtml(theme.note)}</p>
-    </article>
+    <img
+      class="draft-item-photo"
+      src="${escapeHtml(src)}"
+      alt=""
+      loading="lazy"
+      decoding="async"
+      referrerpolicy="no-referrer"
+      title="Reference photo from external search. Not verified travel data."
+      onerror="this.remove()"
+    />
   `;
+}
+
+function renderDraftChildNodes(children, parentIndexPath) {
+  if (!Array.isArray(children) || children.length === 0) return "";
+  return `
+    <ul class="draft-child-list">
+      ${children
+        .map((child, index) => {
+          const indexPath = [...parentIndexPath, index + 1];
+          return `
+            <li class="draft-child-item">
+              <div class="draft-item-heading">
+                ${renderDraftItemCounter(indexPath)}
+                <strong>${escapeHtml(child.name)}</strong>
+                ${renderDraftMetadata(child.kind, child.confidence)}
+              </div>
+              ${renderDraftChildNodes(child.children, indexPath)}
+            </li>
+          `;
+        })
+        .join("")}
+    </ul>
+  `;
+}
+
+function renderDraftTheme(theme, indexPath, genAiContext) {
+  const nested = [`<li>${escapeHtml(theme.note)}</li>`];
+  if (theme.sourceUrl) {
+    nested.push(
+      `<li>Source: <a href="${escapeHtml(theme.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(theme.sourceUrl)}</a></li>`
+    );
+  }
+  return `
+    <li class="draft-item">
+      <div class="draft-item-heading">
+        ${renderDraftItemCounter(indexPath)}
+        <strong>${escapeHtml(theme.label)}</strong>
+        ${renderDraftMetadata("theme", theme.confidence)}
+        ${renderDraftGenAiButton(`theme:${theme.label}`, theme.label, genAiContext)}
+      </div>
+      <ul class="draft-item-nested">
+        ${nested.join("")}
+      </ul>
+    </li>
+  `;
+}
+
+function renderDraftItemCounter(indexPath) {
+  return `<span class="draft-item-counter" aria-hidden="true">${escapeHtml(indexPath.join("."))}</span>`;
+}
+
+function renderDraftMetadata(kind, confidence) {
+  return `
+    <span class="draft-meta" aria-label="${escapeHtml(`${describeDraftKind(kind)}. ${describeDraftConfidence(confidence)}`)}">
+      <span class="draft-meta-chip" data-tooltip="${escapeHtml(describeDraftKind(kind))}">
+        <span class="draft-meta-label">Type</span>
+        <span>${escapeHtml(formatDraftKind(kind))}</span>
+      </span>
+      <span class="draft-meta-chip draft-meta-chip--trust" data-tooltip="${escapeHtml(describeDraftConfidence(confidence))}">
+        <span class="draft-meta-label">Trust</span>
+        <span>${escapeHtml(formatDraftConfidence(confidence))}</span>
+      </span>
+    </span>
+  `;
+}
+
+function formatDraftKind(kind) {
+  const labels = {
+    area: "Area",
+    attraction: "Attraction",
+    city: "City",
+    region: "Region",
+    state: "State",
+    theme: "Theme",
+    zone: "Zone",
+    animal: "Animal"
+  };
+  return labels[kind] ?? titleCaseText(kind);
+}
+
+function describeDraftKind(kind) {
+  const descriptions = {
+    area: "A broad place candidate or sub-area in the map.",
+    attraction: "A specific place a traveller can visit.",
+    city: "A city-level candidate for future curation.",
+    region: "A broad district or region in the country map.",
+    state: "A state-level candidate for future curation.",
+    theme: "A research lens used to organize the map.",
+    zone: "A sub-area inside a larger attraction.",
+    animal: "A wildlife or encyclopedia node."
+  };
+  return descriptions[kind] ?? "The kind of RoamAtlas node this item represents.";
+}
+
+function formatDraftConfidence(confidence) {
+  const labels = {
+    confirmed: "Curated",
+    likely: "Likely",
+    general: "General",
+    unconfirmed: "Needs review"
+  };
+  return labels[confidence] ?? titleCaseText(confidence);
+}
+
+function describeDraftConfidence(confidence) {
+  const descriptions = {
+    confirmed: "Backed by the source-controlled RoamAtlas data.",
+    likely: "Supported by a grounding source, but still needs human review.",
+    general: "General background, not a specific travel claim.",
+    unconfirmed: "Planning scaffold only; not verified for user-facing claims."
+  };
+  return descriptions[confidence] ?? "Confidence level for this item.";
+}
+
+function titleCaseText(value) {
+  return String(value ?? "")
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function renderDraftChat(draftState) {
@@ -896,7 +1192,6 @@ async function requestCountryRuntimeCacheFlush(country, { confirm = true } = {})
     clearCountryGeneratedState(country.slug);
     state.countryDrafts.delete(country.slug);
     state.checkedStoredDrafts.delete(country.slug);
-    state.countryDraftTabs.set(country.slug, "map");
     state.countryCacheFlushes.set(country.slug, {
       status: "ready",
       message: "Generated runtime data was cleared. Open the map or rebuild starter info to create fresh data."

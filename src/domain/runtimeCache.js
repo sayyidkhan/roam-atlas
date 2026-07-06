@@ -46,6 +46,29 @@ export function createRuntimeCachePaths({
   };
 }
 
+export function createPlaceImageCachePaths({
+  cacheRoot,
+  countrySlug = DEFAULT_RUNTIME_COUNTRY_SLUG,
+  place
+}) {
+  const countryCacheSlug = sanitizeCacheSlug(countrySlug || DEFAULT_RUNTIME_COUNTRY_SLUG);
+  const placeSlug = sanitizeCacheSlug(String(place ?? "").trim().toLowerCase()) || "place";
+  const countryUrlPrefix = `${RUNTIME_CACHE_URL_PREFIX}/${countryCacheSlug}`;
+  const countryCacheRoot = path.join(cacheRoot, countryCacheSlug);
+
+  return {
+    countrySlug: countryCacheSlug,
+    placeSlug,
+    countryCacheRoot,
+    metadataPath: path.join(countryCacheRoot, "place-images", `${placeSlug}.json`),
+    metadataUrl: `${countryUrlPrefix}/place-images/${placeSlug}.json`,
+    imagePathForExtension: (extension) =>
+      path.join(countryCacheRoot, "place-images", `${placeSlug}${extension}`),
+    imageUrlForExtension: (extension) =>
+      `${countryUrlPrefix}/place-images/${placeSlug}${extension}`
+  };
+}
+
 export function createCountryStarterMapCachePaths({
   cacheRoot,
   countrySlug = DEFAULT_RUNTIME_COUNTRY_SLUG

@@ -409,6 +409,193 @@ test("country draft normalization labels generated candidates as unconfirmed", (
   assert.match(draft.factBoundary, /not confirmed travel facts/);
 });
 
+test("country draft prompt switches to a grounded variant when Exa snippets are supplied", () => {
+  const country = getCountryBySlug("malaysia");
+  const groundingSnippets = [
+    {
+      title: "Visit Malaysia - Kuala Lumpur",
+      url: "https://malaysia.travel/kuala-lumpur",
+      text: "Kuala Lumpur is the capital city of Malaysia."
+    },
+    {
+      title: "Tourism Malaysia - Penang",
+      url: "https://tourism.gov.my/penang",
+      text: "Penang is known for its heritage sites."
+    },
+    {
+      title: "Visit Malaysia - Langkawi",
+      url: "https://malaysia.travel/langkawi",
+      text: "Langkawi is an archipelago known for its beaches."
+    }
+  ];
+
+  const ungroundedPrompt = buildCountryDraftPrompt(country);
+  const groundedPrompt = buildCountryDraftPrompt(country, { groundingSnippets });
+
+  assert.match(ungroundedPrompt, /Do not include opening hours, ticket prices, exact transport times, closures, source URLs/);
+  assert.doesNotMatch(ungroundedPrompt, /Research snippets/);
+
+  assert.match(groundedPrompt, /Research snippets \(from an external search API, not your own memory\)/);
+  assert.match(groundedPrompt, /https:\/\/malaysia\.travel\/kuala-lumpur/);
+  assert.match(groundedPrompt, /Never invent a URL that is not one of the snippet URLs listed above/);
+  assert.match(groundedPrompt, /confidence to "likely"/);
+  assert.doesNotMatch(groundedPrompt, /source URLs, citations/);
+});
+
+test("country draft prompt falls back to the ungrounded variant when fewer than 3 usable snippets are supplied", () => {
+  const country = getCountryBySlug("malaysia");
+  const tooFewSnippets = [
+    { title: "Visit Malaysia - Kuala Lumpur", url: "https://malaysia.travel/kuala-lumpur", text: "Kuala Lumpur is the capital city of Malaysia." },
+    { title: "Tourism Malaysia - Penang", url: "https://tourism.gov.my/penang", text: "Penang is known for its heritage sites." }
+  ];
+
+  const prompt = buildCountryDraftPrompt(country, { groundingSnippets: tooFewSnippets });
+
+  assert.doesNotMatch(prompt, /Research snippets/);
+  assert.match(prompt, /Do not include opening hours, ticket prices, exact transport times, closures, source URLs/);
+});
+
+test("country starter map chat prompt also switches to a grounded variant when Exa snippets are supplied", () => {
+  const country = getCountryBySlug("malaysia");
+  const groundingSnippets = [
+    {
+      title: "Tourism Malaysia - Penang",
+      url: "https://tourism.gov.my/penang",
+      text: "Penang is known for its heritage sites."
+    },
+    {
+      title: "Tourism Johor",
+      url: "https://tourism.johor.gov.my/",
+      text: "Johor is known for its cultural heritage."
+    },
+    {
+      title: "myPenang",
+      url: "https://mypenang.gov.my/",
+      text: "Penang heritage zones and street art."
+    }
+  ];
+
+  const prompt = buildCountryDraftInfluencePrompt({
+    country,
+    instruction: "Focus on Penang heritage sites.",
+    currentDraft: null,
+    groundingSnippets
+  });
+
+  assert.match(prompt, /Research snippets \(from an external search API, not your own memory\)/);
+  assert.match(prompt, /https:\/\/tourism\.gov\.my\/penang/);
+  assert.match(prompt, /Never invent a URL that is not one of the snippet URLs listed above/);
+});
+
+test("normalizeCountryDraftPayload upgrades confidence to likely only when sourceUrl matches a grounding snippet", () => {
+  const country = getCountryBySlug("malaysia");
+  const groundingSnippets = [
+    { title: "Official Penang guide", url: "https://tourism.gov.my/penang", text: "Penang heritage." },
+    { title: "Tourism Johor", url: "https://tourism.johor.gov.my/", text: "Johor culture." },
+    { title: "myPenang", url: "https://mypenang.gov.my/", text: "Penang heritage zones." }
+  ];
+
+  const draft = normalizeCountryDraftPayload(
+    {
+      summary: "Grounded research scaffold for Malaysia.",
+      regions: [
+        {
+          name: "Penang",
+          kind: "state",
+          why: "Heritage sites referenced by an official tourism source.",
+          confidence: "likely",
+          sourceUrl: "https://tourism.gov.my/penang"
+        },
+        {
+          name: "Made Up Place",
+          kind: "city",
+          why: "Not actually supported by any snippet.",
+          confidence: "likely",
+          sourceUrl: "https://not-a-real-grounding-source.example.com/fake"
+        }
+      ],
+      themes: [
+        {
+          label: "Heritage",
+          note: "Backed by the Penang snippet.",
+          confidence: "likely",
+          sourceUrl: "https://tourism.gov.my/penang"
+        }
+      ]
+    },
+    country,
+    { generatedAt: "2026-07-06T00:00:00.000Z", model: "test-model", groundingSnippets }
+  );
+
+  const penang = draft.regions.find((region) => region.name === "Penang");
+  const madeUp = draft.regions.find((region) => region.name === "Made Up Place");
+
+  assert.equal(penang.confidence, "likely");
+  assert.equal(penang.sourceUrl, "https://tourism.gov.my/penang");
+
+  assert.equal(madeUp.confidence, "unconfirmed");
+  assert.equal(madeUp.sourceUrl, null);
+
+  assert.equal(draft.themes[0].confidence, "likely");
+  assert.equal(draft.themes[0].sourceUrl, "https://tourism.gov.my/penang");
+
+  assert.equal(draft.sourceType, "exa_grounded");
+  assert.equal(draft.confidence, "unconfirmed", "grounded facts stay 'likely' at most; the overall draft never becomes 'confirmed' automatically");
+  assert.ok(draft.warnings.some((warning) => /third-party search results/.test(warning)));
+});
+
+test("normalizeCountryDraftPayload does not upgrade confidence when fewer than 3 grounding snippets are available", () => {
+  const country = getCountryBySlug("malaysia");
+  const tooFewSnippets = [
+    { title: "Official Penang guide", url: "https://tourism.gov.my/penang", text: "Penang heritage." }
+  ];
+
+  const draft = normalizeCountryDraftPayload(
+    {
+      summary: "Thin research scaffold for Malaysia.",
+      regions: [
+        {
+          name: "Penang",
+          kind: "state",
+          why: "Heritage sites referenced by a single source.",
+          confidence: "likely",
+          sourceUrl: "https://tourism.gov.my/penang"
+        }
+      ],
+      themes: []
+    },
+    country,
+    { generatedAt: "2026-07-06T00:00:00.000Z", model: "test-model", groundingSnippets: tooFewSnippets }
+  );
+
+  assert.equal(draft.regions[0].confidence, "unconfirmed");
+  assert.equal(draft.regions[0].sourceUrl, null);
+  assert.equal(draft.sourceType, "ai_generated");
+});
+
+test("normalizeCountryDraftPayload keeps ungrounded drafts on the existing ai_generated path", () => {
+  const country = getCountryBySlug("malaysia");
+  const draft = normalizeCountryDraftPayload(
+    {
+      summary: "Plain research scaffold for Malaysia.",
+      regions: [
+        { name: "Sabah", kind: "state", why: "Nature-focused candidate.", confidence: "unconfirmed" }
+      ],
+      themes: []
+    },
+    country,
+    { generatedAt: "2026-07-06T00:00:00.000Z", model: "test-model" }
+  );
+
+  assert.equal(draft.sourceType, "ai_generated");
+  assert.equal(draft.regions[0].sourceUrl, null);
+  assert.equal(draft.regions[0].confidence, "unconfirmed");
+  assert.deepEqual(draft.warnings, [
+    "This is an AI-generated expansion draft, not a curated RoamAtlas country pack.",
+    "Generated candidates are not available to verified itinerary or fact flows yet."
+  ]);
+});
+
 test("confirmed starter maps produce unregistered country-pack draft artifacts", () => {
   const country = getCountryBySlug("malaysia");
   const starterMap = normalizeCountryDraftPayload(
@@ -542,6 +729,19 @@ test("Singapore country pack can be projected into the starter map storage shape
   assert.equal(starterMap.sourceType, "curated");
   assert.equal(starterMap.confidence, "confirmed");
   assert.ok(starterMap.regions.some((region) => region.name === "Marina Bay and Civic District"));
+
+  const marinaBay = starterMap.regions.find((region) => region.name === "Marina Bay and Civic District");
+  assert.ok(Array.isArray(marinaBay.children));
+  assert.ok(marinaBay.children.length > 0);
+  const gardens = marinaBay.children.find((child) => child.name === "Gardens by the Bay");
+  assert.ok(gardens, "region children should include curated child nodes");
+  assert.equal(gardens.kind, "attraction");
+  assert.equal(gardens.confidence, "confirmed");
+  assert.ok(
+    gardens.children.some((child) => child.name === "Supertree Grove"),
+    "nested children should recurse into deeper curated nodes"
+  );
+
   assert.ok(starterMap.themes.length > 0);
   assert.match(starterMap.factBoundary, /source-controlled RoamAtlas country pack/);
   assert.notEqual(starterMap.sourceType, "ai_generated");
@@ -1138,6 +1338,60 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(appSource, /\/api\/runtime-cache\/flush/);
   assert.match(appSource, /clearCountryGeneratedState/);
   assert.match(appSource, /loadStoredCountryDraft/);
+});
+
+test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const runtimeCacheSource = readFileSync(new URL("../src/domain/runtimeCache.js", import.meta.url), "utf8");
+
+  // Frontend renders reference photos on candidate cards through the API only.
+  assert.match(appSource, /renderDraftPlacePhoto/);
+  assert.match(appSource, /\/api\/place-image\?countrySlug=/);
+  assert.match(appSource, /Not verified travel data/);
+  assert.doesNotMatch(appSource, /api\.exa\.ai/);
+
+  // Server resolves place images via Exa and caches them in the runtime cache.
+  assert.match(serverSource, /handlePlaceImageRequest/);
+  assert.match(serverSource, /searchExaPlaceImageCandidates/);
+  assert.match(serverSource, /imageLinks/);
+  assert.match(serverSource, /createPlaceImageCachePaths/);
+  assert.match(serverSource, /PLACE_IMAGE_FACT_BOUNDARY/);
+
+  // Cache paths keep place-image artifacts inside the per-country runtime cache.
+  assert.match(runtimeCacheSource, /createPlaceImageCachePaths/);
+  assert.match(runtimeCacheSource, /place-images/);
+});
+
+test("draft tree exposes icon-only GenAI modal triggers", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+
+  assert.match(appSource, /data-country-action="toggle-genai-prompt"/);
+  assert.match(appSource, /data-genai-target/);
+  assert.match(appSource, /data-country-genai-form/);
+  assert.match(appSource, /countryDraftGenAiOpen/);
+  assert.match(appSource, /renderGenAiIcon/);
+  assert.match(appSource, /data-tooltip/);
+  assert.match(appSource, /role="dialog"/);
+  assert.match(appSource, /aria-haspopup="dialog"/);
+  assert.match(appSource, /data-genai-target="starter-map"/);
+  assert.match(appSource, /`region:\$\{region\.name\}`/);
+  assert.match(appSource, /`theme:\$\{theme\.label\}`/);
+  assert.match(styleSource, /\.draft-edit-modal-backdrop/);
+  assert.match(styleSource, /\.visually-hidden/);
+  assert.match(styleSource, /\.draft-genai-button::after/);
+  assert.match(appSource, /renderDraftMetadata/);
+  assert.match(appSource, /Trust/);
+  assert.match(appSource, /Needs review/);
+  assert.match(styleSource, /\.draft-meta-chip/);
+  // Modal prompts must reuse the guarded influence flow, not a new AI path.
+  assert.match(
+    appSource,
+    /data-country-chat-form\], \[data-country-genai-form/
+  );
+  assert.match(appSource, /scopeInstructionToCandidate/);
+  assert.match(appSource, /Keep every other candidate unchanged/);
   assert.match(appSource, /generate=false/);
   assert.match(appSource, /force=true/);
   assert.doesNotMatch(appSource, />Generate draft</);
@@ -1155,10 +1409,21 @@ test("server exposes country-scoped generated cache flushing", () => {
   assert.match(serverSource, /pathname === "\/api\/runtime-cache\/flush"/);
   assert.match(serverSource, /handleRuntimeCacheFlushRequest/);
   assert.match(serverSource, /flushCountryGeneratedRuntimeCache/);
-  assert.match(serverSource, /\["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft"\]/);
+  assert.match(serverSource, /\["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft", "place-images"\]/);
   assert.match(serverSource, /Source-controlled country pack data was not changed/);
   assert.match(serverSource, /isPathInside/);
   assert.match(serverSource, /rm\(countryCacheRoot, \{ recursive: true, force: true \}\)/);
+});
+
+test("server filters thin Exa grounding snippets and restricts search to official-leaning domains", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+
+  assert.match(serverSource, /searchExaGroundingSnippets/);
+  assert.match(serverSource, /EXA_MIN_SNIPPET_TEXT_LENGTH\s*=\s*200/);
+  assert.match(serverSource, /snippet\.text\.length >= EXA_MIN_SNIPPET_TEXT_LENGTH/);
+  assert.match(serverSource, /includeDomains: EXA_GROUNDING_DOMAINS/);
+  assert.match(serverSource, /"visitsingapore\.com"/);
+  assert.match(serverSource, /"tourism\.gov\.my"/);
 });
 
 test("server creates image-specific environment plans for generated artwork", () => {
@@ -1209,8 +1474,8 @@ test("dev server serves the app shell for direct country and node routes", () =>
   assert.match(serverSource, /isAppRoutePath/);
   assert.match(serverSource, /pathname === "\/" \|\| isAppRoutePath\(pathname\) \? "\/index\.html"/);
   assert.match(serverSource, /!pathname\.startsWith\("\/api\/"\) && !path\.extname\(pathname\)/);
-  assert.match(htmlSource, /href="\/src\/styles\.css"/);
-  assert.match(htmlSource, /src="\/src\/ui\/app\.js"/);
+  assert.match(htmlSource, /href="\/src\/styles\.css(?:\?[^"]*)?"/);
+  assert.match(htmlSource, /src="\/src\/ui\/app\.js(?:\?[^"]*)?"/);
   assert.doesNotMatch(htmlSource, /href="\.\/src\/styles\.css"/);
   assert.doesNotMatch(htmlSource, /src="\.\/src\/ui\/app\.js"/);
 });

@@ -10,6 +10,30 @@ const DEFAULT_WARNINGS = [
   "Generated candidates are not available to verified itinerary or fact flows yet."
 ];
 
+const GROUNDED_REVIEW_CHECKLIST = [
+  "Open each sourceUrl and confirm it actually supports the linked candidate.",
+  "Promote sourceUrl-backed candidates to confidence \"confirmed\" only after human source review.",
+  "Separate cities, states, attractions, and itinerary items before promotion.",
+  "Do not add opening hours, prices, or route timing without fresh sources."
+];
+
+const GROUNDED_WARNINGS = [
+  "This draft includes candidates grounded by external search results (Exa), not a curated RoamAtlas country pack.",
+  "sourceUrl fields point to third-party search results; verify each one before treating it as an official source.",
+  "Generated candidates are not available to verified itinerary or fact flows yet."
+];
+
+// Require at least this many usable research snippets before treating a draft as
+// "grounded". A single stray search result is not enough evidence to switch the
+// prompt and confidence model into grounded mode; fall back to the plain
+// ungrounded path instead, which is the safer default.
+const MIN_GROUNDING_SNIPPETS = 3;
+
+function getUsableGroundingSnippets(groundingSnippets) {
+  const snippets = asArray(groundingSnippets).filter((snippet) => String(snippet?.url ?? "").trim());
+  return snippets.length >= MIN_GROUNDING_SNIPPETS ? snippets : [];
+}
+
 const FORBIDDEN_DETAIL_PATTERNS = [
   /\bopening hours?\b/i,
   /\bhours?\b/i,
@@ -28,19 +52,58 @@ const FORBIDDEN_DETAIL_PATTERNS = [
 export const COUNTRY_DRAFT_FACT_BOUNDARY =
   "AI starter maps are planning scaffolds only. They are not confirmed travel facts.";
 
-export function buildCountryDraftPrompt(country) {
+export function buildCountryDraftPrompt(country, { groundingSnippets = [] } = {}) {
+  const snippets = getUsableGroundingSnippets(groundingSnippets).slice(0, 8);
+  if (!snippets.length) {
+    return [
+      "You are drafting a RoamAtlas country expansion scaffold.",
+      "The output is only for planning future curation. It is not verified user-facing travel data.",
+      `Country: ${country.name}`,
+      `ISO code: ${country.code}`,
+      `Route slug: ${country.slug}`,
+      "",
+      "Rules:",
+      "- Return JSON only.",
+      "- Mark every candidate with confidence \"unconfirmed\".",
+      "- Suggest broad cities, states, regions, or themes worth researching next.",
+      "- Do not include opening hours, ticket prices, exact transport times, closures, source URLs, citations, live availability, or official claims.",
+      "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
+      "- Keep notes short and useful for a human curator.",
+      "",
+      "JSON shape:",
+      "{",
+      '  "summary": "one cautious sentence",',
+      '  "regions": [',
+      '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "unconfirmed" }',
+      "  ],",
+      '  "themes": [',
+      '    { "label": "theme", "note": "short research note", "confidence": "unconfirmed" }',
+      "  ]",
+      "}"
+    ].join("\n");
+  }
+
+  return buildGroundedCountryDraftPrompt(country, snippets);
+}
+
+function buildGroundedCountryDraftPrompt(country, snippets) {
   return [
-    "You are drafting a RoamAtlas country expansion scaffold.",
+    "You are drafting a RoamAtlas country expansion scaffold using ONLY the research snippets provided below.",
     "The output is only for planning future curation. It is not verified user-facing travel data.",
     `Country: ${country.name}`,
     `ISO code: ${country.code}`,
     `Route slug: ${country.slug}`,
     "",
+    "Research snippets (from an external search API, not your own memory):",
+    formatGroundingSnippets(snippets),
+    "",
     "Rules:",
     "- Return JSON only.",
-    "- Mark every candidate with confidence \"unconfirmed\".",
-    "- Suggest broad cities, states, regions, or themes worth researching next.",
-    "- Do not include opening hours, ticket prices, exact transport times, closures, source URLs, citations, live availability, or official claims.",
+    "- Base every candidate strictly on the research snippets above. Do not add places or claims from your own memory.",
+    "- For each region or theme that is directly supported by a snippet, set \"sourceUrl\" to that snippet's exact URL (copy it exactly, do not modify it) and set confidence to \"likely\".",
+    "- If a candidate is not clearly supported by any snippet, omit \"sourceUrl\" (or set it to null) and set confidence to \"unconfirmed\".",
+    "- Never invent a URL that is not one of the snippet URLs listed above.",
+    "- Do not include opening hours, ticket prices, exact transport times, closures, or live availability, even if a snippet mentions them.",
     "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
     "- Keep notes short and useful for a human curator.",
     "",
@@ -48,16 +111,33 @@ export function buildCountryDraftPrompt(country) {
     "{",
     '  "summary": "one cautious sentence",',
     '  "regions": [',
-    '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "unconfirmed" }',
+    '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
     "  ],",
     '  "themes": [',
-    '    { "label": "theme", "note": "short research note", "confidence": "unconfirmed" }',
+    '    { "label": "theme", "note": "short research note", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
     "  ]",
     "}"
   ].join("\n");
 }
 
-export function buildCountryDraftInfluencePrompt({ country, instruction, currentDraft }) {
+function formatGroundingSnippets(snippets) {
+  return snippets
+    .map((snippet, index) => {
+      const title = truncatePromptText(snippet?.title, "Untitled source", 120);
+      const url = truncatePromptText(snippet?.url, "", 300);
+      const text = truncatePromptText(snippet?.text, "", 2000);
+      return `[${index + 1}] ${title}\nURL: ${url}\n${text}`;
+    })
+    .join("\n\n");
+}
+
+function truncatePromptText(value, fallback, maxLength) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return fallback;
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1).trim()}...` : text;
+}
+
+export function buildCountryDraftInfluencePrompt({ country, instruction, currentDraft, groundingSnippets = [] }) {
   const currentStarterMap = currentDraft
     ? JSON.stringify(
         {
@@ -69,6 +149,20 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
         2
       )
     : "No current starter map exists yet.";
+  const snippets = getUsableGroundingSnippets(groundingSnippets).slice(0, 8);
+
+  const groundedLines = snippets.length
+    ? [
+        "",
+        "Research snippets (from an external search API, not your own memory):",
+        formatGroundingSnippets(snippets),
+        "",
+        "- Base any new or changed candidate strictly on the research snippets above, plus the current starter map. Do not add places or claims from your own memory.",
+        "- For each region or theme directly supported by a snippet, set \"sourceUrl\" to that snippet's exact URL (copy it exactly) and set confidence to \"likely\".",
+        "- If a candidate is not clearly supported by any snippet, omit \"sourceUrl\" (or set it to null) and set confidence to \"unconfirmed\".",
+        "- Never invent a URL that is not one of the snippet URLs listed above."
+      ]
+    : [];
 
   return [
     "You are revising a RoamAtlas country expansion starter map.",
@@ -82,14 +176,19 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
     "",
     "User steering instruction:",
     normalizeCountryDraftInstruction(instruction),
+    ...groundedLines,
     "",
     "Rules:",
     "- Return JSON only.",
     "- Use the user instruction only to steer prioritization, scope, tone, or emphasis.",
     "- Do not treat the user instruction as evidence for factual claims.",
-    "- Mark every candidate with confidence \"unconfirmed\".",
+    snippets.length
+      ? "- Mark each candidate with confidence \"likely\" (sourced) or \"unconfirmed\" (not sourced), as instructed above."
+      : "- Mark every candidate with confidence \"unconfirmed\".",
     "- Suggest broad cities, states, regions, or themes worth researching next.",
-    "- Do not include opening hours, ticket prices, exact transport times, closures, source URLs, citations, live availability, or official claims.",
+    snippets.length
+      ? "- Do not include opening hours, ticket prices, exact transport times, closures, or live availability, even if a snippet mentions them."
+      : "- Do not include opening hours, ticket prices, exact transport times, closures, source URLs, citations, live availability, or official claims.",
     "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
     "- Keep notes short and useful for a human curator.",
     "",
@@ -97,10 +196,14 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
     "{",
     '  "summary": "one cautious sentence",',
     '  "regions": [',
-    '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "unconfirmed" }',
+    snippets.length
+      ? '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
+      : '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "unconfirmed" }',
     "  ],",
     '  "themes": [',
-    '    { "label": "theme", "note": "short research note", "confidence": "unconfirmed" }',
+    snippets.length
+      ? '    { "label": "theme", "note": "short research note", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
+      : '    { "label": "theme", "note": "short research note", "confidence": "unconfirmed" }',
     "  ],",
     '  "changeNote": "one short sentence describing what changed"',
     "}"
@@ -119,7 +222,7 @@ export function createCountryPackStarterMap(pack, options = {}) {
   const childNodes = (rootNode?.childIds ?? [])
     .map((nodeId) => pack.nodes[nodeId])
     .filter(Boolean);
-  const tags = countTags(childNodes);
+  const themeSummaries = summarizePackThemes(childNodes);
   const isConfirmedPack = pack.confidence !== "unconfirmed";
   const confidence = isConfirmedPack ? "confirmed" : "unconfirmed";
   const sourceType = isConfirmedPack ? "curated" : "ai_generated";
@@ -141,11 +244,12 @@ export function createCountryPackStarterMap(pack, options = {}) {
       name: node.title,
       kind: packNodeKind(node.type),
       why: countryPackNodeReason(node, { isConfirmedPack }),
-      confidence
+      confidence,
+      children: collectPackNodeChildren(node, pack, confidence)
     })),
-    themes: tags.slice(0, 6).map(([label]) => ({
-      label: titleCase(label),
-      note: `${titleCase(packLabel)} ${pack.title} pack theme from mapped nodes.`,
+    themes: themeSummaries.slice(0, 6).map((theme) => ({
+      label: titleCase(theme.label),
+      note: packThemeNote(theme, pack.title, { isConfirmedPack }),
       confidence
     })),
     reviewChecklist: isConfirmedPack
@@ -179,6 +283,7 @@ export function createCountryPackDraftFromStarterMap(draft, options = {}) {
   const countrySlug = draft.countrySlug;
   const regionNodes = (draft.regions ?? []).map((region) => {
     const id = `${countrySlug}-${slugifyDraftId(region.name)}`;
+    const sourceUrl = region.sourceUrl ?? null;
     return {
       id,
       type: region.kind === "city" ? "district" : "district",
@@ -190,9 +295,9 @@ export function createCountryPackDraftFromStarterMap(draft, options = {}) {
         {
           id: `${id}-starter-note`,
           text: region.why,
-          sourceType: "ai_generated",
-          confidence: "unconfirmed",
-          sourceUrl: null
+          sourceType: sourceUrl ? "exa_grounded" : "ai_generated",
+          confidence: region.confidence === "likely" ? "likely" : "unconfirmed",
+          sourceUrl
         }
       ],
       promotionStatus: "pending_source_review"
@@ -234,8 +339,9 @@ export function createCountryPackDraftFromStarterMap(draft, options = {}) {
     themes: (draft.themes ?? []).map((theme) => ({
       label: theme.label,
       note: theme.note,
-      confidence: "unconfirmed",
-      sourceType: "ai_generated"
+      confidence: theme.confidence === "likely" ? "likely" : "unconfirmed",
+      sourceType: theme.sourceUrl ? "exa_grounded" : "ai_generated",
+      sourceUrl: theme.sourceUrl ?? null
     })),
     reviewChecklist: [
       "Verify each candidate against official tourism, state, city, or operator sources.",
@@ -252,6 +358,13 @@ export function normalizeCountryDraftPayload(payload, country, options = {}) {
     `${country.name} has no curated RoamAtlas graph yet; this draft only suggests areas for review.`,
     220
   );
+  const allowedSourceUrls = buildAllowedSourceUrlSet(options.groundingSnippets);
+  const regions = normalizeRegions(payload?.regions, allowedSourceUrls);
+  const themes = normalizeThemes(payload?.themes, allowedSourceUrls);
+  const isGrounded = allowedSourceUrls.size > 0;
+  const hasGroundedFact =
+    regions.some((region) => region.confidence === "likely") ||
+    themes.some((theme) => theme.confidence === "likely");
 
   return {
     countryCode: country.code,
@@ -260,18 +373,27 @@ export function normalizeCountryDraftPayload(payload, country, options = {}) {
     mode: "ai_draft",
     generationStatus,
     confidence: "unconfirmed",
-    sourceType: "ai_generated",
+    sourceType: isGrounded ? "exa_grounded" : "ai_generated",
     factBoundary: COUNTRY_DRAFT_FACT_BOUNDARY,
     summary,
-    regions: normalizeRegions(payload?.regions),
-    themes: normalizeThemes(payload?.themes),
-    reviewChecklist: DEFAULT_REVIEW_CHECKLIST,
-    warnings: DEFAULT_WARNINGS,
+    regions,
+    themes,
+    reviewChecklist: hasGroundedFact
+      ? GROUNDED_REVIEW_CHECKLIST
+      : DEFAULT_REVIEW_CHECKLIST,
+    warnings: isGrounded ? GROUNDED_WARNINGS : DEFAULT_WARNINGS,
     changeNote: safeText(payload?.changeNote, "", 180),
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     model: options.model ?? null,
     unavailableReason: options.unavailableReason ?? null
   };
+}
+
+function buildAllowedSourceUrlSet(groundingSnippets) {
+  const urls = getUsableGroundingSnippets(groundingSnippets)
+    .map((snippet) => String(snippet?.url ?? "").trim())
+    .filter(Boolean);
+  return new Set(urls);
 }
 
 export function createCountryDraftFallback(country, reason, options = {}) {
@@ -290,11 +412,12 @@ export function createCountryDraftFallback(country, reason, options = {}) {
   );
 }
 
-function normalizeRegions(regions) {
+function normalizeRegions(regions, allowedSourceUrls = new Set()) {
   return asArray(regions)
     .map((item) => {
       const name = safeText(item?.name, "", 80);
       if (!name) return null;
+      const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
       return {
         name,
         kind: normalizeRegionKind(item?.kind),
@@ -303,18 +426,26 @@ function normalizeRegions(regions) {
           "Review this candidate against official sources before adding it to RoamAtlas.",
           180
         ),
-        confidence: "unconfirmed"
+        confidence: sourceUrl ? "likely" : "unconfirmed",
+        sourceUrl
       };
     })
     .filter(Boolean)
     .slice(0, 10);
 }
 
-function normalizeThemes(themes) {
+function normalizeSourceUrl(value, allowedSourceUrls) {
+  const candidate = String(value ?? "").trim();
+  if (!candidate) return null;
+  return allowedSourceUrls.has(candidate) ? candidate : null;
+}
+
+function normalizeThemes(themes, allowedSourceUrls = new Set()) {
   return asArray(themes)
     .map((item) => {
       const label = safeText(item?.label, "", 60);
       if (!label) return null;
+      const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
       return {
         label,
         note: safeText(
@@ -322,7 +453,8 @@ function normalizeThemes(themes) {
           "Use this theme only as a research lead.",
           160
         ),
-        confidence: "unconfirmed"
+        confidence: sourceUrl ? "likely" : "unconfirmed",
+        sourceUrl
       };
     })
     .filter(Boolean)
@@ -341,6 +473,21 @@ function packNodeKind(type) {
   return "area";
 }
 
+const MAX_PACK_CHILD_DEPTH = 4;
+
+function collectPackNodeChildren(node, pack, confidence, depth = 0) {
+  if (depth >= MAX_PACK_CHILD_DEPTH) return [];
+  return (node.childIds ?? [])
+    .map((childId) => pack.nodes[childId])
+    .filter(Boolean)
+    .map((child) => ({
+      name: child.title,
+      kind: child.type,
+      confidence,
+      children: collectPackNodeChildren(child, pack, confidence, depth + 1)
+    }));
+}
+
 function countryPackNodeReason(node, { isConfirmedPack }) {
   const childCount = node.childIds?.length ?? 0;
   const childText = childCount === 1 ? "1 curated child node" : `${childCount} curated child nodes`;
@@ -349,15 +496,30 @@ function countryPackNodeReason(node, { isConfirmedPack }) {
     : `${node.title} is part of the starter RoamAtlas graph and needs source review.`;
 }
 
-function countTags(nodes) {
-  const counts = new Map();
+function summarizePackThemes(nodes) {
+  const themeNodes = new Map();
   for (const node of nodes) {
     for (const tag of node.tags ?? []) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      if (!themeNodes.has(tag)) themeNodes.set(tag, []);
+      themeNodes.get(tag).push(node.title);
     }
   }
 
-  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return [...themeNodes.entries()]
+    .map(([label, nodeTitles]) => ({ label, nodeTitles }))
+    .sort((a, b) => b.nodeTitles.length - a.nodeTitles.length || a.label.localeCompare(b.label));
+}
+
+function packThemeNote(theme, countryName, { isConfirmedPack }) {
+  const nodeCount = theme.nodeTitles.length;
+  const shownNodes = theme.nodeTitles.slice(0, 3).join(", ");
+  const remainingCount = Math.max(0, nodeCount - 3);
+  const nodeList = remainingCount > 0
+    ? `${shownNodes}, and ${remainingCount} more`
+    : shownNodes;
+  const sourceLabel = isConfirmedPack ? "curated parent" : "starter parent";
+  const nodeLabel = nodeCount === 1 ? "node" : "nodes";
+  return `${titleCase(theme.label)} appears across ${nodeCount} ${sourceLabel} ${nodeLabel} in ${countryName}: ${nodeList}.`;
 }
 
 function titleCase(value) {
