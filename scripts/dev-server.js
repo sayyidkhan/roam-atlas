@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, watch } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -148,6 +148,63 @@ const mimeTypes = {
   ".webp": "image/webp"
 };
 
+const liveReloadClients = new Set();
+const DEV_RELOAD_PATH = "/__roamatlas/dev-reload";
+const DEV_LIVE_RELOAD_SCRIPT = `<script>
+(() => {
+  if (!("EventSource" in window)) return;
+  const source = new EventSource("${DEV_RELOAD_PATH}");
+  source.onmessage = () => window.location.reload();
+})();
+</script>`;
+
+function debounce(fn, waitMs) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), waitMs);
+  };
+}
+
+function notifyLiveReloadClients() {
+  for (const client of liveReloadClients) {
+    client.write("data: reload\n\n");
+  }
+}
+
+function startLiveReloadWatcher() {
+  const notify = debounce(notifyLiveReloadClients, 120);
+  const watchTargets = [
+    path.join(root, "src"),
+    path.join(root, "public"),
+    path.join(root, "index.html")
+  ];
+
+  for (const target of watchTargets) {
+    try {
+      watch(target, { recursive: true }, (eventType, filename) => {
+        if (!filename || filename.endsWith("~")) return;
+        notify();
+      });
+    } catch (error) {
+      console.warn(`RoamAtlas live reload could not watch ${target}: ${String(error?.message ?? error)}`);
+    }
+  }
+}
+
+function handleLiveReloadRequest(request, response) {
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive"
+  });
+  response.write("data: connected\n\n");
+  liveReloadClients.add(response);
+  request.on("close", () => {
+    liveReloadClients.delete(response);
+  });
+}
+
 createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
@@ -192,6 +249,10 @@ createServer(async (request, response) => {
       await handleRuntimeCacheFlushRequest(request, response);
       return;
     }
+    if (request.method === "GET" && url.pathname === DEV_RELOAD_PATH) {
+      handleLiveReloadRequest(request, response);
+      return;
+    }
 
     await serveStatic(url.pathname, response);
   } catch (error) {
@@ -202,6 +263,8 @@ createServer(async (request, response) => {
 }).listen(port, () => {
   console.log(`RoamAtlas dev server listening on http://127.0.0.1:${port}`);
   console.log(`RoamAtlas runtime cache: ${runtimeCacheRoot}`);
+  console.log("RoamAtlas live reload enabled for src/, public/, and index.html");
+  startLiveReloadWatcher();
   startImageJobProcessor();
 });
 
@@ -2991,7 +3054,23 @@ async function serveStatic(pathname, response) {
 
   const file = await readFile(filePath);
   const ext = path.extname(filePath);
-  response.writeHead(200, { "Content-Type": mimeTypes[ext] ?? "application/octet-stream" });
+  const isDevAsset = [".html", ".js", ".css"].includes(ext);
+  const headers = {
+    "Content-Type": mimeTypes[ext] ?? "application/octet-stream",
+    ...(isDevAsset ? { "Cache-Control": "no-cache" } : {})
+  };
+
+  if (safePath === "/index.html") {
+    const html = file.toString("utf8");
+    const body = html.includes(DEV_LIVE_RELOAD_SCRIPT)
+      ? html
+      : html.replace("</body>", `${DEV_LIVE_RELOAD_SCRIPT}\n  </body>`);
+    response.writeHead(200, headers);
+    response.end(body);
+    return;
+  }
+
+  response.writeHead(200, headers);
   response.end(file);
 }
 

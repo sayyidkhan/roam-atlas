@@ -1347,7 +1347,9 @@ test("candidate region cards request Exa-backed reference photos through the pla
 
   // Frontend renders reference photos on candidate cards through the API only.
   assert.match(appSource, /renderDraftPlacePhoto/);
-  assert.match(appSource, /\/api\/place-image\?countrySlug=/);
+  assert.match(appSource, /buildPlaceImageUrl/);
+  assert.match(appSource, /\/api\/place-image\?/);
+  assert.match(appSource, /map-hotspot-chip-photo/);
   assert.match(appSource, /Not verified travel data/);
   assert.doesNotMatch(appSource, /api\.exa\.ai/);
 
@@ -1474,6 +1476,9 @@ test("dev server serves the app shell for direct country and node routes", () =>
   assert.match(serverSource, /isAppRoutePath/);
   assert.match(serverSource, /pathname === "\/" \|\| isAppRoutePath\(pathname\) \? "\/index\.html"/);
   assert.match(serverSource, /!pathname\.startsWith\("\/api\/"\) && !path\.extname\(pathname\)/);
+  assert.match(serverSource, /\/__roamatlas\/dev-reload/);
+  assert.match(serverSource, /startLiveReloadWatcher/);
+  assert.match(serverSource, /Cache-Control": "no-cache"/);
   assert.match(htmlSource, /href="\/src\/styles\.css(?:\?[^"]*)?"/);
   assert.match(htmlSource, /src="\/src\/ui\/app\.js(?:\?[^"]*)?"/);
   assert.doesNotMatch(htmlSource, /href="\.\/src\/styles\.css"/);

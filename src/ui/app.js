@@ -22,6 +22,7 @@ const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
 let countryPhotoQueue = [];
+let draftPhotoLightbox = null;
 
 const state = {
   currentView: "countries",
@@ -37,6 +38,8 @@ const state = {
   currentPage: createRootPage(defaultCountryPack),
   currentSceneId: defaultCountryPack.overviewSceneId,
   selectedNodeId: null,
+  detailPanelMode: "hidden",
+  detailOverride: null,
   history: [],
   pendingJob: null,
   artworkJobs: new Map(),
@@ -95,8 +98,22 @@ elements.backButton.addEventListener("click", () => {
 });
 
 elements.closeDetail.addEventListener("click", () => {
-  state.selectedNodeId = null;
+  state.detailOverride = null;
+  state.detailPanelMode = "hidden";
   renderNodeDetail();
+});
+
+elements.detailSheet.addEventListener("click", (event) => {
+  const action = event.target.closest("[data-detail-action]")?.dataset.detailAction;
+  if (action === "expand") {
+    state.detailPanelMode = "expanded";
+    renderNodeDetail();
+    return;
+  }
+  if (action === "collapse") {
+    state.detailPanelMode = "compact";
+    renderNodeDetail();
+  }
 });
 
 function render() {
@@ -217,6 +234,69 @@ function bindCountryShell() {
       target ? scopeInstructionToCandidate(target, instruction) : instruction
     );
   });
+
+  elements.countryShell.addEventListener("click", (event) => {
+    const trigger = event.target.closest(".draft-item-photo-button");
+    if (!trigger) return;
+    const photo = trigger.querySelector(".draft-item-photo");
+    if (!photo?.src) return;
+    openDraftPhotoLightbox({
+      src: photo.currentSrc || photo.src,
+      placeName: trigger.dataset.placeName ?? ""
+    });
+  });
+}
+
+function handleDraftPhotoLightboxKeydown(event) {
+  if (event.key === "Escape") {
+    closeDraftPhotoLightbox();
+  }
+}
+
+function openDraftPhotoLightbox({ src, placeName }) {
+  closeDraftPhotoLightbox();
+  const backdrop = document.createElement("section");
+  backdrop.className = "draft-photo-lightbox-backdrop";
+  backdrop.setAttribute("role", "dialog");
+  backdrop.setAttribute("aria-modal", "true");
+  backdrop.setAttribute(
+    "aria-label",
+    placeName ? `Reference photo for ${placeName}` : "Reference photo"
+  );
+  backdrop.innerHTML = `
+    <button
+      type="button"
+      class="sheet-close draft-photo-lightbox-close"
+      data-close-draft-photo
+      aria-label="Close enlarged photo"
+    >×</button>
+    <figure class="draft-photo-lightbox">
+      <img
+        class="draft-photo-lightbox-image"
+        src="${escapeHtml(src)}"
+        alt=""
+        decoding="async"
+        referrerpolicy="no-referrer"
+      />
+      <figcaption class="draft-photo-lightbox-caption">
+        Reference photo from external search. Not verified travel data.
+      </figcaption>
+    </figure>
+  `;
+  backdrop.addEventListener("click", () => {
+    closeDraftPhotoLightbox();
+  });
+  document.addEventListener("keydown", handleDraftPhotoLightboxKeydown);
+  document.body.appendChild(backdrop);
+  draftPhotoLightbox = backdrop;
+  backdrop.querySelector("[data-close-draft-photo]")?.focus();
+}
+
+function closeDraftPhotoLightbox() {
+  if (!draftPhotoLightbox) return;
+  draftPhotoLightbox.remove();
+  draftPhotoLightbox = null;
+  document.removeEventListener("keydown", handleDraftPhotoLightboxKeydown);
 }
 
 function scopeInstructionToCandidate(target, instruction) {
@@ -810,29 +890,50 @@ function renderDraftRegion(region, indexPath, genAiContext) {
   `;
 }
 
+function getNodePlaceImageContext(node, nodes) {
+  return (node?.childIds ?? [])
+    .slice(0, 3)
+    .map((childId) => nodes[childId]?.title)
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildPlaceImageUrl(countrySlug, placeName, context = "") {
+  if (!countrySlug || !placeName) return "";
+  const params = new URLSearchParams({
+    countrySlug,
+    place: placeName
+  });
+  if (context) params.set("context", context);
+  return apiPath(`/api/place-image?${params.toString()}`);
+}
+
 function renderDraftPlacePhoto(placeName, children, genAiContext) {
   if (!genAiContext?.countrySlug) return "";
   const context = (Array.isArray(children) ? children : [])
     .slice(0, 3)
     .map((child) => child.name)
     .join(" ");
-  const src = apiPath(
-    `/api/place-image?countrySlug=${encodeURIComponent(genAiContext.countrySlug)}&place=${encodeURIComponent(placeName)}${
-      context ? `&context=${encodeURIComponent(context)}` : ""
-    }`
-  );
+  const src = buildPlaceImageUrl(genAiContext.countrySlug, placeName, context);
   // Reference photo only; it must never be treated as evidence about the place.
   return `
-    <img
-      class="draft-item-photo"
-      src="${escapeHtml(src)}"
-      alt=""
-      loading="lazy"
-      decoding="async"
-      referrerpolicy="no-referrer"
-      title="Reference photo from external search. Not verified travel data."
-      onerror="this.remove()"
-    />
+    <button
+      type="button"
+      class="draft-item-photo-button"
+      data-place-name="${escapeHtml(placeName)}"
+      aria-label="View reference photo for ${escapeHtml(placeName)}"
+      title="Reference photo from external search. Not verified travel data. Click to enlarge."
+    >
+      <img
+        class="draft-item-photo"
+        src="${escapeHtml(src)}"
+        alt=""
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        onerror="this.closest('.draft-item-photo-button')?.remove()"
+      />
+    </button>
   `;
 }
 
@@ -1423,12 +1524,22 @@ function renderScene() {
   const isArtworkPending = !imageUrl && state.artworkJobs.has(artworkJobKey);
   elements.stage.classList.toggle("has-local-art", Boolean(imageUrl));
   elements.stage.classList.toggle("is-artwork-pending", isArtworkPending);
-  elements.stage.replaceChildren(
-    ...(imageUrl ? [renderSceneImage(imageUrl, scene.title)] : []),
+  elements.stage.classList.toggle("scroll-stage--placeholder", !imageUrl);
+  applySceneLayout(scene, { hasArtwork: Boolean(imageUrl) });
+  const canvas = renderSceneCanvas(scene, { hasArtwork: Boolean(imageUrl) });
+  canvas.replaceChildren(
+    ...(imageUrl ? [renderSceneImage(imageUrl, scene.title, elements.stage)] : []),
     ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
-    ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : []),
-    ...scene.tiles.map(renderTile),
-    ...renderMapHotspotLabels(scene, nodes, { isVisible: !imageUrl })
+    ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
+    ...renderMapHotspotLabels(scene, nodes, {
+      isVisible: !imageUrl,
+      countrySlug: state.activeCountrySlug
+    }),
+    ...(!imageUrl ? [renderScenePlaceholderHint(isArtworkPending)] : [])
+  );
+  elements.stage.replaceChildren(
+    canvas,
+    ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : [])
   );
   elements.stage.dataset.scene = scene.id;
   if (environmentUrl && !environmentPlan) {
@@ -1441,6 +1552,39 @@ function renderScene() {
       requestCurrentPageArtwork();
     }
   }
+}
+
+function applySceneLayout(scene, { hasArtwork = false } = {}) {
+  const width = scene.coordinateSpace.width;
+  const height = scene.coordinateSpace.height;
+  const spaceAspect = width / height;
+  elements.stage.style.setProperty("--scene-space-aspect", String(spaceAspect));
+  elements.stage.style.setProperty("--scene-space-width", String(width));
+  elements.stage.style.setProperty("--scene-space-height", String(height));
+  // Runtime artwork is generated at 1536x1024 (3:2). Match that for full-page display.
+  elements.stage.style.setProperty("--scene-display-aspect", String(hasArtwork ? 3 / 2 : spaceAspect));
+}
+
+function renderSceneCanvas(scene, { hasArtwork = false } = {}) {
+  const canvas = document.createElement("div");
+  canvas.className = hasArtwork ? "scene-canvas scene-canvas--artwork" : "scene-canvas";
+  canvas.dataset.sceneId = scene.id;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", scene.title);
+  return canvas;
+}
+
+function toScenePercent(value, total) {
+  return `${(value / total) * 100}%`;
+}
+
+function renderScenePlaceholderHint(isArtworkPending) {
+  const hint = document.createElement("p");
+  hint.className = "scene-placeholder-hint";
+  hint.textContent = isArtworkPending
+    ? "Illustration is generating. Choose a region below to keep exploring."
+    : "Choose a region to explore the scroll.";
+  return hint;
 }
 
 function canCurrentPageUseSceneArtwork(scene) {
@@ -1514,44 +1658,126 @@ function normalizeEnvironmentPlanBounds(bounds) {
   return { x, y, width, height };
 }
 
-function renderMapHotspotLabels(scene, nodes, { isVisible }) {
+function renderMapHotspotLabels(scene, nodes, { isVisible, countrySlug }) {
   if (!isVisible) return [];
 
+  const space = scene.coordinateSpace;
   return (scene.hotspots ?? [])
     .filter((hotspot) => hotspot.nodeId && nodes[hotspot.nodeId] && "width" in hotspot.shape)
-    .map((hotspot) => {
+    .sort((left, right) => (left.zIndex ?? 0) - (right.zIndex ?? 0))
+    .map((hotspot, index) => {
       const node = nodes[hotspot.nodeId];
-      const el = document.createElement("div");
-      el.className = "map-hotspot-label";
-      el.style.left = `${(hotspot.shape.x / scene.coordinateSpace.width) * 100}%`;
-      el.style.top = `${(hotspot.shape.y / scene.coordinateSpace.height) * 100}%`;
-      el.style.width = `${(hotspot.shape.width / scene.coordinateSpace.width) * 100}%`;
-      el.style.height = `${(hotspot.shape.height / scene.coordinateSpace.height) * 100}%`;
-      el.innerHTML = `
-        <strong>${escapeHtml(node.title)}</strong>
-        <span>${escapeHtml(hotspot.confidence)}</span>
+      const centerX = hotspot.shape.x + hotspot.shape.width / 2;
+      const centerY = hotspot.shape.y + hotspot.shape.height / 2;
+      const photoUrl = buildPlaceImageUrl(
+        countrySlug,
+        node.title,
+        getNodePlaceImageContext(node, nodes)
+      );
+      const wrapper = document.createElement("div");
+      wrapper.className = "map-hotspot";
+      wrapper.style.zIndex = String((hotspot.zIndex ?? 2) + 10);
+
+      const hit = document.createElement("button");
+      hit.type = "button";
+      hit.className = "map-hotspot-hit";
+      hit.setAttribute("aria-label", `Explore ${node.title}`);
+      hit.style.left = toScenePercent(hotspot.shape.x, space.width);
+      hit.style.top = toScenePercent(hotspot.shape.y, space.height);
+      hit.style.width = toScenePercent(hotspot.shape.width, space.width);
+      hit.style.height = toScenePercent(hotspot.shape.height, space.height);
+      hit.addEventListener("click", (event) => {
+        event.stopPropagation();
+        resolveOverlayTarget({
+          normalizedClick: {
+            x: clamp01(centerX / space.width),
+            y: clamp01(centerY / space.height)
+          },
+          nodeId: hotspot.nodeId
+        });
+      });
+
+      const chip = document.createElement("article");
+      chip.className = "map-hotspot-chip";
+      chip.style.left = toScenePercent(centerX, space.width);
+      chip.style.top = toScenePercent(centerY, space.height);
+      chip.style.setProperty("--chip-offset", `${(index % 4) * 4 - 6}px`);
+      chip.innerHTML = `
+        <div class="map-hotspot-chip-inner">
+          ${
+            photoUrl
+              ? `<img
+                  class="map-hotspot-chip-photo"
+                  src="${escapeHtml(photoUrl)}"
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  referrerpolicy="no-referrer"
+                  title="Reference photo from external search. Not verified travel data."
+                />`
+              : `<div class="map-hotspot-chip-photo map-hotspot-chip-photo--fallback" aria-hidden="true"></div>`
+          }
+          <div class="map-hotspot-chip-copy">
+            <span class="map-hotspot-chip-title">${escapeHtml(node.title)}</span>
+            <span class="map-hotspot-chip-meta">${escapeHtml(factConfidenceLabel(hotspot.confidence))}</span>
+          </div>
+        </div>
       `;
-      return el;
+
+      const photo = chip.querySelector(".map-hotspot-chip-photo");
+      if (photo?.tagName === "IMG") {
+        photo.addEventListener("error", () => {
+          photo.replaceWith(createMapHotspotPhotoFallback());
+        });
+        photo.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openDraftPhotoLightbox({
+            src: photo.currentSrc || photo.src,
+            placeName: node.title
+          });
+        });
+      }
+
+      wrapper.append(hit, chip);
+      return wrapper;
     });
+}
+
+function createMapHotspotPhotoFallback() {
+  const fallback = document.createElement("div");
+  fallback.className = "map-hotspot-chip-photo map-hotspot-chip-photo--fallback";
+  fallback.setAttribute("aria-hidden", "true");
+  return fallback;
 }
 
 function renderArtworkPending(title) {
   const el = document.createElement("div");
   el.className = "artwork-pending";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
   el.innerHTML = `
-    <p class="eyebrow">Generating</p>
-    <h2>${escapeHtml(title)}</h2>
+    <span class="scroll-status-dot" aria-hidden="true"></span>
+    <span>${escapeHtml(title)}</span>
   `;
   return el;
 }
 
-function renderSceneImage(imageUrl, title) {
+function renderSceneImage(imageUrl, title, stageElement) {
   const image = document.createElement("img");
   image.className = "scene-image";
   image.src = imageUrl;
   image.alt = `${title} illustration`;
   image.decoding = "async";
   image.draggable = false;
+  const syncDisplayAspect = () => {
+    if (!stageElement || !image.naturalWidth || !image.naturalHeight) return;
+    stageElement.style.setProperty(
+      "--scene-display-aspect",
+      String(image.naturalWidth / image.naturalHeight)
+    );
+  };
+  image.addEventListener("load", syncDisplayAspect, { once: true });
+  if (image.complete) syncDisplayAspect();
   return image;
 }
 
@@ -1936,11 +2162,23 @@ function seededPercent(seed, index, salt) {
 
 function bindPageClick() {
   elements.viewport.addEventListener("click", (event) => {
-    if (event.target.closest("button, a, .detail-sheet, .scene-hud")) {
+    if (event.target.closest("button, a, .detail-sheet, .scene-hud, .map-hotspot-hit")) {
       return;
     }
     resolveClickAt(event);
   });
+}
+
+function getSceneCanvasRect() {
+  return elements.stage.querySelector(".scene-canvas")?.getBoundingClientRect() ?? elements.stage.getBoundingClientRect();
+}
+
+function getSceneClickRect() {
+  const image = elements.stage.querySelector(".scene-image");
+  if (image?.naturalWidth && image.naturalHeight) {
+    return image.getBoundingClientRect();
+  }
+  return getSceneCanvasRect();
 }
 
 async function resolveClickAt(event) {
@@ -1948,20 +2186,20 @@ async function resolveClickAt(event) {
     return;
   }
 
-  const stageRect = elements.stage.getBoundingClientRect();
+  const stageRect = getSceneClickRect();
   const normalizedClick = {
     x: clamp01((event.clientX - stageRect.left) / stageRect.width),
     y: clamp01((event.clientY - stageRect.top) / stageRect.height)
   };
-  const imageClick = computeImageClick(event, stageRect);
+  const imageClick = computeImageClick(event, getSceneCanvasRect());
   state.isResolvingClick = true;
-  elements.viewport.classList.add("is-busy");
+  beginNavigationFeedback();
   try {
     const result = await requestFlipbookPage({ normalizedClick, imageClick });
     runFlipbookResult(result);
   } catch (error) {
     state.isResolvingClick = false;
-    elements.viewport.classList.remove("is-busy");
+    endNavigationFeedback();
     renderDetour({
       confidence: "unconfirmed",
       title: "Click failed",
@@ -1976,7 +2214,8 @@ async function resolveOverlayTarget(target) {
   }
 
   state.isResolvingClick = true;
-  elements.viewport.classList.add("is-busy");
+  const node = target.nodeId ? state.activePack.nodes[target.nodeId] : null;
+  beginNavigationFeedback(node?.title);
   try {
     const result = await requestFlipbookPage({
       normalizedClick: target.normalizedClick,
@@ -1986,13 +2225,23 @@ async function resolveOverlayTarget(target) {
     runFlipbookResult(result);
   } catch (error) {
     state.isResolvingClick = false;
-    elements.viewport.classList.remove("is-busy");
+    endNavigationFeedback();
     renderDetour({
       confidence: "unconfirmed",
       title: "Click failed",
       message: explainClickError(error)
     });
   }
+}
+
+function beginNavigationFeedback(title) {
+  elements.viewport.classList.add("is-busy");
+  renderScrollStatus(title ? `Opening ${title}…` : "Exploring…");
+}
+
+function endNavigationFeedback() {
+  elements.viewport.classList.remove("is-busy");
+  clearScrollStatus();
 }
 
 async function requestFlipbookPage({ normalizedClick, imageClick = null, targetNodeId = null, detourPhrase = null }) {
@@ -2213,7 +2462,7 @@ function computeImageClick(event, stageRect) {
 function runFlipbookResult(result) {
   state.isResolvingClick = false;
   if (result.click?.resolver === "vlm_guard") {
-    elements.viewport.classList.remove("is-busy");
+    endNavigationFeedback();
     renderDetour({
       confidence: "unresolved",
       title: "Click not resolved",
@@ -2233,12 +2482,13 @@ function runFlipbookResult(result) {
   enterReadyPage(page);
 }
 
-function renderTile(tile) {
+function renderTile(tile, coordinateSpace) {
   const el = document.createElement("div");
   el.className = `tile tile--${tile.column % 4}`;
-  el.style.left = `${tile.bounds.x}px`;
-  el.style.top = `${tile.bounds.y}px`;
-  el.style.width = `${tile.bounds.width}px`;
+  el.style.left = toScenePercent(tile.bounds.x, coordinateSpace.width);
+  el.style.top = toScenePercent(tile.bounds.y, coordinateSpace.height);
+  el.style.width = toScenePercent(tile.bounds.width, coordinateSpace.width);
+  el.style.height = toScenePercent(tile.bounds.height, coordinateSpace.height);
   const generated = findGeneratedTile(tile);
   if (generated?.imageUrl) {
     el.classList.add("tile--image");
@@ -2274,27 +2524,91 @@ function renderTileArt(tile) {
   return art;
 }
 
-function renderNodeDetail() {
-  const node = state.selectedNodeId ? state.activePack.nodes[state.selectedNodeId] : null;
-  elements.detailSheet.classList.toggle("is-open", Boolean(node));
+function getDetailNode() {
+  const nodeId = state.currentPage?.nodeId;
+  if (!nodeId || nodeId === state.activePack.rootNodeId) return null;
+  return state.activePack.nodes[nodeId] ?? null;
+}
 
-  if (!node) {
+function formatNodeType(type) {
+  return String(type ?? "place").replace(/_/g, " ");
+}
+
+function renderNodeDetail() {
+  if (state.detailOverride) {
+    const detour = state.detailOverride;
+    elements.detailSheet.classList.add("is-open", "is-expanded");
+    elements.detailSheet.classList.remove("is-compact");
+    elements.nodeDetail.innerHTML = `
+      <div class="detail-sheet-head">
+        <div class="detail-sheet-copy">
+          <span class="detail-sheet-type">${escapeHtml(detour.confidence)}</span>
+          <strong class="detail-sheet-title">${escapeHtml(detour.title)}</strong>
+        </div>
+      </div>
+      <p class="detail-sheet-fact">${escapeHtml(detour.message)}</p>
+    `;
+    return;
+  }
+
+  const node = getDetailNode();
+  const isVisible = Boolean(node) && state.detailPanelMode !== "hidden";
+  elements.detailSheet.classList.toggle("is-open", isVisible);
+  elements.detailSheet.classList.toggle("is-expanded", state.detailPanelMode === "expanded");
+  elements.detailSheet.classList.toggle("is-compact", state.detailPanelMode === "compact");
+
+  if (!isVisible || !node) {
     elements.nodeDetail.innerHTML = "";
     return;
   }
 
-  const hasUnconfirmedFacts = hasUnconfirmedNodeFacts(node);
+  const primaryFact = node.facts?.[0];
+  if (state.detailPanelMode === "compact") {
+    elements.nodeDetail.innerHTML = `
+      <div class="detail-sheet-head">
+        <div class="detail-sheet-copy">
+          <span class="detail-sheet-type">${escapeHtml(formatNodeType(node.type))}</span>
+          <strong class="detail-sheet-title">${escapeHtml(node.title)}</strong>
+        </div>
+        <button
+          type="button"
+          class="detail-sheet-icon-button"
+          data-detail-action="expand"
+          aria-label="Show facts for ${escapeHtml(node.title)}"
+        >Facts</button>
+      </div>
+    `;
+    return;
+  }
+
   elements.nodeDetail.innerHTML = `
-    <p class="eyebrow">${node.type.replace("_", " ")}</p>
-    <h2>${node.title}</h2>
-    <p class="muted">${
-      hasUnconfirmedFacts
-        ? "This node is part of the actual country map, but these facts are unconfirmed until source review."
-        : "Facts are curated. The scroll is only the visual layer."
-    }</p>
-    <div class="fact-list">
-      ${node.facts.slice(0, 2).map(renderFact).join("")}
+    <div class="detail-sheet-head">
+      <div class="detail-sheet-copy">
+        <span class="detail-sheet-type">${escapeHtml(formatNodeType(node.type))}</span>
+        <strong class="detail-sheet-title">${escapeHtml(node.title)}</strong>
+      </div>
+      <button
+        type="button"
+        class="detail-sheet-icon-button detail-sheet-icon-button--ghost"
+        data-detail-action="collapse"
+        aria-label="Collapse detail"
+      >Less</button>
     </div>
+    ${primaryFact ? renderDetailFact(primaryFact, { hasUnconfirmedFacts: hasUnconfirmedNodeFacts(node) }) : `<p class="detail-sheet-empty">No curated facts yet.</p>`}
+  `;
+}
+
+function renderDetailFact(fact, { hasUnconfirmedFacts }) {
+  const source = fact.sourceUrl
+    ? `<a href="${escapeHtml(fact.sourceUrl)}" target="_blank" rel="noreferrer">Source</a>`
+    : "";
+  return `
+    <p class="detail-sheet-fact">${escapeHtml(fact.text)}</p>
+    <div class="detail-sheet-meta">
+      <span>${escapeHtml(factConfidenceLabel(fact.confidence))}</span>
+      ${source ? `<span aria-hidden="true">·</span>${source}` : ""}
+    </div>
+    ${hasUnconfirmedFacts ? `<p class="detail-sheet-note">Some facts here are still unconfirmed.</p>` : ""}
   `;
 }
 
@@ -2304,32 +2618,12 @@ function hasUnconfirmedNodeFacts(node) {
   );
 }
 
-function renderFact(fact) {
-  const source = fact.sourceUrl
-    ? `<a href="${fact.sourceUrl}" target="_blank" rel="noreferrer">source</a>`
-    : fact.sourceType === "ai_generated"
-    ? "no source"
-    : "general";
-  return `
-    <article class="fact">
-      <p>${fact.text}</p>
-      <div class="badge-row">
-        <span class="badge">${factConfidenceLabel(fact.confidence)}</span>
-        <span class="badge">${fact.sourceType}</span>
-        <span class="badge">${source}</span>
-      </div>
-    </article>
-  `;
-}
-
 function renderDetour(detour) {
   state.selectedNodeId = null;
-  elements.detailSheet.classList.add("is-open");
-  elements.nodeDetail.innerHTML = `
-    <p class="eyebrow">${detour.confidence}</p>
-    <h2>${detour.title}</h2>
-    <p class="muted">${detour.message}</p>
-  `;
+  state.detailOverride = detour;
+  state.detailPanelMode = "expanded";
+  endNavigationFeedback();
+  renderNodeDetail();
 }
 
 function explainClickError(error) {
@@ -2353,15 +2647,10 @@ async function readResponseError(response, fallback) {
 }
 
 function renderGenerationRequired(page) {
-  elements.detailSheet.classList.add("is-open");
-  elements.nodeDetail.innerHTML = `
-    <p class="eyebrow">generation required</p>
-    <h2>${page.plan?.title ?? "Next page"}</h2>
-    <p class="muted">This click resolved to a next flipbook page, but no generated artwork is ready yet.</p>
-    <article class="fact">
-      <p>${page.plan?.imagePrompt ?? "No image prompt available."}</p>
-    </article>
-  `;
+  state.selectedNodeId = null;
+  elements.detailSheet.classList.remove("is-open");
+  elements.nodeDetail.innerHTML = "";
+  renderScrollStatus(`Preparing ${page.plan?.title ?? "next page"}…`);
 }
 
 function renderImageGenerationPending(page, result) {
@@ -2372,19 +2661,39 @@ function renderImageGenerationPending(page, result) {
     result,
     intervalId: jobUrl ? window.setInterval(() => pollImageJob(jobUrl, page), 1600) : null
   };
-  elements.detailSheet.classList.add("is-open");
+  state.selectedNodeId = null;
+  elements.detailSheet.classList.remove("is-open");
+  elements.nodeDetail.innerHTML = "";
   elements.viewport.classList.add("is-busy");
-  elements.nodeDetail.innerHTML = `
-    <p class="eyebrow">image generation</p>
-    <h2>${page.plan?.title ?? "Next page"}</h2>
-    <p class="muted">Generating the next flipbook page. RoamAtlas will turn the page automatically when the image is ready.</p>
-    <article class="fact">
-      <p>${page.generated?.jobUrl ?? "Job file pending."}</p>
-    </article>
-  `;
+  renderScrollStatus(`Opening ${page.plan?.title ?? page.nodeId ?? "next page"}…`);
   if (jobUrl) {
     pollImageJob(jobUrl, page);
   }
+}
+
+function renderScrollStatus(message) {
+  let status = elements.viewport.querySelector(".scroll-status");
+  if (status) {
+    const label = status.querySelector(".scroll-status-label");
+    if (label) {
+      label.textContent = message;
+      return;
+    }
+  }
+
+  status = document.createElement("div");
+  status.className = "scroll-status";
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  status.innerHTML = `
+    <span class="scroll-status-dot" aria-hidden="true"></span>
+    <span class="scroll-status-label">${escapeHtml(message)}</span>
+  `;
+  elements.viewport.appendChild(status);
+}
+
+function clearScrollStatus() {
+  elements.viewport.querySelector(".scroll-status")?.remove();
 }
 
 async function pollImageJob(jobUrl, page) {
@@ -2430,7 +2739,7 @@ function clearPendingJob() {
     window.clearInterval(state.pendingJob.intervalId);
   }
   state.pendingJob = null;
-  elements.viewport.classList.remove("is-busy");
+  endNavigationFeedback();
 }
 
 function enterReadyPage(page) {
@@ -2442,6 +2751,12 @@ function enterReadyPage(page) {
   state.currentPage = page;
   state.currentSceneId = page.sceneId;
   state.selectedNodeId = page.nodeId;
+  state.detailOverride = null;
+  const detailNode =
+    page.nodeId && page.nodeId !== state.activePack.rootNodeId
+      ? state.activePack.nodes[page.nodeId]
+      : null;
+  state.detailPanelMode = detailNode ? "compact" : "hidden";
   if (page.nodeId) {
     setBrowserPath(canonicalRouteForNode(state.activeCountrySlug, page.nodeId, state.activePack));
   }
