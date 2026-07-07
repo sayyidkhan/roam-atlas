@@ -11,7 +11,7 @@ import {
 import { ROAMATLAS_EXPERIENCE_CONFIG } from "../config/experienceConfig.js";
 import { generatedTiles } from "../data/generatedTiles.js";
 import { factConfidenceLabel } from "../domain/guardrails.js";
-import { buildLoadingStepTrail } from "../domain/loadingSteps.js";
+import { PLACE_IMAGE_SELECTION_VERSION } from "../domain/placeImageSelection.js";
 import { listNextArtworkDestinations } from "../domain/nextArtworkDestinations.js";
 import {
   canonicalRouteForNode,
@@ -209,6 +209,17 @@ function bindCountryShell() {
     }
     if (action === "confirm-starter-map" && state.selectedCountry) {
       requestCountryDraftConfirmation(state.selectedCountry);
+      return;
+    }
+    if (action === "approve-draft-item" && state.selectedCountry) {
+      const button = event.target.closest("[data-country-action='approve-draft-item']");
+      const target = button?.dataset.approveTarget;
+      if (!target) return;
+      const approved = button.dataset.approved !== "true";
+      requestCountryDraftApproval(state.selectedCountry, {
+        target,
+        approved
+      });
       return;
     }
     if (action === "toggle-genai-prompt" && state.selectedCountry) {
@@ -899,10 +910,13 @@ function renderDraftRegion(region, indexPath, genAiContext) {
   return `
     <li class="draft-item">
       <div class="draft-item-heading">
-        ${renderDraftPlacePhoto(region.name, region.children, genAiContext)}
+        ${renderDraftPlacePhoto(region.name, region.children, genAiContext, region.kind)}
         ${renderDraftItemCounter(indexPath)}
         <strong>${escapeHtml(region.name)}</strong>
-        ${renderDraftMetadata(region.kind, region.confidence)}
+        ${renderDraftMetadata(region.kind, region.confidence, {
+          approveTarget: `region:${region.name}`,
+          item: region
+        })}
         ${renderDraftGenAiButton(`region:${region.name}`, region.name, genAiContext)}
       </div>
       <ul class="draft-item-nested">
@@ -921,23 +935,34 @@ function getNodePlaceImageContext(node, nodes) {
     .join(" ");
 }
 
-function buildPlaceImageUrl(countrySlug, placeName, context = "") {
+function buildPlaceImageUrl(countrySlug, placeName, { context = "", kind = "", tags = [] } = {}) {
   if (!countrySlug || !placeName) return "";
   const params = new URLSearchParams({
     countrySlug,
-    place: placeName
+    place: placeName,
+    v: PLACE_IMAGE_SELECTION_VERSION
   });
   if (context) params.set("context", context);
+  if (kind) params.set("kind", kind);
+  if (tags.length) params.set("tags", tags.join(","));
   return apiPath(`/api/place-image?${params.toString()}`);
 }
 
-function renderDraftPlacePhoto(placeName, children, genAiContext) {
+function getNodePlaceImageKind(node) {
+  const tags = (node?.tags ?? []).map((tag) => String(tag).toLowerCase());
+  if (tags.includes("city")) return "city";
+  if (tags.includes("state")) return "state";
+  if (tags.includes("island")) return "region";
+  return "region";
+}
+
+function renderDraftPlacePhoto(placeName, children, genAiContext, kind = "region") {
   if (!genAiContext?.countrySlug) return "";
   const context = (Array.isArray(children) ? children : [])
     .slice(0, 3)
     .map((child) => child.name)
     .join(" ");
-  const src = buildPlaceImageUrl(genAiContext.countrySlug, placeName, context);
+  const src = buildPlaceImageUrl(genAiContext.countrySlug, placeName, { context, kind });
   // Reference photo only; it must never be treated as evidence about the place.
   return `
     <button
@@ -995,7 +1020,11 @@ function renderDraftTheme(theme, indexPath, genAiContext) {
       <div class="draft-item-heading">
         ${renderDraftItemCounter(indexPath)}
         <strong>${escapeHtml(theme.label)}</strong>
-        ${renderDraftMetadata("theme", theme.confidence)}
+        ${renderDraftMetadata("theme", theme.confidence, {
+          kindLabel: theme.label,
+          approveTarget: `theme:${theme.label}`,
+          item: theme
+        })}
         ${renderDraftGenAiButton(`theme:${theme.label}`, theme.label, genAiContext)}
       </div>
       <ul class="draft-item-nested">
@@ -1009,17 +1038,61 @@ function renderDraftItemCounter(indexPath) {
   return `<span class="draft-item-counter" aria-hidden="true">${escapeHtml(indexPath.join("."))}</span>`;
 }
 
-function renderDraftMetadata(kind, confidence) {
-  return `
-    <span class="draft-meta" aria-label="${escapeHtml(`${describeDraftKind(kind)}. ${describeDraftConfidence(confidence)}`)}">
-      <span class="draft-meta-chip" data-tooltip="${escapeHtml(describeDraftKind(kind))}">
-        <span class="draft-meta-label">Type</span>
-        <span>${escapeHtml(formatDraftKind(kind))}</span>
-      </span>
-      <span class="draft-meta-chip draft-meta-chip--trust" data-tooltip="${escapeHtml(describeDraftConfidence(confidence))}">
+function renderDraftMetadata(kind, confidence, options = null) {
+  const kindLabel = typeof options === "string" ? options : options?.kindLabel ?? kind;
+  const approveTarget = typeof options === "object" ? options?.approveTarget : null;
+  const item = typeof options === "object" ? options?.item : null;
+  const approved = item?.confidence === "confirmed" || item?.reviewStatus === "human_approved";
+  const approveLabel = approveTarget?.split(":")[1] ?? "item";
+  const trustTitle = approved
+    ? `Approved. Click to return ${approveLabel} to needs-review.`
+    : item?.sourceUrl
+    ? `Click to approve ${approveLabel} as curated using its source link.`
+    : `Click to approve ${approveLabel} for map preview. Add a source URL later to mark it curated.`;
+
+  const trustChip = approveTarget
+    ? `
+      <button
+        type="button"
+        class="draft-meta-chip draft-meta-chip--trust draft-meta-chip--${escapeHtml(confidence)} draft-meta-chip--action${approved ? " is-approved" : ""}"
+        data-country-action="approve-draft-item"
+        data-approve-target="${escapeHtml(approveTarget)}"
+        data-approved="${approved ? "true" : "false"}"
+        data-tooltip="${escapeHtml(describeDraftConfidence(confidence))}"
+        aria-label="${escapeHtml(approved ? `Unapprove ${approveLabel}` : `Approve ${approveLabel}`)}"
+        aria-pressed="${approved}"
+        title="${escapeHtml(trustTitle)}"
+      >
+        <span class="draft-meta-label">Trust</span>
+        <span class="draft-meta-value">${escapeHtml(formatDraftConfidence(confidence))}</span>
+        ${renderDraftTrustTick(approved)}
+      </button>
+    `
+    : `
+      <span class="draft-meta-chip draft-meta-chip--trust draft-meta-chip--${escapeHtml(confidence)}" data-tooltip="${escapeHtml(describeDraftConfidence(confidence))}">
         <span class="draft-meta-label">Trust</span>
         <span>${escapeHtml(formatDraftConfidence(confidence))}</span>
       </span>
+    `;
+
+  return `
+    <span class="draft-meta" aria-label="${escapeHtml(`${describeDraftKind(kindLabel)}. ${describeDraftConfidence(confidence)}`)}">
+      <span class="draft-meta-chip" data-tooltip="${escapeHtml(describeDraftKind(kindLabel))}">
+        <span class="draft-meta-label">Type</span>
+        <span>${escapeHtml(formatDraftKind(kindLabel))}</span>
+      </span>
+      ${trustChip}
+    </span>
+  `;
+}
+
+function renderDraftTrustTick(approved) {
+  return `
+    <span class="draft-trust-tick${approved ? " is-approved" : ""}" aria-hidden="true">
+      <svg viewBox="0 0 12 12" focusable="false">
+        <circle class="draft-trust-tick-ring" cx="6" cy="6" r="5.25" />
+        <path class="draft-trust-tick-mark" d="M3.4 6.1 5.2 7.9 8.7 4.3" />
+      </svg>
     </span>
   `;
 }
@@ -1233,6 +1306,52 @@ async function requestCountryDraftInfluence(country, rawInstruction) {
         { role: "assistant", text: explainClickError(error) }
       ].slice(-8),
       error: explainClickError(error)
+    });
+  }
+  render();
+}
+
+async function requestCountryDraftApproval(country, { target, approved }) {
+  const existing = state.countryDrafts.get(country.slug);
+  if (!existing?.draft || existing.isSending || existing.status === "loading" || existing.isApproving) return;
+
+  state.countryDrafts.set(country.slug, {
+    ...existing,
+    isApproving: true,
+    approvalError: null
+  });
+  render();
+
+  try {
+    const response = await fetch(apiPath("/api/country-draft/approve-item"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        countrySlug: country.slug,
+        currentDraft: existing.draft,
+        target,
+        approved
+      })
+    });
+    if (!response.ok) {
+      throw new Error(await readResponseError(response, "Starter map approval failed"));
+    }
+    const payload = await response.json();
+    state.countryDrafts.set(country.slug, {
+      ...existing,
+      status: "ready",
+      isApproving: false,
+      approvalError: null,
+      draft: payload.draft,
+      messages: payload.message
+        ? [...(existing.messages ?? []), payload.message].slice(-8)
+        : existing.messages ?? []
+    });
+  } catch (error) {
+    state.countryDrafts.set(country.slug, {
+      ...existing,
+      isApproving: false,
+      approvalError: explainClickError(error)
     });
   }
   render();
@@ -1805,11 +1924,11 @@ function renderMapHotspotLabels(scene, nodes, { mode = "hidden", countrySlug }) 
       const node = nodes[hotspot.nodeId];
       const centerX = hotspot.shape.x + hotspot.shape.width / 2;
       const centerY = hotspot.shape.y + hotspot.shape.height / 2;
-      const photoUrl = buildPlaceImageUrl(
-        countrySlug,
-        node.title,
-        getNodePlaceImageContext(node, nodes)
-      );
+      const photoUrl = buildPlaceImageUrl(countrySlug, node.title, {
+        context: getNodePlaceImageContext(node, nodes),
+        kind: getNodePlaceImageKind(node),
+        tags: node.tags ?? []
+      });
       const wrapper = document.createElement("div");
       wrapper.className = "map-hotspot";
       wrapper.style.zIndex = String((hotspot.zIndex ?? 2) + 10);

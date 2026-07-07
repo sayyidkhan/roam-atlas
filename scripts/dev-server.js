@@ -24,7 +24,13 @@ import {
   getCountryImageTopics
 } from "../src/data/countryImageTopics.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
-import { resolveRoamAtlasExperienceConfig } from "../src/config/experienceConfig.js";
+import {
+  PLACE_IMAGE_SELECTION_VERSION,
+  buildPlaceImageSearchQueries,
+  inferPlaceImageProfile,
+  isUsablePlaceImageUrl,
+  rankPlaceImageCandidates
+} from "../src/domain/placeImageSelection.js";
 import { resolveRoamAtlasConfig } from "../src/config/roamAtlasConfig.js";
 import {
   buildCountryDraftInfluencePrompt,
@@ -35,6 +41,10 @@ import {
   normalizeCountryDraftInstruction,
   normalizeCountryDraftPayload
 } from "../src/domain/countryDraft.js";
+import {
+  approveDraftItem,
+  unapproveDraftItem
+} from "../src/domain/countryDraftReview.js";
 import { resolveFlipbookClick } from "../src/domain/flipbookPage.js";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -261,6 +271,10 @@ createServer(async (request, response) => {
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/confirm") {
       await handleCountryDraftConfirmRequest(request, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/country-draft/approve-item") {
+      await handleCountryDraftApproveRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/runtime-cache/flush") {
@@ -1029,13 +1043,19 @@ async function handlePlaceImageRequest(url, response) {
   const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
   const place = String(url.searchParams.get("place") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const context = String(url.searchParams.get("context") ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+  const kind = String(url.searchParams.get("kind") ?? "").trim().toLowerCase();
+  const tags = String(url.searchParams.get("tags") ?? "")
+    .split(",")
+    .map((tag) => tag.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 8);
   const country = getCountryBySlug(countrySlug);
   if (!country || !place) {
     respondPlaceImageNotFound(response, "unknown-country-or-place");
     return;
   }
 
-  const record = await resolvePlaceImage(country, place, context);
+  const record = await resolvePlaceImage(country, place, { context, kind, tags });
   if (!record?.imageUrl) {
     respondPlaceImageNotFound(response, record?.reason ?? "no-image-found");
     return;
@@ -1059,13 +1079,13 @@ function respondPlaceImageNotFound(response, reason) {
   response.end(JSON.stringify({ error: "No place image found", reason }));
 }
 
-async function resolvePlaceImage(country, place, context) {
+async function resolvePlaceImage(country, place, { context = "", kind = "", tags = [] } = {}) {
   const paths = createPlaceImageCachePaths({
     cacheRoot: runtimeCacheRoot,
     countrySlug: country.slug,
     place
   });
-  const cacheKey = `${paths.countrySlug}:${paths.placeSlug}`;
+  const cacheKey = `${paths.countrySlug}:${paths.placeSlug}:${PLACE_IMAGE_SELECTION_VERSION}`;
   if (placeImageCache.has(cacheKey)) {
     return placeImageCache.get(cacheKey);
   }
@@ -1073,7 +1093,7 @@ async function resolvePlaceImage(country, place, context) {
     return placeImageRequestsInFlight.get(cacheKey);
   }
 
-  const request = resolvePlaceImageUncached(country, place, context, paths)
+  const request = resolvePlaceImageUncached(country, place, { context, kind, tags }, paths)
     .then((record) => {
       placeImageCache.set(cacheKey, record);
       return record;
@@ -1085,7 +1105,7 @@ async function resolvePlaceImage(country, place, context) {
   return request;
 }
 
-async function resolvePlaceImageUncached(country, place, context, paths) {
+async function resolvePlaceImageUncached(country, place, { context = "", kind = "", tags = [] }, paths) {
   const storedRecord = await readStoredPlaceImageRecord(paths);
   if (storedRecord) return storedRecord;
 
@@ -1094,12 +1114,21 @@ async function resolvePlaceImageUncached(country, place, context, paths) {
     return { imageUrl: null, reason: "exa-key-missing" };
   }
 
-  const candidates = await searchExaPlaceImageCandidates(country, place, context);
+  const profile = inferPlaceImageProfile({
+    place,
+    countryName: country.name,
+    countrySlug: country.slug,
+    kind,
+    tags,
+    context
+  });
+  const candidates = await searchExaPlaceImageCandidates(country, place, { context, kind, tags }, profile);
   for (const candidate of candidates) {
     const record = await persistPlaceImage(paths, {
       country,
       place,
-      candidate
+      candidate,
+      profile
     });
     if (record) return record;
   }
@@ -1111,6 +1140,7 @@ async function resolvePlaceImageUncached(country, place, context, paths) {
     sourceUrl: null,
     source: "exa_place_search",
     reason: "no-image-found",
+    selectionVersion: PLACE_IMAGE_SELECTION_VERSION,
     fetchedAt: new Date().toISOString(),
     factBoundary: PLACE_IMAGE_FACT_BOUNDARY
   };
@@ -1121,6 +1151,9 @@ async function resolvePlaceImageUncached(country, place, context, paths) {
 async function readStoredPlaceImageRecord(paths) {
   try {
     const record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
+    if (record.selectionVersion !== PLACE_IMAGE_SELECTION_VERSION) {
+      return null;
+    }
     if (!record.imageUrl) return record;
     const imagePath = path.normalize(
       path.join(runtimeCacheRoot, decodeURIComponent(record.imageUrl.slice(RUNTIME_CACHE_URL_PREFIX.length + 1)))
@@ -1141,8 +1174,25 @@ async function writeStoredPlaceImageRecord(paths, record) {
   }
 }
 
-async function searchExaPlaceImageCandidates(country, place, context) {
-  const query = [place, country.name, context, "travel photo"].filter(Boolean).join(" ");
+async function searchExaPlaceImageCandidates(country, place, { context = "", kind = "", tags = [] }, profile) {
+  const queries = buildPlaceImageSearchQueries(profile);
+  const candidates = [];
+  const seen = new Set();
+
+  for (const query of queries) {
+    const batch = await searchExaPlaceImageQuery(query);
+    for (const candidate of batch) {
+      if (seen.has(candidate.imageUrl)) continue;
+      seen.add(candidate.imageUrl);
+      candidates.push({ ...candidate, query });
+    }
+    if (candidates.length >= 10) break;
+  }
+
+  return rankPlaceImageCandidates(candidates, profile).slice(0, 8);
+}
+
+async function searchExaPlaceImageQuery(query) {
   let exaResponse;
   try {
     exaResponse = await fetch("https://api.exa.ai/search", {
@@ -1158,12 +1208,12 @@ async function searchExaPlaceImageCandidates(country, place, context) {
       })
     });
   } catch (error) {
-    console.warn(`Exa place image search failed for ${place}: ${String(error?.message ?? error)}`);
+    console.warn(`Exa place image search failed for ${query}: ${String(error?.message ?? error)}`);
     return [];
   }
 
   if (!exaResponse.ok) {
-    console.warn(`Exa place image search failed for ${place}: ${exaResponse.status} ${await exaResponse.text()}`);
+    console.warn(`Exa place image search failed for ${query}: ${exaResponse.status} ${await exaResponse.text()}`);
     return [];
   }
 
@@ -1180,29 +1230,14 @@ async function searchExaPlaceImageCandidates(country, place, context) {
     const imageUrls = [result?.image, ...(Array.isArray(result?.extras?.imageLinks) ? result.extras.imageLinks : [])];
     for (const imageUrl of imageUrls) {
       if (isUsablePlaceImageUrl(imageUrl)) {
-        candidates.push({ imageUrl: String(imageUrl).trim(), sourceUrl, query });
+        candidates.push({ imageUrl: String(imageUrl).trim(), sourceUrl });
       }
     }
   }
-  return candidates.slice(0, 6);
+  return candidates;
 }
 
-function isUsablePlaceImageUrl(value) {
-  const imageUrl = String(value ?? "").trim();
-  if (!imageUrl) return false;
-  try {
-    const parsed = new URL(imageUrl);
-    if (parsed.protocol !== "https:") return false;
-    const pathname = parsed.pathname.toLowerCase();
-    if (/\.(?:svg|ico|gif)$/.test(pathname)) return false;
-    if (/(?:logo|favicon|sprite|icon)s?[-_.]/.test(pathname)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function persistPlaceImage(paths, { country, place, candidate }) {
+async function persistPlaceImage(paths, { country, place, candidate, profile }) {
   try {
     const imageResponse = await fetch(candidate.imageUrl, createCountryImageDownloadOptions());
     if (!imageResponse.ok) return null;
@@ -1224,6 +1259,9 @@ async function persistPlaceImage(paths, { country, place, candidate }) {
       remoteImageUrl: candidate.imageUrl,
       sourceUrl: candidate.sourceUrl,
       query: candidate.query,
+      selectionVersion: PLACE_IMAGE_SELECTION_VERSION,
+      selectionStrategy: profile?.strategy ?? null,
+      selectionScore: candidate.score ?? null,
       source: "exa_place_search:local-cache",
       fetchedAt: new Date().toISOString(),
       factBoundary: PLACE_IMAGE_FACT_BOUNDARY
@@ -1753,6 +1791,60 @@ async function handleCountryDraftInfluenceRequest(request, response) {
 
 function isSourceReviewedCountryPack(countryPack) {
   return isSourceControlledCountryPack(countryPack) && countryPack.confidence !== "unconfirmed";
+}
+
+async function handleCountryDraftApproveRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const target = String(body.target ?? "").trim();
+  const approved = body.approved !== false;
+  const sourceUrl = String(body.sourceUrl ?? "").trim() || null;
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  const storedDraft = await readStoredCountryDraft(country);
+  const currentDraft =
+    normalizeCurrentCountryDraft(body.currentDraft, country) ??
+    countryDraftCache.get(country.slug) ??
+    storedDraft ??
+    null;
+  if (!currentDraft) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "Build a starter map before approving items." }));
+    return;
+  }
+
+  const result = approved
+    ? approveDraftItem(currentDraft, target, { sourceUrl })
+    : unapproveDraftItem(currentDraft, target);
+  if (!result.changed) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: result.error ?? "Approval update failed." }));
+    return;
+  }
+
+  countryDraftCache.set(country.slug, result.draft);
+  await writeStoredCountryDraft(country, result.draft);
+
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    draft: result.draft,
+    target,
+    approved,
+    confidence: result.confidence,
+    message: {
+      role: "assistant",
+      text: approved
+        ? result.confidence === "confirmed"
+          ? `${target.split(":")[1] ?? "Item"} marked as curated in the starter map. Update the country pack source file to make it permanent.`
+          : `${target.split(":")[1] ?? "Item"} approved for map preview. Add a source URL to mark it as curated.`
+        : `${target.split(":")[1] ?? "Item"} returned to needs-review status.`
+    }
+  }));
 }
 
 async function handleCountryDraftConfirmRequest(request, response) {

@@ -932,6 +932,82 @@ a {
   color: var(--accent);
 }
 
+button.draft-meta-chip--action {
+  cursor: pointer;
+  font: inherit;
+}
+
+button.draft-meta-chip--action:hover,
+button.draft-meta-chip--action:focus-visible {
+  border-color: rgba(36, 95, 82, 0.34);
+  background: rgba(36, 95, 82, 0.12);
+}
+
+button.draft-meta-chip--action.is-approved {
+  border-color: rgba(36, 95, 82, 0.42);
+  background: rgba(36, 95, 82, 0.16);
+}
+
+.draft-trust-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.draft-trust-tick svg {
+  width: 14px;
+  height: 14px;
+}
+
+.draft-trust-tick-ring {
+  fill: rgba(255, 250, 240, 0.72);
+  stroke: rgba(36, 95, 82, 0.34);
+  stroke-width: 1.1;
+}
+
+.draft-trust-tick-mark {
+  fill: none;
+  stroke: rgba(36, 95, 82, 0.38);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+  opacity: 0.42;
+}
+
+button.draft-meta-chip--action:hover .draft-trust-tick-ring,
+button.draft-meta-chip--action:focus-visible .draft-trust-tick-ring {
+  stroke: rgba(36, 95, 82, 0.52);
+}
+
+button.draft-meta-chip--action:hover .draft-trust-tick-mark,
+button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
+  opacity: 0.78;
+}
+
+.draft-trust-tick.is-approved .draft-trust-tick-ring {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.draft-trust-tick.is-approved .draft-trust-tick-mark {
+  stroke: rgba(255, 250, 240, 0.96);
+  stroke-width: 1.35;
+  opacity: 1;
+}
+
+.draft-meta-chip--confirmed {
+  border-color: rgba(36, 95, 82, 0.28);
+  background: rgba(36, 95, 82, 0.08);
+}
+
+.draft-meta-chip--likely {
+  border-color: rgba(36, 95, 82, 0.18);
+  background: rgba(255, 250, 240, 0.92);
+}
+
 .draft-meta-label {
   color: var(--muted);
   font-size: 9px;

@@ -17,7 +17,19 @@ import {
   ROAMATLAS_EXPERIENCE_CONFIG,
   resolveRoamAtlasExperienceConfig
 } from "../src/config/experienceConfig.js";
+import {
+  approveDraftItem,
+  isDraftItemApproved,
+  unapproveDraftItem
+} from "../src/domain/countryDraftReview.js";
 import { buildLoadingStepTrail, resolveLoadingStep } from "../src/domain/loadingSteps.js";
+import {
+  PLACE_IMAGE_SELECTION_VERSION,
+  inferPlaceImageProfile,
+  isUsablePlaceImageUrl,
+  rankPlaceImageCandidates,
+  scorePlaceImageCandidate
+} from "../src/domain/placeImageSelection.js";
 import { listNextArtworkDestinations } from "../src/domain/nextArtworkDestinations.js";
 import {
   getCountryBySlug,
@@ -1429,14 +1441,95 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(appSource, /loadStoredCountryDraft/);
 });
 
+test("starter-map approve tick promotes regions with guardrails", () => {
+  const draft = {
+    regions: [
+      {
+        name: "Johor",
+        kind: "state",
+        why: "Southern gateway region.",
+        confidence: "unconfirmed"
+      },
+      {
+        name: "Penang",
+        kind: "region",
+        why: "Heritage coast.",
+        confidence: "unconfirmed",
+        sourceUrl: "https://tourism.gov.my/penang"
+      }
+    ],
+    themes: []
+  };
+
+  const approvedWithoutSource = approveDraftItem(draft, "region:Johor");
+  assert.equal(approvedWithoutSource.item.confidence, "likely");
+  assert.equal(approvedWithoutSource.item.reviewStatus, "human_approved");
+  assert.equal(isDraftItemApproved(approvedWithoutSource.item), true);
+
+  const approvedWithSource = approveDraftItem(draft, "region:Penang");
+  assert.equal(approvedWithSource.item.confidence, "confirmed");
+
+  const unapproved = unapproveDraftItem(draft, "region:Johor");
+  assert.equal(unapproved.item.confidence, "unconfirmed");
+  assert.equal(unapproved.item.reviewStatus, undefined);
+});
+
+test("place image selection prefers capital skylines for states and scenes for tourist islands", () => {
+  const johorProfile = inferPlaceImageProfile({
+    place: "Johor",
+    countryName: "Malaysia",
+    countrySlug: "malaysia",
+    kind: "state",
+    tags: ["state"]
+  });
+  const langkawiProfile = inferPlaceImageProfile({
+    place: "Langkawi",
+    countryName: "Malaysia",
+    countrySlug: "malaysia",
+    kind: "region",
+    tags: ["region"]
+  });
+
+  assert.equal(johorProfile.strategy, "metro");
+  assert.equal(johorProfile.subject, "Johor Bahru");
+  assert.match(johorProfile.queries[0], /Johor Bahru skyline/);
+  assert.equal(langkawiProfile.strategy, "scene");
+  assert.match(langkawiProfile.queries[0], /Langkawi Malaysia landscape photo/);
+
+  const ranked = rankPlaceImageCandidates(
+    [
+      {
+        imageUrl: "https://cdn.example.com/langkawi-poster-banner.jpg",
+        sourceUrl: "https://visit.example.com/langkawi",
+        query: langkawiProfile.queries[0]
+      },
+      {
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/langkawi-beach-view.jpg",
+        sourceUrl: "https://en.wikipedia.org/wiki/Langkawi",
+        query: langkawiProfile.queries[1]
+      }
+    ],
+    langkawiProfile
+  );
+
+  assert.ok(ranked[0].score > ranked[1].score);
+  assert.match(ranked[0].imageUrl, /langkawi-beach-view/);
+  assert.equal(isUsablePlaceImageUrl("https://cdn.example.com/langkawi-logo.png"), false);
+  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v2");
+});
+
 test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
   const runtimeCacheSource = readFileSync(new URL("../src/domain/runtimeCache.js", import.meta.url), "utf8");
 
   // Frontend renders reference photos on candidate cards through the API only.
-  assert.match(appSource, /renderDraftPlacePhoto/);
+  assert.match(appSource, /draft-trust-tick/);
+  assert.match(appSource, /approve-draft-item/);
+  assert.match(serverSource, /\/api\/country-draft\/approve-item/);
+  assert.match(serverSource, /approveDraftItem/);
   assert.match(appSource, /buildPlaceImageUrl/);
+  assert.match(appSource, /PLACE_IMAGE_SELECTION_VERSION/);
   assert.match(appSource, /\/api\/place-image\?/);
   assert.match(appSource, /map-hotspot-chip-photo/);
   assert.match(appSource, /Not verified travel data/);
@@ -1445,6 +1538,8 @@ test("candidate region cards request Exa-backed reference photos through the pla
   // Server resolves place images via Exa and caches them in the runtime cache.
   assert.match(serverSource, /handlePlaceImageRequest/);
   assert.match(serverSource, /searchExaPlaceImageCandidates/);
+  assert.match(serverSource, /inferPlaceImageProfile/);
+  assert.match(serverSource, /rankPlaceImageCandidates/);
   assert.match(serverSource, /imageLinks/);
   assert.match(serverSource, /createPlaceImageCachePaths/);
   assert.match(serverSource, /PLACE_IMAGE_FACT_BOUNDARY/);
