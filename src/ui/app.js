@@ -2,12 +2,17 @@ import { worldCountries } from "../data/countries.js";
 import {
   DEFAULT_COUNTRY_SLUG,
   countryPacks,
+  ensureCountryPack,
   getCountryPack,
-  hasCountryPack,
+  initCountryPackRegistry,
+  isConfiguredCountryPack,
   isSourceControlledCountryPack
 } from "../data/countryPacks/index.js";
+import { ROAMATLAS_EXPERIENCE_CONFIG } from "../config/experienceConfig.js";
 import { generatedTiles } from "../data/generatedTiles.js";
 import { factConfidenceLabel } from "../domain/guardrails.js";
+import { buildLoadingStepTrail } from "../domain/loadingSteps.js";
+import { listNextArtworkDestinations } from "../domain/nextArtworkDestinations.js";
 import {
   canonicalRouteForNode,
   findSceneIdForNode,
@@ -16,27 +21,20 @@ import {
   routeForCountryLanding,
 } from "../domain/routes.js";
 
-const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
-const COUNTRY_CARD_IMAGE_VERSION = "country-media-v6";
-const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
-let countryPhotoObserver = null;
-let activeCountryPhotoLoads = 0;
-let countryPhotoQueue = [];
-let draftPhotoLightbox = null;
-
 const state = {
   currentView: "countries",
   selectedCountry: null,
   activeCountrySlug: DEFAULT_COUNTRY_SLUG,
-  activePack: defaultCountryPack,
+  activePack: null,
+  experienceConfig: { ...ROAMATLAS_EXPERIENCE_CONFIG },
   countryQuery: "",
   countryDrafts: new Map(),
   countryDraftSectionTabs: new Map(),
   countryDraftGenAiOpen: new Map(),
   countryCacheFlushes: new Map(),
   checkedStoredDrafts: new Set(),
-  currentPage: createRootPage(defaultCountryPack),
-  currentSceneId: defaultCountryPack.overviewSceneId,
+  currentPage: null,
+  currentSceneId: null,
   selectedNodeId: null,
   detailPanelMode: "hidden",
   detailOverride: null,
@@ -44,11 +42,22 @@ const state = {
   pendingJob: null,
   artworkJobs: new Map(),
   artworkByScene: new Map(),
+  artworkByPage: new Map(),
+  prefetchRequests: new Set(),
+  prefetchSceneId: null,
   environmentPlans: new Map(),
   environmentPlanRequests: new Map(),
   isResolvingClick: false,
   routeNotice: null
 };
+
+const COUNTRY_CARD_IMAGE_VERSION = "country-media-v6";
+const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
+let countryPhotoObserver = null;
+let activeCountryPhotoLoads = 0;
+let countryPhotoQueue = [];
+let draftPhotoLightbox = null;
+const prefetchPollers = new Map();
 
 const elements = {
   landing: document.querySelector("#country-landing"),
@@ -68,14 +77,10 @@ const elements = {
   closeDetail: document.querySelector("#close-detail")
 };
 
-applyRouteFromLocation({ shouldRender: false });
-render();
-bindCountryLanding();
-bindCountryShell();
-bindPageClick();
+bootstrap();
 
 window.addEventListener("popstate", () => {
-  applyRouteFromLocation();
+  applyRouteFromLocation().catch(showBootstrapError);
 });
 
 elements.countryButton.addEventListener("click", () => {
@@ -133,6 +138,11 @@ function render() {
     return;
   }
 
+  if (!state.activePack) {
+    elements.countryCount.textContent = "Loading country…";
+    return;
+  }
+
   renderScene();
   renderNodeDetail();
   if (state.routeNotice) {
@@ -153,8 +163,10 @@ function bindCountryLanding() {
     if (!card) return;
     const country = worldCountries.find((item) => item.code === card.dataset.countryCode);
     if (!country) return;
-    if (hasCountryPack(country.slug)) {
-      enterMappedCountry(getCountryPack(country.slug));
+    if (isConfiguredCountryPack(country.slug)) {
+      ensureCountryPack(country.slug)
+        .then((pack) => enterMappedCountry(pack))
+        .catch(showBootstrapError);
       return;
     }
     enterCountryShell(country);
@@ -168,8 +180,10 @@ function bindCountryShell() {
       enterCountryLanding();
       return;
     }
-    if (action === "country-map" && state.selectedCountry && hasCountryPack(state.selectedCountry.slug)) {
-      enterMappedCountry(getCountryPack(state.selectedCountry.slug));
+    if (action === "country-map" && state.selectedCountry && canOpenCountryExplorer(state.selectedCountry)) {
+      ensureCountryPack(state.selectedCountry.slug)
+        .then((pack) => enterMappedCountry(pack))
+        .catch(showBootstrapError);
       return;
     }
     if (action === "build-starter-map" && state.selectedCountry) {
@@ -321,7 +335,11 @@ function renderCountryLanding() {
 
   elements.countryCount.textContent = `${filteredCountries.length} of ${worldCountries.length} countries`;
   resetCountryPhotoQueue();
-  elements.countryGrid.replaceChildren(...filteredCountries.map(renderCountryCard));
+  const fragment = document.createDocumentFragment();
+  for (const country of filteredCountries) {
+    fragment.appendChild(renderCountryCard(country));
+  }
+  elements.countryGrid.replaceChildren(fragment);
   observeCountryCardPhotos(elements.countryGrid);
 }
 
@@ -474,16 +492,21 @@ function getCountryPicturePosition(code) {
   };
 }
 
+function canOpenCountryExplorer(country) {
+  if (isConfiguredCountryPack(country.slug)) return true;
+  const draftState = state.countryDrafts.get(country.slug);
+  return Boolean(draftState?.draft);
+}
+
 function renderCountryShell() {
   const country = state.selectedCountry;
   if (!country) return;
-  const pack = getCountryPack(country.slug);
-  const isMapped = Boolean(pack);
+  const canOpenMap = canOpenCountryExplorer(country);
   const draftState = state.countryDrafts.get(country.slug);
   const flushState = state.countryCacheFlushes.get(country.slug);
   const isDraftLoading = draftState?.status === "loading" || draftState?.isSending;
   const isCacheFlushing = flushState?.status === "loading";
-  const mapAction = isMapped
+  const mapAction = canOpenMap
     ? renderCountryActionButton({
         action: "country-map",
         label: `Open ${country.name} map`,
@@ -1327,7 +1350,7 @@ async function resetCountryAndOpenMap(country) {
   const rebuilt = await requestCountryDraft(country, { force: true });
   if (!rebuilt) return;
 
-  const pack = getCountryPack(country.slug);
+  const pack = await ensureCountryPack(country.slug);
   if (pack) {
     enterMappedCountry(pack);
   }
@@ -1443,11 +1466,24 @@ function enterCuratedPlace({ countrySlug, nodeId, pack }, { updateUrl = true, sh
   if (shouldRender) render();
 }
 
-function applyRouteFromLocation({ shouldRender = true } = {}) {
-  const route = resolveAppRoute(window.location.pathname, {
+async function applyRouteFromLocation({ shouldRender = true } = {}) {
+  let route = resolveAppRoute(window.location.pathname, {
     countries: worldCountries,
     countryPacks
   });
+
+  if (
+    route.type === "country_overview" ||
+    route.type === "curated_place" ||
+    route.type === "invalid_place"
+  ) {
+    const pack = await ensureCountryPack(route.countrySlug);
+    route = resolveAppRoute(window.location.pathname, {
+      countries: worldCountries,
+      countryPacks: pack ? { ...countryPacks, [route.countrySlug]: pack } : countryPacks
+    });
+  }
+
   if (route.type === "country_landing") {
     enterCountryLanding({ updateUrl: false, shouldRender });
     return;
@@ -1486,6 +1522,29 @@ function applyRouteFromLocation({ shouldRender = true } = {}) {
 
   enterCountryLanding({ updateUrl: false, shouldRender: false });
   if (shouldRender) render();
+}
+
+async function bootstrap() {
+  bindCountryLanding();
+  bindCountryShell();
+  bindPageClick();
+  state.currentView = "countries";
+  renderCountryLanding();
+
+  try {
+    await initCountryPackRegistry();
+    await applyRouteFromLocation({ shouldRender: false });
+    render();
+    loadExperienceConfig();
+  } catch (error) {
+    showBootstrapError(error);
+  }
+}
+
+function showBootstrapError(error) {
+  elements.countryCount.textContent = "Could not load RoamAtlas";
+  elements.countryNotice.classList.add("is-open");
+  elements.countryNotice.textContent = explainClickError(error);
 }
 
 function enterCountryLanding({ updateUrl = true, shouldRender = true } = {}) {
@@ -1532,7 +1591,7 @@ function renderScene() {
     ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
     ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
     ...renderMapHotspotLabels(scene, nodes, {
-      isVisible: !imageUrl,
+      mode: imageUrl ? "hidden" : "chips",
       countrySlug: state.activeCountrySlug
     }),
     ...(!imageUrl ? [renderScenePlaceholderHint(isArtworkPending)] : [])
@@ -1541,6 +1600,17 @@ function renderScene() {
     canvas,
     ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : [])
   );
+  elements.viewport.querySelector(".region-rail")?.remove();
+  const nextDestinations = listNextArtworkDestinations({
+    scene,
+    scenes: state.activePack.scenes,
+    nodes: state.activePack.nodes,
+    currentPage: state.currentPage,
+    limit: state.experienceConfig.maxParallelImageJobs
+  });
+  if (imageUrl && nextDestinations.length) {
+    elements.viewport.appendChild(renderRegionRail(scene, nodes, nextDestinations));
+  }
   elements.stage.dataset.scene = scene.id;
   if (environmentUrl && !environmentPlan) {
     requestEnvironmentPlan(environmentUrl);
@@ -1552,6 +1622,7 @@ function renderScene() {
       requestCurrentPageArtwork();
     }
   }
+  prefetchNextDestinations();
 }
 
 function applySceneLayout(scene, { hasArtwork = false } = {}) {
@@ -1578,12 +1649,77 @@ function toScenePercent(value, total) {
   return `${(value / total) * 100}%`;
 }
 
+function renderRegionRail(scene, nodes, targets) {
+  const rail = document.createElement("nav");
+  rail.className = "region-rail";
+  rail.setAttribute("aria-label", "Explore regions");
+
+  const readiness = getPrefetchReadinessLabel();
+  if (readiness) {
+    const status = document.createElement("span");
+    status.className = "visually-hidden";
+    status.textContent = readiness;
+    rail.appendChild(status);
+  }
+
+  const list = document.createElement("div");
+  list.className = "region-rail-list";
+
+  const space = scene.coordinateSpace;
+  for (const target of targets) {
+    const node = nodes[target.nodeId];
+    if (!node) continue;
+
+    const hotspot = findHotspotForTarget(scene, target.nodeId);
+    const label = hotspot?.label ?? node.title;
+    const centerX = hotspot
+      ? hotspot.shape.x + hotspot.shape.width / 2
+      : space.width / 2;
+    const centerY = hotspot
+      ? hotspot.shape.y + hotspot.shape.height / 2
+      : space.height / 2;
+    const ready = isArtworkTargetReady(target);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `region-rail-item${ready ? " is-ready" : ""}`;
+    button.textContent = label;
+    button.title = node.title;
+    button.addEventListener("click", () => {
+      resolveOverlayTarget({
+        normalizedClick: {
+          x: clamp01(centerX / space.width),
+          y: clamp01(centerY / space.height)
+        },
+        nodeId: target.nodeId
+      });
+    });
+    list.appendChild(button);
+  }
+
+  rail.appendChild(list);
+  return rail;
+}
+
+function findHotspotForTarget(scene, nodeId) {
+  return (scene.hotspots ?? []).find(
+    (hotspot) => hotspot.nodeId === nodeId || hotspot.action?.nodeId === nodeId
+  );
+}
+
 function renderScenePlaceholderHint(isArtworkPending) {
   const hint = document.createElement("p");
   hint.className = "scene-placeholder-hint";
-  hint.textContent = isArtworkPending
-    ? "Illustration is generating. Choose a region below to keep exploring."
-    : "Choose a region to explore the scroll.";
+  const readiness = getPrefetchReadinessLabel();
+  if (isArtworkPending) {
+    hint.textContent = readiness
+      ? `Illustration is generating. ${readiness}. Choose a region below to keep exploring.`
+      : "Illustration is generating. Choose a region below to keep exploring.";
+  } else if (readiness) {
+    hint.textContent = `${readiness}. Choose a region to explore the scroll.`;
+  } else {
+    hint.textContent = "Choose a region to explore the scroll.";
+  }
   return hint;
 }
 
@@ -1658,8 +1794,8 @@ function normalizeEnvironmentPlanBounds(bounds) {
   return { x, y, width, height };
 }
 
-function renderMapHotspotLabels(scene, nodes, { isVisible, countrySlug }) {
-  if (!isVisible) return [];
+function renderMapHotspotLabels(scene, nodes, { mode = "hidden", countrySlug }) {
+  if (mode === "hidden") return [];
 
   const space = scene.coordinateSpace;
   return (scene.hotspots ?? [])
@@ -2213,6 +2349,12 @@ async function resolveOverlayTarget(target) {
     return;
   }
 
+  const readyPage = buildReadyPageFromPrefetch(target.nodeId);
+  if (readyPage) {
+    enterReadyPage(readyPage);
+    return;
+  }
+
   state.isResolvingClick = true;
   const node = target.nodeId ? state.activePack.nodes[target.nodeId] : null;
   beginNavigationFeedback(node?.title);
@@ -2234,14 +2376,46 @@ async function resolveOverlayTarget(target) {
   }
 }
 
+function buildReadyPageFromPrefetch(nodeId) {
+  if (!nodeId) return null;
+
+  const pack = state.activePack;
+  const node = pack.nodes[nodeId];
+  if (!node) return null;
+
+  const sceneId = findSceneIdForNode({ nodeId, nodes: pack.nodes, scenes: pack.scenes });
+  const scene = pack.scenes[sceneId];
+  if (!scene) return null;
+
+  const cached =
+    scene.rootNodeId === nodeId
+      ? state.artworkByScene.get(sceneId)
+      : state.artworkByPage.get(`node:${nodeId}`);
+  if (!cached?.imageUrl) return null;
+
+  return {
+    id: `node-${nodeId}`,
+    countrySlug: state.activeCountrySlug,
+    sceneId,
+    nodeId,
+    imageUrl: cached.imageUrl,
+    environmentUrl: cached.environmentUrl,
+    status: "ready",
+    plan: cached.page?.plan ?? { title: node.title }
+  };
+}
+
 function beginNavigationFeedback(title) {
   elements.viewport.classList.add("is-busy");
-  renderScrollStatus(title ? `Opening ${title}…` : "Exploring…");
+  renderLoadingPanel({
+    pageTitle: title ?? "next page",
+    fallbackMessage: title ? `Opening ${title}…` : "Exploring…"
+  });
 }
 
 function endNavigationFeedback() {
   elements.viewport.classList.remove("is-busy");
-  clearScrollStatus();
+  clearLoadingPanel();
 }
 
 async function requestFlipbookPage({ normalizedClick, imageClick = null, targetNodeId = null, detourPhrase = null }) {
@@ -2470,7 +2644,7 @@ function runFlipbookResult(result) {
     });
     return;
   }
-  const page = result.page;
+  const page = mergePrefetchedArtwork(result.page);
   if (page.nodeId) {
     setBrowserPath(canonicalRouteForNode(state.activeCountrySlug, page.nodeId, state.activePack));
   }
@@ -2655,20 +2829,277 @@ function renderGenerationRequired(page) {
 
 function renderImageGenerationPending(page, result) {
   clearPendingJob();
+  const pageTitle = page.plan?.title ?? page.nodeId ?? "next page";
   const jobUrl = page.generated?.jobUrl;
   state.pendingJob = {
     page,
     result,
-    intervalId: jobUrl ? window.setInterval(() => pollImageJob(jobUrl, page), 1600) : null
+    pageTitle,
+    intervalId: jobUrl ? window.setInterval(() => pollImageJob(jobUrl, page, pageTitle), 1600) : null
   };
   state.selectedNodeId = null;
   elements.detailSheet.classList.remove("is-open");
   elements.nodeDetail.innerHTML = "";
   elements.viewport.classList.add("is-busy");
-  renderScrollStatus(`Opening ${page.plan?.title ?? page.nodeId ?? "next page"}…`);
+  renderLoadingPanel({
+    pageTitle,
+    fallbackMessage: `Opening ${pageTitle}…`
+  });
   if (jobUrl) {
-    pollImageJob(jobUrl, page);
+    pollImageJob(jobUrl, page, pageTitle);
   }
+}
+
+async function loadExperienceConfig() {
+  try {
+    const response = await fetch(apiPath("/api/experience-config"), { cache: "no-store" });
+    if (!response.ok) return;
+    state.experienceConfig = await response.json();
+    if (state.currentView === "explorer") {
+      prefetchNextDestinations();
+      render();
+    }
+  } catch {
+    // Keep bundled defaults when the config endpoint is unavailable.
+  }
+}
+
+function prefetchNextDestinations() {
+  if (!state.experienceConfig.loadNextDestinationsEarly || state.currentView !== "explorer") {
+    return;
+  }
+
+  const scene = state.activePack.scenes[state.currentSceneId];
+  if (!scene) return;
+
+  resetPrefetchForSceneChange(scene.id);
+
+  const targets = listNextArtworkDestinations({
+    scene,
+    scenes: state.activePack.scenes,
+    nodes: state.activePack.nodes,
+    currentPage: state.currentPage,
+    limit: state.experienceConfig.maxParallelImageJobs
+  });
+
+  for (const target of targets) {
+    prefetchArtworkTarget(target);
+  }
+}
+
+function resetPrefetchForSceneChange(sceneId) {
+  if (state.prefetchSceneId === sceneId) return;
+  state.prefetchSceneId = sceneId;
+  state.prefetchRequests.clear();
+  for (const key of [...prefetchPollers.keys()]) {
+    stopPrefetchPoller(key);
+  }
+}
+
+function isArtworkTargetReady(target) {
+  const scene = state.activePack.scenes[target.sceneId];
+  if (scene && target.nodeId === scene.rootNodeId) {
+    return Boolean(state.artworkByScene.get(target.sceneId)?.imageUrl);
+  }
+  return Boolean(state.artworkByPage.get(target.key)?.imageUrl);
+}
+
+function getPrefetchReadinessLabel() {
+  if (!state.experienceConfig.loadNextDestinationsEarly) return null;
+  const scene = state.activePack.scenes[state.currentSceneId];
+  if (!scene) return null;
+
+  const targets = listNextArtworkDestinations({
+    scene,
+    scenes: state.activePack.scenes,
+    nodes: state.activePack.nodes,
+    currentPage: state.currentPage,
+    limit: state.experienceConfig.maxParallelImageJobs
+  });
+  if (!targets.length) return null;
+
+  const readyCount = targets.filter(isArtworkTargetReady).length;
+  if (!readyCount) return null;
+  return `${readyCount} of ${targets.length} destinations ready`;
+}
+
+function prefetchArtworkTarget(target) {
+  if (isArtworkTargetReady(target) || state.prefetchRequests.has(target.key)) {
+    return;
+  }
+
+  const scene = state.activePack.scenes[target.sceneId];
+  const isSceneRootTarget = scene && target.nodeId === scene.rootNodeId;
+  const trackKey = isSceneRootTarget ? target.sceneId : target.key;
+  if (state.artworkJobs.has(trackKey)) return;
+
+  state.prefetchRequests.add(target.key);
+
+  const params = new URLSearchParams({
+    countrySlug: state.activeCountrySlug,
+    sceneId: target.sceneId,
+    prefetch: "priority"
+  });
+  if (!isSceneRootTarget && target.nodeId) {
+    params.set("nodeId", target.nodeId);
+  }
+
+  fetch(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Prefetch artwork failed: ${response.status}`);
+      const { page } = await response.json();
+      if (page.status === "ready" && page.imageUrl) {
+        storeArtworkCache(target, page);
+        state.prefetchRequests.delete(target.key);
+        render();
+        return;
+      }
+
+      const jobUrl = page.generated?.jobUrl;
+      if (!jobUrl) {
+        state.prefetchRequests.delete(target.key);
+        return;
+      }
+      pollPrefetchJob(target, jobUrl, page);
+    })
+    .catch(() => {
+      state.prefetchRequests.delete(target.key);
+    });
+}
+
+function storeArtworkCache(target, page, job = null) {
+  const imageUrl = job?.imageUrl ?? page.imageUrl;
+  const environmentUrl = job?.environmentUrl ?? getPageEnvironmentUrl(page);
+  const payload = {
+    imageUrl,
+    environmentUrl,
+    page: {
+      ...page,
+      imageUrl,
+      environmentUrl,
+      status: "ready"
+    }
+  };
+  const scene = state.activePack.scenes[target.sceneId];
+  if (scene && target.nodeId === scene.rootNodeId) {
+    state.artworkByScene.set(target.sceneId, payload);
+  } else {
+    state.artworkByPage.set(target.key, payload);
+  }
+}
+
+function pollPrefetchJob(target, jobUrl, page) {
+  stopPrefetchPoller(target.key);
+
+  const tick = async () => {
+    try {
+      const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
+      if (!response.ok) return;
+      const job = await response.json();
+      if (job.status === "failed") {
+        stopPrefetchPoller(target.key);
+        state.prefetchRequests.delete(target.key);
+        return;
+      }
+      if (job.status !== "ready" || !job.imageUrl) return;
+      stopPrefetchPoller(target.key);
+      state.prefetchRequests.delete(target.key);
+      storeArtworkCache(target, page, job);
+      if (state.currentView === "explorer") {
+        render();
+      }
+    } catch {
+      // Keep polling until the prefetch job finishes.
+    }
+  };
+
+  tick();
+  prefetchPollers.set(target.key, window.setInterval(tick, 1600));
+}
+
+function stopPrefetchPoller(key) {
+  const intervalId = prefetchPollers.get(key);
+  if (intervalId) {
+    window.clearInterval(intervalId);
+  }
+  prefetchPollers.delete(key);
+}
+
+function mergePrefetchedArtwork(page) {
+  if (!page?.sceneId) return page;
+
+  const scene = state.activePack.scenes[page.sceneId];
+  if (scene && page.nodeId === scene.rootNodeId) {
+    const cached = state.artworkByScene.get(scene.id);
+    if (cached?.imageUrl) {
+      return {
+        ...page,
+        imageUrl: cached.imageUrl,
+        environmentUrl: cached.environmentUrl,
+        status: "ready"
+      };
+    }
+  }
+
+  if (page.nodeId) {
+    const cached = state.artworkByPage.get(`node:${page.nodeId}`);
+    if (cached?.imageUrl) {
+      return {
+        ...page,
+        imageUrl: cached.imageUrl,
+        environmentUrl: cached.environmentUrl,
+        status: "ready"
+      };
+    }
+  }
+
+  return page;
+}
+
+function renderLoadingPanel({ job = null, pageTitle, fallbackMessage }) {
+  if (!state.experienceConfig.showLoadingSteps) {
+    renderScrollStatus(fallbackMessage ?? pageTitle ?? "Loading…");
+    return;
+  }
+
+  clearScrollStatus();
+  const trail = buildLoadingStepTrail({
+    job: job ?? { status: "pending_codex_image_generation" },
+    pageTitle
+  });
+
+  let panel = elements.viewport.querySelector(".loading-panel");
+  if (!panel) {
+    panel = document.createElement("section");
+    panel.className = "loading-panel";
+    panel.setAttribute("role", "status");
+    panel.setAttribute("aria-live", "polite");
+    elements.viewport.appendChild(panel);
+  }
+
+  panel.innerHTML = `
+    <div class="loading-panel-head">
+      <span class="scroll-status-dot" aria-hidden="true"></span>
+      <strong>${escapeHtml(trail.current.message)}</strong>
+    </div>
+    <p class="loading-panel-detail">${escapeHtml(trail.current.detail)}</p>
+    <div class="loading-panel-progress" aria-hidden="true">
+      <span style="width: ${Math.round(trail.current.progress * 100)}%"></span>
+    </div>
+    <ol class="loading-panel-steps">
+      ${trail.steps
+        .map(
+          (step) =>
+            `<li class="loading-panel-step loading-panel-step--${step.state}">${escapeHtml(step.label)}</li>`
+        )
+        .join("")}
+    </ol>
+  `;
+}
+
+function clearLoadingPanel() {
+  elements.viewport.querySelector(".loading-panel")?.remove();
+  clearScrollStatus();
 }
 
 function renderScrollStatus(message) {
@@ -2696,11 +3127,12 @@ function clearScrollStatus() {
   elements.viewport.querySelector(".scroll-status")?.remove();
 }
 
-async function pollImageJob(jobUrl, page) {
+async function pollImageJob(jobUrl, page, pageTitle = page.plan?.title ?? page.nodeId) {
   try {
     const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
     if (!response.ok) return;
     const job = await response.json();
+    renderLoadingPanel({ job, pageTitle, fallbackMessage: `Opening ${pageTitle}…` });
     if (job.status !== "ready" || !job.imageUrl) return;
     clearPendingJob();
     const environmentUrl = job.environmentUrl ?? getPageEnvironmentUrl(page);

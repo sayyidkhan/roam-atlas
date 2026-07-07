@@ -1239,6 +1239,80 @@ a {
   pointer-events: none;
 }
 
+.loading-panel {
+  position: fixed;
+  z-index: 26;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid rgba(31, 44, 42, 0.1);
+  border-radius: 16px;
+  padding: 14px 16px 12px;
+  background: rgba(255, 250, 240, 0.96);
+  color: rgba(31, 44, 42, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 44, 42, 0.12);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.loading-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.loading-panel-detail {
+  margin: 8px 0 10px;
+  color: rgba(31, 44, 42, 0.66);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.loading-panel-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(36, 95, 82, 0.12);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.loading-panel-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(36, 95, 82, 0.72);
+  transition: width 240ms ease;
+}
+
+.loading-panel-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+}
+
+.loading-panel-step {
+  color: rgba(31, 44, 42, 0.42);
+}
+
+.loading-panel-step--active {
+  color: rgba(36, 95, 82, 0.92);
+  font-weight: 700;
+}
+
+.loading-panel-step--done {
+  color: rgba(31, 44, 42, 0.62);
+}
+
+.loading-panel-step--failed {
+  color: rgba(140, 54, 42, 0.88);
+  font-weight: 700;
+}
+
 .scroll-status-dot {
   width: 8px;
   height: 8px;
@@ -1479,9 +1553,81 @@ a {
 }
 
 .scroll-stage.has-local-art {
+  margin-bottom: 52px;
   background:
     linear-gradient(180deg, rgba(255, 250, 240, 0.5), rgba(248, 237, 216, 0.64)),
     #f8edd8;
+}
+
+.region-rail {
+  position: fixed;
+  z-index: 18;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 18px 20px 14px;
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0) 0%, rgba(255, 250, 240, 0.88) 38%, rgba(255, 250, 240, 0.96) 100%);
+  pointer-events: none;
+}
+
+.region-rail-list {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  pointer-events: auto;
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
+.region-rail-list::-webkit-scrollbar {
+  display: none;
+}
+
+.region-rail-item {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 10px;
+  background: transparent;
+  color: rgba(31, 44, 42, 0.68);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.region-rail-item:hover,
+.region-rail-item:focus-visible {
+  color: rgba(31, 44, 42, 0.92);
+  background: rgba(255, 255, 255, 0.42);
+  outline: none;
+}
+
+.region-rail-item.is-ready {
+  color: rgba(31, 44, 42, 0.82);
+}
+
+.region-rail-item.is-ready::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: rgba(36, 95, 82, 0.72);
+  vertical-align: middle;
+  transform: translateY(-1px);
+}
+
+.map-hotspot-hit:hover,
+.map-hotspot-hit:focus-visible {
+  background: rgba(36, 95, 82, 0.08);
+  outline: 2px solid rgba(36, 95, 82, 0.28);
+  outline-offset: -2px;
 }
 
 .scroll-stage.has-local-art .tile {

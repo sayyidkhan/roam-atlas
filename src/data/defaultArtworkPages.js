@@ -48,6 +48,26 @@ export function getDefaultArtworkPageForNode(
   });
 }
 
+export function getCanonicalArtworkPageForGeneration(
+  page,
+  scenes,
+  nodes = atlasNodes,
+  countrySlug = "default-country",
+  countryName = "selected country"
+) {
+  if (!page?.nodeId) return page;
+
+  const defaultPage = getDefaultArtworkPageForNode(
+    page.nodeId,
+    page.sceneId,
+    scenes,
+    nodes,
+    countrySlug,
+    countryName
+  );
+  return defaultPage ?? page;
+}
+
 export function listDefaultArtworkPages(
   scenes,
   nodes = atlasNodes,

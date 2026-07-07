@@ -1,3 +1,7 @@
+function isConfiguredCountryPack(pack) {
+  return pack?.registration === "source_controlled";
+}
+
 export function routeForCountryLanding() {
   return "/";
 }
@@ -76,7 +80,7 @@ export function resolveAppRoute(pathname, { countries = [], countryPacks = {} } 
     const country = countries.find((item) => item.slug === slug);
     if (country) {
       const pack = countryPacks[slug] ?? null;
-      return pack
+      return pack && isConfiguredCountryPack(pack)
         ? { type: "country_overview", country, countrySlug: slug, pack }
         : { type: "country_needs_config", country, countrySlug: slug };
     }

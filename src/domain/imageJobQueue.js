@@ -1,7 +1,8 @@
 const JOB_KIND_PRIORITY = {
   interactive: 0,
-  artwork: 1,
-  prewarm: 2
+  prefetch: 1,
+  artwork: 2,
+  prewarm: 3
 };
 
 const STATUS_PRIORITY = {
@@ -11,8 +12,10 @@ const STATUS_PRIORITY = {
   ready: 3
 };
 
+import { resolveRoamAtlasExperienceConfig } from "../config/experienceConfig.js";
+
 export function shouldQueueDefaultArtwork(env = process.env) {
-  return env.ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK === "true";
+  return resolveRoamAtlasExperienceConfig(env).loadCountryPackEarly;
 }
 
 export function imageJobPriority(job) {

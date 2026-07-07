@@ -7,6 +7,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 
 import { getSceneArtwork } from "../src/data/sceneArtwork.js";
 import {
+  getCanonicalArtworkPageForGeneration,
   getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
@@ -23,6 +24,7 @@ import {
   getCountryImageTopics
 } from "../src/data/countryImageTopics.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
+import { resolveRoamAtlasExperienceConfig } from "../src/config/experienceConfig.js";
 import { resolveRoamAtlasConfig } from "../src/config/roamAtlasConfig.js";
 import {
   buildCountryDraftInfluencePrompt,
@@ -63,6 +65,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 loadLocalEnv(path.join(root, ".env"));
 const appConfig = resolveRoamAtlasConfig(process.env);
+const appExperienceConfig = resolveRoamAtlasExperienceConfig(process.env);
 const port = appConfig.server.port;
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
@@ -154,7 +157,9 @@ const DEV_LIVE_RELOAD_SCRIPT = `<script>
 (() => {
   if (!("EventSource" in window)) return;
   const source = new EventSource("${DEV_RELOAD_PATH}");
-  source.onmessage = () => window.location.reload();
+  source.onmessage = (event) => {
+    if (event.data === "reload") window.location.reload();
+  };
 })();
 </script>`;
 
@@ -172,6 +177,11 @@ function notifyLiveReloadClients() {
   }
 }
 
+function shouldIgnoreLiveReloadPath(filename) {
+  const normalized = String(filename).replace(/\\/g, "/");
+  return normalized.startsWith("country-cards/") || normalized.includes("/country-cards/");
+}
+
 function startLiveReloadWatcher() {
   const notify = debounce(notifyLiveReloadClients, 120);
   const watchTargets = [
@@ -184,6 +194,7 @@ function startLiveReloadWatcher() {
     try {
       watch(target, { recursive: true }, (eventType, filename) => {
         if (!filename || filename.endsWith("~")) return;
+        if (shouldIgnoreLiveReloadPath(filename)) return;
         notify();
       });
     } catch (error) {
@@ -220,6 +231,14 @@ createServer(async (request, response) => {
       await handleArtworkRequest(url, response);
       return;
     }
+    if (request.method === "GET" && url.pathname === "/api/experience-config") {
+      response.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache"
+      });
+      response.end(JSON.stringify(appExperienceConfig));
+      return;
+    }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/country-image") {
       await handleCountryImageRequest(url, response);
       return;
@@ -229,8 +248,7 @@ createServer(async (request, response) => {
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/country-packs") {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ defaultCountrySlug: DEFAULT_COUNTRY_SLUG, countryPacks }));
+      await handleCountryPacksRequest(url, response);
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/country-draft") {
@@ -325,7 +343,7 @@ async function handleFlipbookClick(request, response) {
     });
     result.semanticCache = semanticHit;
     if (result.page.status === "generation_required") {
-      result.page = await createCodexImageJob(result.page);
+      result.page = await attachCodexArtworkToPage(result.page, pack);
     }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify(result));
@@ -426,11 +444,29 @@ async function handleFlipbookClick(request, response) {
   };
 
   if (result.page.status === "generation_required") {
-    result.page = await createCodexImageJob(result.page);
+    result.page = await attachCodexArtworkToPage(result.page, pack);
   }
 
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify(result));
+}
+
+async function attachCodexArtworkToPage(page, pack) {
+  const codexPage = getCanonicalArtworkPageForGeneration(
+    page,
+    pack.scenes,
+    pack.nodes,
+    pack.countrySlug,
+    pack.title
+  );
+  const artworkPage = await createCodexImageJob(codexPage);
+  return {
+    ...page,
+    status: artworkPage.status,
+    imageUrl: artworkPage.imageUrl ?? page.imageUrl,
+    environmentUrl: artworkPage.environmentUrl,
+    generated: artworkPage.generated
+  };
 }
 
 function resolveDeterministicClick({ currentPage, normalizedClick }) {
@@ -758,6 +794,53 @@ function actionForNode(nodeId, pack) {
     : { type: "open_node", nodeId };
 }
 
+async function handleCountryPacksRequest(url, response) {
+  const countrySlug = String(url.searchParams.get("slug") ?? "").trim().toLowerCase();
+  const scope = url.searchParams.get("scope") ?? (countrySlug ? "full" : "summary");
+
+  if (countrySlug) {
+    const pack = countryPacks[countrySlug];
+    if (!pack) {
+      response.writeHead(404, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: `Unknown country pack: ${countrySlug}` }));
+      return;
+    }
+
+    response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
+    response.end(JSON.stringify({ countrySlug, countryPack: pack }));
+    return;
+  }
+
+  const payload =
+    scope === "full"
+      ? { defaultCountrySlug: DEFAULT_COUNTRY_SLUG, countryPacks }
+      : {
+          defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
+          countryPacks: summarizeCountryPackRegistry(countryPacks)
+        };
+
+  response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
+  response.end(JSON.stringify(payload));
+}
+
+function summarizeCountryPackRegistry(packs) {
+  return Object.fromEntries(
+    Object.entries(packs).map(([countrySlug, pack]) => [countrySlug, summarizeCountryPack(pack)])
+  );
+}
+
+function summarizeCountryPack(pack) {
+  return {
+    countryCode: pack.countryCode,
+    countrySlug: pack.countrySlug,
+    title: pack.title,
+    rootNodeId: pack.rootNodeId,
+    overviewSceneId: pack.overviewSceneId,
+    confidence: pack.confidence,
+    registration: pack.registration
+  };
+}
+
 async function handleArtworkRequest(url, response) {
   const sceneId = url.searchParams.get("sceneId");
   const nodeId = url.searchParams.get("nodeId");
@@ -778,7 +861,15 @@ async function handleArtworkRequest(url, response) {
     return;
   }
 
-  const artworkPage = await createCodexImageJob(page, { jobKind: nodeId ? "interactive" : "artwork" });
+  const isPrefetch = url.searchParams.get("prefetch") === "true" || url.searchParams.get("prefetch") === "priority";
+  const jobKind = isPrefetch
+    ? url.searchParams.get("prefetch") === "priority"
+      ? "prefetch"
+      : "artwork"
+    : nodeId
+    ? "interactive"
+    : "artwork";
+  const artworkPage = await createCodexImageJob(page, { jobKind });
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify({ page: artworkPage }));
 }
@@ -2453,7 +2544,7 @@ function startImageJobProcessor() {
     ? queueDefaultArtworkJobs()
     : Promise.resolve();
   if (!shouldQueueDefaultArtwork()) {
-    console.log("RoamAtlas default artwork pre-generation skipped. Set ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK=true to enable it.");
+    console.log("RoamAtlas default artwork pre-generation skipped. Set ROAMATLAS_LOAD_COUNTRY_PACK_EARLY=true to enable it.");
   }
   initialQueue.then(processPendingCodexJobs).catch((error) => {
     console.error("Initial image job processing failed:", error);
@@ -2482,10 +2573,18 @@ async function processPendingCodexJobs() {
     jobs.push({ fileName, jobPath, job });
   }
 
+  const maxParallel = appExperienceConfig.maxParallelImageJobs;
+  const availableSlots = Math.max(0, maxParallel - processingJobs.size);
+  if (availableSlots === 0) return;
+
+  let started = 0;
   for (const { jobPath, job } of sortImageJobsForProcessing(jobs)) {
+    if (started >= availableSlots) break;
     if (!shouldProcessCodexJob(job, jobPath)) continue;
-    await processCodexImageJob(jobPath, job);
-    break;
+    started += 1;
+    processCodexImageJob(jobPath, job).catch((error) => {
+      console.error("Image job processing failed:", error);
+    });
   }
 }
 

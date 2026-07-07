@@ -14,6 +14,12 @@ import {
   resolveRoamAtlasConfig
 } from "../src/config/roamAtlasConfig.js";
 import {
+  ROAMATLAS_EXPERIENCE_CONFIG,
+  resolveRoamAtlasExperienceConfig
+} from "../src/config/experienceConfig.js";
+import { buildLoadingStepTrail, resolveLoadingStep } from "../src/domain/loadingSteps.js";
+import { listNextArtworkDestinations } from "../src/domain/nextArtworkDestinations.js";
+import {
   getCountryBySlug,
   getCountryCardState,
   worldCountries
@@ -46,6 +52,7 @@ import { planNextFlipbookPage } from "../src/domain/pagePlanner.js";
 import { getSceneArtwork } from "../src/data/sceneArtwork.js";
 import { sceneArtwork } from "../src/data/sceneArtwork.js";
 import {
+  getCanonicalArtworkPageForGeneration,
   getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
@@ -163,7 +170,7 @@ test("country landing cards request country-specific media images", () => {
   assert.doesNotMatch(styleSource, /country-card-atlas\.jpg/);
 });
 
-test("app routes send every country through a registered explorer pack", () => {
+test("app routes only open configured country packs directly in the explorer", () => {
   const routeContext = { countries: worldCountries, countryPacks };
   const singaporePack = countryPacks.singapore;
   const malaysiaPack = countryPacks.malaysia;
@@ -185,10 +192,9 @@ test("app routes send every country through a registered explorer pack", () => {
     pack: malaysiaPack
   });
   assert.deepEqual(resolveAppRoute("/austria", routeContext), {
-    type: "country_overview",
+    type: "country_needs_config",
     country: getCountryBySlug("austria"),
-    countrySlug: "austria",
-    pack: austriaPack
+    countrySlug: "austria"
   });
   assert.deepEqual(resolveAppRoute("/austria/config", routeContext), {
     type: "country_config",
@@ -794,6 +800,76 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(withPortOverride.server.port, 5173);
 });
 
+test("experience config stores prefetch and parallel job defaults", () => {
+  const defaults = resolveRoamAtlasExperienceConfig({});
+  const withOverrides = resolveRoamAtlasExperienceConfig({
+    ROAMATLAS_LOAD_NEXT_DESTINATIONS_EARLY: "false",
+    ROAMATLAS_MAX_PARALLEL_IMAGE_JOBS: "4",
+    ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK: "true"
+  });
+
+  assert.equal(ROAMATLAS_EXPERIENCE_CONFIG.maxParallelImageJobs, 10);
+  assert.equal(defaults.loadNextDestinationsEarly, true);
+  assert.equal(defaults.maxParallelImageJobs, 10);
+  assert.equal(defaults.loadCountryPackEarly, false);
+  assert.equal(withOverrides.loadNextDestinationsEarly, false);
+  assert.equal(withOverrides.maxParallelImageJobs, 4);
+  assert.equal(withOverrides.loadCountryPackEarly, true);
+});
+
+test("next artwork destinations stay one level deep from the current screen", () => {
+  const pack = countryPacks.singapore;
+  const overviewScene = pack.scenes["singapore-overview"];
+  const targets = listNextArtworkDestinations({
+    scene: overviewScene,
+    scenes: pack.scenes,
+    nodes: pack.nodes,
+    currentPage: {
+      sceneId: overviewScene.id,
+      nodeId: pack.rootNodeId
+    },
+    limit: 10
+  });
+
+  assert.ok(targets.some((target) => target.sceneId === "marina-bay-scroll"));
+  assert.ok(targets.some((target) => target.sceneId === "heritage-belt-scroll"));
+  assert.equal(targets.length, 7);
+
+  const marinaScene = pack.scenes["marina-bay-scroll"];
+  const marinaTargets = listNextArtworkDestinations({
+    scene: marinaScene,
+    scenes: pack.scenes,
+    nodes: pack.nodes,
+    currentPage: {
+      sceneId: marinaScene.id,
+      nodeId: marinaScene.rootNodeId
+    },
+    limit: 10
+  });
+  assert.ok(marinaTargets.some((target) => target.nodeId === "marina-bay-sands"));
+  assert.ok(marinaTargets.some((target) => target.nodeId === "gardens-by-the-bay"));
+});
+
+test("loading steps follow image job status", () => {
+  const queued = resolveLoadingStep({
+    job: { status: "pending_codex_image_generation" },
+    pageTitle: "Marina Bay"
+  });
+  const generating = resolveLoadingStep({
+    job: { status: "processing_openai_image" },
+    pageTitle: "Marina Bay"
+  });
+  const trail = buildLoadingStepTrail({
+    job: { status: "processing_openai_image" },
+    pageTitle: "Marina Bay"
+  });
+
+  assert.match(queued.message, /Marina Bay/);
+  assert.match(queued.detail, /still generating/);
+  assert.equal(generating.phase, "generating");
+  assert.equal(trail.steps.find((step) => step.state === "active")?.label, "Drawing illustration");
+});
+
 test("runtime cache paths live outside the repo and expose stable runtime urls", () => {
   const defaultCacheRoot = resolveRuntimeCacheRoot({
     ROAMATLAS_RUNTIME_CACHE_DIR: ""
@@ -857,7 +933,7 @@ test("default artwork pre-generation is opt-in for interactive dev speed", () =>
   );
 });
 
-test("interactive image jobs process before artwork prewarm jobs", () => {
+test("interactive image jobs process before prefetch and artwork jobs", () => {
   const jobs = sortImageJobsForProcessing([
     {
       fileName: "artwork-singapore-overview.json",
@@ -865,6 +941,14 @@ test("interactive image jobs process before artwork prewarm jobs", () => {
         status: "pending_codex_image_generation",
         jobKind: "prewarm",
         createdAt: "2026-05-09T01:00:00.000Z"
+      }
+    },
+    {
+      fileName: "node-gardens-by-the-bay.json",
+      job: {
+        status: "pending_codex_image_generation",
+        jobKind: "prefetch",
+        createdAt: "2026-05-09T01:10:00.000Z"
       }
     },
     {
@@ -889,6 +973,7 @@ test("interactive image jobs process before artwork prewarm jobs", () => {
     jobs.map((item) => item.fileName),
     [
       "node-cloud-forest.json",
+      "node-gardens-by-the-bay.json",
       "artwork-marina-bay-scroll.json",
       "artwork-singapore-overview.json"
     ]
@@ -1303,6 +1388,10 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.doesNotMatch(appSource, /overview-codex-local\.png/);
   assert.doesNotMatch(appSource, /127\.0\.0\.1:4173/);
   assert.match(appSource, /requestSceneArtwork/);
+  assert.match(appSource, /renderRegionRail/);
+  assert.match(appSource, /renderLoadingPanel/);
+  assert.match(appSource, /mergePrefetchedArtwork/);
+  assert.match(appSource, /loadExperienceConfig/);
   assert.match(appSource, /requestCurrentPageArtwork/);
   assert.match(appSource, /canCurrentPageUseSceneArtwork/);
   assert.match(appSource, /getPageArtworkJobKey/);
@@ -1436,7 +1525,8 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /createEnvironmentPlanWithOpenAI/);
   assert.match(serverSource, /getDefaultArtworkPageForNode/);
   assert.match(serverSource, /url\.searchParams\.get\("nodeId"\)/);
-  assert.match(serverSource, /jobKind: nodeId \? "interactive" : "artwork"/);
+  assert.match(serverSource, /searchParams\.get\("prefetch"\) === "priority"/);
+  assert.match(serverSource, /jobKind = isPrefetch[\s\S]*"prefetch"/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
   assert.match(promptSource, /environment-plan-v1/);
@@ -1465,6 +1555,12 @@ test("server persists country starter maps in country-scoped runtime storage", (
   assert.match(serverSource, /handleCountryDraftConfirmRequest/);
   assert.match(serverSource, /confirmed_for_curation/);
   assert.match(serverSource, /resolveRoamAtlasConfig/);
+  assert.match(serverSource, /resolveRoamAtlasExperienceConfig/);
+  assert.match(serverSource, /\/api\/experience-config/);
+  assert.match(serverSource, /handleCountryPacksRequest/);
+  assert.match(serverSource, /get\("scope"\)/);
+  assert.match(serverSource, /attachCodexArtworkToPage/);
+  assert.match(serverSource, /getCanonicalArtworkPageForGeneration/);
   assert.match(serverSource, /DEFAULT_IMAGE_PROVIDER/);
   assert.match(serverSource, /appConfig\.ai\.vlmModel/);
 });
@@ -1477,6 +1573,8 @@ test("dev server serves the app shell for direct country and node routes", () =>
   assert.match(serverSource, /pathname === "\/" \|\| isAppRoutePath\(pathname\) \? "\/index\.html"/);
   assert.match(serverSource, /!pathname\.startsWith\("\/api\/"\) && !path\.extname\(pathname\)/);
   assert.match(serverSource, /\/__roamatlas\/dev-reload/);
+  assert.match(serverSource, /event\.data === "reload"/);
+  assert.match(serverSource, /shouldIgnoreLiveReloadPath/);
   assert.match(serverSource, /startLiveReloadWatcher/);
   assert.match(serverSource, /Cache-Control": "no-cache"/);
   assert.match(htmlSource, /href="\/src\/styles\.css(?:\?[^"]*)?"/);
@@ -1515,6 +1613,20 @@ test("default artwork pages are generated through the runtime image pipeline", (
   assert.doesNotMatch(malaysiaHomepage.plan.imagePrompt, /\bSingapore\b/);
   assert.ok(pages.some((page) => page.sceneId === "singapore-overview"));
   assert.ok(pages.some((page) => page.sceneId === "singapore-zoo-scroll"));
+});
+
+test("flipbook generation reuses canonical artwork page ids for scene roots", () => {
+  const flipbookPage = {
+    id: "node-singapore-zoo",
+    sceneId: "singapore-zoo-scroll",
+    nodeId: "singapore-zoo",
+    status: "generation_required"
+  };
+  const canonical = getCanonicalArtworkPageForGeneration(flipbookPage, scrollScenes, atlasNodes);
+
+  assert.equal(canonical.id, "artwork-singapore-zoo-scroll");
+  assert.equal(canonical.nodeId, "singapore-zoo");
+  assert.match(canonical.plan.imagePrompt, /Singapore Zoo/);
 });
 
 test("Malaysia flipbook clicks generate Malaysia image prompts", () => {
