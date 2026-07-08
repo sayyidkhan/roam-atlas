@@ -694,6 +694,13 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
     starterMap.regions.find((region) => region.name === "Kuala Lumpur").why,
     /starter RoamAtlas graph|needs source review|replace this note/i
   );
+  assert.ok(starterMap.themes.some((theme) => theme.label === "State"));
+  assert.ok(starterMap.themes.some((theme) => theme.label === "City"));
+  assert.ok(
+    starterMap.themes.every(
+      (theme) => !["Unconfirmed", "Starter Map", "Malaysia", "Overview"].includes(theme.label)
+    )
+  );
 
   const result = resolveFlipbookClick({
     currentPage: {

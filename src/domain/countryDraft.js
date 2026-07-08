@@ -223,12 +223,34 @@ export function normalizeCountryDraftInstruction(value) {
     .slice(0, 420);
 }
 
-export function createCountryPackStarterMap(pack, options = {}) {
+function getPackChildNodes(pack) {
   const rootNode = pack.nodes[pack.rootNodeId];
-  const childNodes = (rootNode?.childIds ?? [])
+  return (rootNode?.childIds ?? [])
     .map((nodeId) => pack.nodes[nodeId])
     .filter(Boolean);
-  const themeSummaries = summarizePackThemes(childNodes);
+}
+
+function buildPackThemeDraftItems(pack, childNodes = getPackChildNodes(pack)) {
+  const themeSummaries = summarizePackThemes(childNodes, pack.countrySlug);
+  const isConfirmedPack = pack.confidence !== "unconfirmed";
+  const confidence = isConfirmedPack ? "confirmed" : "unconfirmed";
+  return themeSummaries.slice(0, 6).map((theme) => ({
+    label: titleCase(theme.label),
+    note: packThemeNote(theme, pack.title, { isConfirmedPack }),
+    confidence
+  }));
+}
+
+export function refreshCuratedPackSnapshotThemes(draft, pack) {
+  if (draft?.mode !== "curated_pack_snapshot" || !pack) return draft;
+  return {
+    ...draft,
+    themes: buildPackThemeDraftItems(pack)
+  };
+}
+
+export function createCountryPackStarterMap(pack, options = {}) {
+  const childNodes = getPackChildNodes(pack);
   const isConfirmedPack = pack.confidence !== "unconfirmed";
   const confidence = isConfirmedPack ? "confirmed" : "unconfirmed";
   const sourceType = isConfirmedPack ? "curated" : "ai_generated";
@@ -253,11 +275,7 @@ export function createCountryPackStarterMap(pack, options = {}) {
       confidence,
       children: collectPackNodeChildren(node, pack, confidence)
     })),
-    themes: themeSummaries.slice(0, 6).map((theme) => ({
-      label: titleCase(theme.label),
-      note: packThemeNote(theme, pack.title, { isConfirmedPack }),
-      confidence
-    })),
+    themes: buildPackThemeDraftItems(pack, childNodes),
     reviewChecklist: isConfirmedPack
       ? [
           "Keep source URLs beside each accepted fact.",
@@ -366,7 +384,7 @@ export function normalizeCountryDraftPayload(payload, country, options = {}) {
   );
   const allowedSourceUrls = buildAllowedSourceUrlSet(options.groundingSnippets);
   const regions = normalizeRegions(payload?.regions, allowedSourceUrls);
-  const themes = normalizeThemes(payload?.themes, allowedSourceUrls);
+  const themes = normalizeThemes(payload?.themes, allowedSourceUrls, country.slug);
   const isGrounded = allowedSourceUrls.size > 0;
   const hasGroundedFact =
     regions.some((region) => region.confidence === "likely") ||
@@ -446,11 +464,11 @@ function normalizeSourceUrl(value, allowedSourceUrls) {
   return allowedSourceUrls.has(candidate) ? candidate : null;
 }
 
-function normalizeThemes(themes, allowedSourceUrls = new Set()) {
+function normalizeThemes(themes, allowedSourceUrls = new Set(), countrySlug = "") {
   return asArray(themes)
     .map((item) => {
       const label = safeText(item?.label, "", 60);
-      if (!label) return null;
+      if (!label || isInternalThemeTag(label, countrySlug)) return null;
       const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
       return {
         label,
@@ -525,12 +543,41 @@ function isInternalPlaceholderText(text) {
   );
 }
 
-function summarizePackThemes(nodes) {
+const INTERNAL_THEME_TAGS = new Set([
+  "starter-map",
+  "unconfirmed",
+  "overview",
+  "worldwide",
+  "confirmed",
+  "likely",
+  "general",
+  "pending",
+  "pending_source_review"
+]);
+
+function isInternalThemeTag(tag, countrySlug = "") {
+  const normalized = normalizeThemeTag(tag);
+  if (!normalized) return true;
+  if (INTERNAL_THEME_TAGS.has(normalized)) return true;
+  const normalizedCountrySlug = normalizeThemeTag(countrySlug);
+  return Boolean(normalizedCountrySlug && normalized === normalizedCountrySlug);
+}
+
+function normalizeThemeTag(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
+}
+
+export function summarizePackThemes(nodes, countrySlug = "") {
   const themeNodes = new Map();
   for (const node of nodes) {
     for (const tag of node.tags ?? []) {
-      if (!themeNodes.has(tag)) themeNodes.set(tag, []);
-      themeNodes.get(tag).push(node.title);
+      if (isInternalThemeTag(tag, countrySlug)) continue;
+      const normalized = String(tag).trim().toLowerCase();
+      if (!themeNodes.has(normalized)) themeNodes.set(normalized, []);
+      themeNodes.get(normalized).push(node.title);
     }
   }
 

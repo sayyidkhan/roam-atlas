@@ -40,7 +40,8 @@ import {
   createCountryPackStarterMap,
   createCountryDraftFallback,
   normalizeCountryDraftInstruction,
-  normalizeCountryDraftPayload
+  normalizeCountryDraftPayload,
+  refreshCuratedPackSnapshotThemes
 } from "../src/domain/countryDraft.js";
 import {
   approveDraftItem,
@@ -1699,17 +1700,19 @@ async function handleCountryDraftRequest(url, response) {
 
   const countryPack = getCountryPack(country.slug);
   if (isSourceControlledCountryPack(countryPack)) {
+    const packSnapshot = createCountryPackStarterMap(countryPack);
+
     if (!forceGenerate) {
       const storedPackSnapshot = await readStoredCountryDraft(country);
       if (storedPackSnapshot?.mode === "curated_pack_snapshot") {
-        countryDraftCache.set(country.slug, storedPackSnapshot);
+        const draft = withFreshPackThemes(storedPackSnapshot, country);
+        countryDraftCache.set(country.slug, draft);
         response.writeHead(200, { "Content-Type": "application/json" });
-        response.end(JSON.stringify({ draft: storedPackSnapshot, cached: true, persisted: true }));
+        response.end(JSON.stringify({ draft, cached: true, persisted: true, source: "country_pack" }));
         return;
       }
     }
 
-    const packSnapshot = createCountryPackStarterMap(countryPack);
     countryDraftCache.set(country.slug, packSnapshot);
     await writeStoredCountryDraft(country, packSnapshot);
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -1726,16 +1729,18 @@ async function handleCountryDraftRequest(url, response) {
   if (!forceGenerate) {
     const cachedDraft = countryDraftCache.get(country.slug);
     if (cachedDraft) {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ draft: cachedDraft, cached: true }));
+      const draft = withFreshPackThemes(cachedDraft, country);
+      countryDraftCache.set(country.slug, draft);
+      response.end(JSON.stringify({ draft, cached: true }));
       return;
     }
 
     const storedDraft = await readStoredCountryDraft(country);
     if (storedDraft) {
-      countryDraftCache.set(country.slug, storedDraft);
+      const draft = withFreshPackThemes(storedDraft, country);
+      countryDraftCache.set(country.slug, draft);
       response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ draft: storedDraft, cached: true, persisted: true }));
+      response.end(JSON.stringify({ draft, cached: true, persisted: true }));
       return;
     }
   }
@@ -2000,7 +2005,7 @@ async function readStoredCountryDraft(country) {
     const stored = JSON.parse(await readFile(paths.starterMapPath, "utf8"));
     const draft = stored.draft ?? stored;
     if (draft?.mode === "curated_pack_snapshot" && draft.countrySlug === country.slug) {
-      return draft;
+      return withFreshPackThemes(draft, country);
     }
 
     return normalizeCountryDraftPayload(draft, country, {
@@ -2018,6 +2023,7 @@ async function writeStoredCountryDraft(country, draft) {
     cacheRoot: runtimeCacheRoot,
     countrySlug: country.slug
   });
+  const draftToStore = withFreshPackThemes(draft, country);
   await mkdir(path.dirname(paths.starterMapPath), { recursive: true });
   await writeFile(
     paths.starterMapPath,
@@ -2026,9 +2032,9 @@ async function writeStoredCountryDraft(country, draft) {
         countrySlug: country.slug,
         countryCode: country.code,
         countryName: country.name,
-        draft,
+        draft: draftToStore,
         storageKind: "runtime-starter-map",
-        factBoundary: draft.mode === "curated_pack_snapshot"
+        factBoundary: draftToStore.mode === "curated_pack_snapshot"
           ? "Stored starter map is a runtime snapshot of the curated country pack."
           : "Stored starter maps are ai_generated and unconfirmed until promoted with sources.",
         updatedAt: new Date().toISOString()
@@ -2218,11 +2224,17 @@ function createCountryDraftFallbackFromCurrent(country, reason, currentDraft, op
 
 function normalizeCurrentCountryDraft(currentDraft, country) {
   if (!currentDraft || currentDraft.countrySlug !== country.slug) return null;
-  return normalizeCountryDraftPayload(currentDraft, country, {
+  const normalized = normalizeCountryDraftPayload(currentDraft, country, {
     generatedAt: currentDraft.generatedAt,
     model: currentDraft.model,
     generationStatus: currentDraft.generationStatus ?? "ready"
   });
+  return withFreshPackThemes(normalized, country);
+}
+
+function withFreshPackThemes(draft, country) {
+  if (!draft || !isSourceControlledCountryPack(country.slug)) return draft;
+  return refreshCuratedPackSnapshotThemes(draft, getCountryPack(country.slug));
 }
 
 function extractOpenAIText(payload) {

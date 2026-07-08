@@ -962,22 +962,24 @@ function renderCountryDraftPanel(country, draftState) {
         isRegisteredCountryPack: isSourceControlledCountryPack(country.slug)
       })}
       ${renderDraftReview(draft)}
-      <div class="draft-section-tabs" aria-label="Candidate regions, research themes, and starter map editing">
-        <div class="draft-section-tab-group" role="tablist" aria-label="Candidate regions and research themes">
-          <button
-            type="button"
-            role="tab"
-            class="${activeSectionTab === "regions" ? "is-active" : ""}"
-            aria-selected="${activeSectionTab === "regions"}"
-            data-country-draft-section-tab="regions"
-          >Candidate regions (${draft.regions.length})</button>
-          <button
-            type="button"
-            role="tab"
-            class="${activeSectionTab === "themes" ? "is-active" : ""}"
-            aria-selected="${activeSectionTab === "themes"}"
-            data-country-draft-section-tab="themes"
-          >Research themes (${draft.themes.length})</button>
+      <div class="draft-section-toolbar">
+        <div class="draft-section-tabs" aria-label="Candidate regions and research themes">
+          <div class="draft-section-tab-group" role="tablist" aria-label="Candidate regions and research themes">
+            <button
+              type="button"
+              role="tab"
+              class="${activeSectionTab === "regions" ? "is-active" : ""}"
+              aria-selected="${activeSectionTab === "regions"}"
+              data-country-draft-section-tab="regions"
+            >Candidate regions (${draft.regions.length})</button>
+            <button
+              type="button"
+              role="tab"
+              class="${activeSectionTab === "themes" ? "is-active" : ""}"
+              aria-selected="${activeSectionTab === "themes"}"
+              data-country-draft-section-tab="themes"
+            >Research themes (${draft.themes.length})</button>
+          </div>
         </div>
         <div class="draft-section-actions" aria-label="Starter map tools">
           ${renderDraftResetButton(country, { disabled: isDraftBusy })}
@@ -996,12 +998,27 @@ function renderCountryDraftPanel(country, draftState) {
       </div>
       ${editModal ? renderDraftEditModal(draftState, editModal) : ""}
       <section class="draft-section-panel">
+        ${renderDraftSectionIntro(activeSectionTab)}
         ${activeSectionTab === "themes"
           ? renderDraftTree(draft.countryName, themes, draft.themes.length)
           : renderDraftTree(draft.countryName, regions, draft.regions.length)}
       </section>
     </section>
   `;
+}
+
+function renderDraftSectionIntro(activeSectionTab) {
+  if (activeSectionTab === "themes") {
+    return `
+      <p class="draft-section-intro">
+        Research themes group regions by travel style or category. They describe patterns across places, not separate destinations.
+      </p>`;
+  }
+
+  return `
+    <p class="draft-section-intro">
+      Candidate regions are possible map chapters for this country. Review, approve, and add sources before using them as verified travel facts.
+    </p>`;
 }
 
 function renderDraftResetButton(country, { disabled = false } = {}) {
