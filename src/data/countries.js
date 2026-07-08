@@ -204,20 +204,40 @@ const COUNTRY_DISPLAY_CODE_OVERRIDES = {
   US: "USA"
 };
 
-export const worldCountries = COUNTRY_CODES.map((code) => ({
-  code,
-  displayCode: COUNTRY_DISPLAY_CODE_OVERRIDES[code] ?? code,
-  name: displayNames.of(code) ?? code,
-  slug: slugifyCountryName(displayNames.of(code) ?? code),
-  status: "available"
-})).sort((a, b) => a.name.localeCompare(b.name));
+const COUNTRY_NAME_OVERRIDES = {
+  PS: "Palestine"
+};
+
+const COUNTRY_SLUG_OVERRIDES = {
+  PS: "palestinian-territories"
+};
+
+export const COUNTRY_SLUG_ALIASES = {
+  palestine: "palestinian-territories"
+};
+
+function getCountryName(code) {
+  return COUNTRY_NAME_OVERRIDES[code] ?? displayNames.of(code) ?? code;
+}
+
+export const worldCountries = COUNTRY_CODES.map((code) => {
+  const name = getCountryName(code);
+  return {
+    code,
+    displayCode: COUNTRY_DISPLAY_CODE_OVERRIDES[code] ?? code,
+    name,
+    slug: COUNTRY_SLUG_OVERRIDES[code] ?? slugifyCountryName(name),
+    status: "available"
+  };
+}).sort((a, b) => a.name.localeCompare(b.name));
 
 export function getCountryCardState(code) {
   return worldCountries.find((country) => country.code === code) ?? null;
 }
 
 export function getCountryBySlug(slug) {
-  return worldCountries.find((country) => country.slug === slug) ?? null;
+  const normalizedSlug = COUNTRY_SLUG_ALIASES[slug] ?? slug;
+  return worldCountries.find((country) => country.slug === normalizedSlug) ?? null;
 }
 
 function slugifyCountryName(value) {

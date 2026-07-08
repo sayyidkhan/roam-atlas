@@ -1,4 +1,4 @@
-export const PLACE_IMAGE_SELECTION_VERSION = "v2";
+export const PLACE_IMAGE_SELECTION_VERSION = "v3";
 
 const REGION_CAPITALS = {
   malaysia: {
@@ -8,6 +8,23 @@ const REGION_CAPITALS = {
     penang: "George Town",
     melaka: "Malacca",
     "pulau pinang": "George Town"
+  }
+};
+
+const PLACE_LANDMARK_QUERIES = {
+  malaysia: {
+    langkawi: [
+      "Langkawi Sky Bridge Malaysia tourist landmark photograph",
+      "Pantai Cenang Langkawi beach landmark photo",
+      "Eagle Square Langkawi island landmark photograph",
+      "Telaga Tujuh Waterfall Langkawi Malaysia travel photo"
+    ],
+    johor: [
+      "Sultan Abu Bakar State Mosque Johor Bahru landmark photograph",
+      "Legoland Malaysia Johor Bahru tourist attraction photo",
+      "Johor Bahru old town heritage street landmark photo",
+      "Puteri Harbour Johor Bahru waterfront landmark photograph"
+    ]
   }
 };
 
@@ -27,10 +44,13 @@ const TOURIST_SCENE_TERMS = [
 ];
 
 const POSTER_PENALTY_PATTERN =
-  /(?:^|[^a-z])(?:poster|brochure|banner|flyer|logo|logotype|favicon|sprite|icon|emblem|coat[- ]of[- ]arms|flag|infographic|promo|campaign|visit[-_.]|tourism[-_.]?board|travel[-_.]?fair|expo|thumbnail[-_.]?logo|brand[-_.]?guide)(?:[^a-z]|$)/i;
+  /(?:^|[^a-z])(?:poster|brochure|banner|flyer|logo|logotype|favicon|sprite|icon|emblem|coat[- ]of[- ]arms|flag|infographic|promo|campaign|visit[-_.]|tourism[-_.]?board|travel[-_.]?fair|expo|thumbnail[-_.]?logo|brand[-_.]?guide|hero[-_.]?image|cover[-_.]?photo|header[-_.]?image|welcome[-_.]|discover[-_.]|official[-_.]?site|text[-_.]?overlay|watermark)(?:[^a-z]|$)/i;
 
 const PHOTO_BOOST_PATTERN =
-  /(?:photo|photograph|gallery|image|skyline|cityscape|beach|coast|harbour|harbor|landscape|view|aerial|island|waterfall|rainforest|bay|lagoon|street|heritage|downtown|skyscraper|monument|temple|mosque|cathedral|fort|palace)/i;
+  /(?:photo|photograph|gallery|image|skyline|cityscape|beach|coast|harbour|harbor|landscape|view|aerial|island|waterfall|rainforest|bay|lagoon|street|heritage|downtown|skyscraper|monument|temple|mosque|cathedral|fort|palace|landmark|attraction|waterfront|old town|geopark|cable car|skybridge|sky bridge)/i;
+
+const LANDMARK_BOOST_PATTERN =
+  /(?:landmark|attraction|monument|heritage|old town|waterfront|skybridge|sky bridge|cable car|waterfall|beach|mosque|temple|palace|fort|geopark|harbour|harbor|square|viewpoint|national park)/i;
 
 export function inferPlaceImageProfile({
   place,
@@ -43,6 +63,15 @@ export function inferPlaceImageProfile({
   const normalizedKind = normalizePlaceKind(kind, tags);
   const capital = lookupRegionCapital(countrySlug, place);
   const touristScene = isTouristScenePlace(place, tags, context);
+  const landmarkQueries = lookupPlaceLandmarkQueries(countrySlug, place);
+
+  if (landmarkQueries.length) {
+    return {
+      strategy: "landmark",
+      subject: capital ?? place,
+      queries: landmarkQueries
+    };
+  }
 
   if (normalizedKind === "city" || looksLikeCityName(place)) {
     return {
@@ -87,7 +116,13 @@ export function inferPlaceImageProfile({
 }
 
 export function buildPlaceImageSearchQueries(profile) {
-  return [...new Set((profile?.queries ?? []).map((query) => String(query).trim()).filter(Boolean))];
+  return [...new Set((profile?.queries ?? []).map((query) => formatExaPlaceImageQuery(query)).filter(Boolean))];
+}
+
+export function formatExaPlaceImageQuery(query) {
+  const trimmed = String(query ?? "").trim();
+  if (!trimmed) return "";
+  return `${trimmed} real travel photograph famous place landmark tourist attraction no banner no poster no logo no text overlay`;
 }
 
 export function scorePlaceImageCandidate(candidate, profile) {
@@ -99,16 +134,28 @@ export function scorePlaceImageCandidate(candidate, profile) {
   if (PHOTO_BOOST_PATTERN.test(haystack)) score += 10;
   if (/upload\.wikimedia\.org|commons\.wikimedia\.org/i.test(haystack)) score += 8;
 
+  if (LANDMARK_BOOST_PATTERN.test(haystack)) score += 14;
+
+  if (profile.strategy === "landmark") {
+    if (LANDMARK_BOOST_PATTERN.test(haystack)) score += 20;
+    if (/(?:poster|brochure|banner|logo|flag|visit[-_.]|tourism[-_.]?board|hero[-_.]?image|cover[-_.]?photo)/i.test(haystack)) {
+      score -= 35;
+    }
+  }
+
   if (profile.strategy === "metro" || profile.strategy === "mixed") {
-    if (/(?:skyline|cityscape|downtown|urban|capital|skyscraper)/i.test(haystack)) score += 18;
-    if (/(?:poster|brochure|banner|logo|flag)/i.test(haystack)) score -= 20;
+    if (/(?:landmark|heritage|old town|monument|mosque|temple|waterfront|attraction)/i.test(haystack)) score += 20;
+    if (/(?:skyline|cityscape|downtown|urban|capital|skyscraper)/i.test(haystack)) score += 12;
+    if (/(?:poster|brochure|banner|logo|flag)/i.test(haystack)) score -= 25;
   }
 
   if (profile.strategy === "scene" || profile.strategy === "mixed") {
-    if (/(?:beach|island|coast|landscape|view|aerial|waterfall|rainforest|bay|lagoon|harbour|harbor)/i.test(haystack)) {
+    if (/(?:beach|island|coast|landscape|view|aerial|waterfall|rainforest|bay|lagoon|harbour|harbor|landmark|attraction)/i.test(haystack)) {
       score += 16;
     }
-    if (/(?:poster|brochure|banner|logo|flag|visit[-_.]|tourism[-_.]?board)/i.test(haystack)) score -= 25;
+    if (/(?:poster|brochure|banner|logo|flag|visit[-_.]|tourism[-_.]?board|hero[-_.]?image|cover[-_.]?photo)/i.test(haystack)) {
+      score -= 30;
+    }
   }
 
   return score;
@@ -153,6 +200,12 @@ function lookupRegionCapital(countrySlug, place) {
   return REGION_CAPITALS[countryKey]?.[placeKey] ?? null;
 }
 
+function lookupPlaceLandmarkQueries(countrySlug, place) {
+  const countryKey = String(countrySlug ?? "").trim().toLowerCase();
+  const placeKey = slugifyPlaceKey(place);
+  return PLACE_LANDMARK_QUERIES[countryKey]?.[placeKey] ?? [];
+}
+
 function slugifyPlaceKey(value) {
   return String(value ?? "")
     .trim()
@@ -176,18 +229,18 @@ function isTouristScenePlace(place, tags = [], context = "") {
 
 function buildMetroQueries(subject, countryName, { fallbackPlace = "" } = {}) {
   return [
-    `${subject} skyline ${countryName} photo`,
-    `${subject} cityscape ${countryName} photograph`,
-    `${subject} downtown ${countryName} travel photo`,
-    fallbackPlace ? `${fallbackPlace} capital ${countryName} city photo` : null
+    `${subject} ${countryName} famous landmark tourist attraction photograph`,
+    `${subject} ${countryName} heritage old town street landmark photo`,
+    `${subject} ${countryName} waterfront or mosque landmark photograph`,
+    fallbackPlace ? `${fallbackPlace} ${subject} ${countryName} city landmark photo` : null
   ].filter(Boolean);
 }
 
 function buildSceneQueries(place, countryName, context = "") {
   return [
-    `${place} ${countryName} landscape photo`,
-    `${place} ${countryName} island beach view`,
-    `${place} ${context} ${countryName} travel scene`.replace(/\s+/g, " ").trim(),
-    `${place} ${countryName} scenic view photograph`
+    `${place} ${countryName} famous landmark tourist attraction photograph`,
+    `${place} ${countryName} scenic beach or waterfall landmark photo`,
+    `${place} ${context} ${countryName} island nature landmark photograph`.replace(/\s+/g, " ").trim(),
+    `${place} ${countryName} viewpoint or geopark landmark photo`
   ].filter(Boolean);
 }

@@ -68,16 +68,18 @@ export function buildCountryDraftPrompt(country, { groundingSnippets = [] } = {}
       "- Suggest broad cities, states, regions, or themes worth researching next.",
       "- Do not include opening hours, ticket prices, exact transport times, closures, source URLs, citations, live availability, or official claims.",
       "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
-      "- Keep notes short and useful for a human curator.",
+      "- Do not use placeholder or internal wording such as starter map, source review, RoamAtlas graph, needs review, replace this note, or pending curation inside summary, why, or note fields.",
+      "- Make each region \"why\" a meaningful traveller-facing research angle: what kind of chapter it could become, what trip style it may serve, and what visual cues should be explored.",
+      "- Keep notes short, concrete, and useful for a human curator.",
       "",
       "JSON shape:",
       "{",
       '  "summary": "one cautious sentence",',
       '  "regions": [',
-      '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "unconfirmed" }',
+      '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "unconfirmed" }',
       "  ],",
       '  "themes": [',
-      '    { "label": "theme", "note": "short research note", "confidence": "unconfirmed" }',
+      '    { "label": "theme", "note": "concrete research note, not a placeholder", "confidence": "unconfirmed" }',
       "  ]",
       "}"
     ].join("\n");
@@ -105,16 +107,18 @@ function buildGroundedCountryDraftPrompt(country, snippets) {
     "- Never invent a URL that is not one of the snippet URLs listed above.",
     "- Do not include opening hours, ticket prices, exact transport times, closures, or live availability, even if a snippet mentions them.",
     "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
-    "- Keep notes short and useful for a human curator.",
+    "- Do not use placeholder or internal wording such as starter map, source review, RoamAtlas graph, needs review, replace this note, or pending curation inside summary, why, or note fields.",
+    "- Make each region \"why\" a meaningful traveller-facing research angle supported by the snippets: what kind of chapter it could become, what trip style it may serve, and what visual cues should be explored.",
+    "- Keep notes short, concrete, and useful for a human curator.",
     "",
     "JSON shape:",
     "{",
     '  "summary": "one cautious sentence",',
     '  "regions": [',
-    '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
+    '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
     "  ],",
     '  "themes": [',
-    '    { "label": "theme", "note": "short research note", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
+    '    { "label": "theme", "note": "concrete research note, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
     "  ]",
     "}"
   ].join("\n");
@@ -190,20 +194,22 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
       ? "- Do not include opening hours, ticket prices, exact transport times, closures, or live availability, even if a snippet mentions them."
       : "- Do not include opening hours, ticket prices, exact transport times, closures, source URLs, citations, live availability, or official claims.",
     "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
-    "- Keep notes short and useful for a human curator.",
+    "- Do not use placeholder or internal wording such as starter map, source review, RoamAtlas graph, needs review, replace this note, or pending curation inside summary, why, or note fields.",
+    "- Make each region \"why\" a meaningful traveller-facing research angle: what kind of chapter it could become, what trip style it may serve, and what visual cues should be explored.",
+    "- Keep notes short, concrete, and useful for a human curator.",
     "",
     "JSON shape:",
     "{",
     '  "summary": "one cautious sentence",',
     '  "regions": [',
     snippets.length
-      ? '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
-      : '    { "name": "candidate name", "kind": "city|state|region|area", "why": "short research reason", "confidence": "unconfirmed" }',
+      ? '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
+      : '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "unconfirmed" }',
     "  ],",
     '  "themes": [',
     snippets.length
-      ? '    { "label": "theme", "note": "short research note", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
-      : '    { "label": "theme", "note": "short research note", "confidence": "unconfirmed" }',
+      ? '    { "label": "theme", "note": "concrete research note, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
+      : '    { "label": "theme", "note": "concrete research note, not a placeholder", "confidence": "unconfirmed" }',
     "  ],",
     '  "changeNote": "one short sentence describing what changed"',
     "}"
@@ -491,9 +497,32 @@ function collectPackNodeChildren(node, pack, confidence, depth = 0) {
 function countryPackNodeReason(node, { isConfirmedPack }) {
   const childCount = node.childIds?.length ?? 0;
   const childText = childCount === 1 ? "1 curated child node" : `${childCount} curated child nodes`;
-  return isConfirmedPack
-    ? `${node.title} is part of the curated RoamAtlas graph with ${childText}.`
-    : `${node.title} is part of the starter RoamAtlas graph and needs source review.`;
+  if (isConfirmedPack) {
+    return `${node.title} is part of the curated RoamAtlas graph with ${childText}.`;
+  }
+
+  const primaryFact = firstMeaningfulStarterFact(node);
+  if (primaryFact) return primaryFact;
+
+  const candidateLens = (node.tags ?? [])
+    .filter((tag) => !["starter-map", "unconfirmed", "overview", node.title.toLowerCase()].includes(tag))
+    .slice(0, 2)
+    .map(titleCase)
+    .join(" and ");
+  const lensText = candidateLens ? ` as a ${candidateLens.toLowerCase()} chapter` : "";
+  return `Research ${node.title}${lensText}: identify the travel style, visual anchors, nearby clusters, and source-backed facts before promotion.`;
+}
+
+function firstMeaningfulStarterFact(node) {
+  return (node.facts ?? [])
+    .map((fact) => safeText(fact?.text, "", 220))
+    .find((text) => text && !isInternalPlaceholderText(text));
+}
+
+function isInternalPlaceholderText(text) {
+  return /\b(?:starter[-\s]?map|starter RoamAtlas graph|source review|needs source review|replace this note|pending curation)\b/i.test(
+    text
+  );
 }
 
 function summarizePackThemes(nodes) {

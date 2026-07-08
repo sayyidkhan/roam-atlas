@@ -25,6 +25,7 @@ import {
 import { buildLoadingStepTrail, resolveLoadingStep } from "../src/domain/loadingSteps.js";
 import {
   PLACE_IMAGE_SELECTION_VERSION,
+  formatExaPlaceImageQuery,
   inferPlaceImageProfile,
   isUsablePlaceImageUrl,
   rankPlaceImageCandidates,
@@ -128,6 +129,8 @@ test("country landing lists world countries with routable country shells", () =>
   assert.equal(getCountryCardState("GB").displayCode, "UK");
   assert.equal(getCountryCardState("US").displayCode, "USA");
   assert.equal(getCountryBySlug("malaysia").code, "MY");
+  assert.equal(getCountryBySlug("palestine").code, "PS");
+  assert.equal(getCountryBySlug("palestinian-territories").name, "Palestine");
   assert.equal(routeForCountry(getCountryBySlug("malaysia")), "/malaysia");
   assert.equal(routeForCountryConfig(getCountryBySlug("austria")), "/austria/config");
 });
@@ -150,10 +153,11 @@ test("country landing cards request country-specific media images", () => {
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("malaysia")), /Petronas/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("united-arab-emirates")), /Burj_Al-Arab/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
+  assert.match(getCountryImageOverrideUrl(getCountryBySlug("palestinian-territories")), /Church_of_the_Nativity/);
   assert.match(appSource, /country-card-photo/);
   assert.match(appSource, /getCountryPhotoUrl/);
   assert.match(appSource, /\/api\/country-image\?countrySlug=/);
-  assert.match(appSource, /country-media-v6/);
+  assert.match(appSource, /country-media-v7/);
   assert.match(appSource, /observeCountryCardPhotos/);
   assert.match(appSource, /resetCountryPhotoQueue/);
   assert.match(appSource, /IntersectionObserver/);
@@ -342,6 +346,9 @@ test("country draft prompts keep generated country pages outside verified facts"
   assert.match(prompt, /Do not include opening hours/);
   assert.match(prompt, /ticket prices/);
   assert.match(prompt, /source URLs/);
+  assert.match(prompt, /Do not use placeholder or internal wording/);
+  assert.match(prompt, /traveller-facing research angle/);
+  assert.match(prompt, /not a placeholder/);
 });
 
 test("country starter map chat prompt treats user steering as direction not evidence", () => {
@@ -679,6 +686,14 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
   assert.equal(starterMap.sourceType, "ai_generated");
   assert.equal(starterMap.confidence, "unconfirmed");
   assert.ok(starterMap.regions.every((region) => region.confidence === "unconfirmed"));
+  assert.match(
+    starterMap.regions.find((region) => region.name === "Kuala Lumpur").why,
+    /urban gateway chapter/
+  );
+  assert.doesNotMatch(
+    starterMap.regions.find((region) => region.name === "Kuala Lumpur").why,
+    /starter RoamAtlas graph|needs source review|replace this note/i
+  );
 
   const result = resolveFlipbookClick({
     currentPage: {
@@ -1490,11 +1505,12 @@ test("place image selection prefers capital skylines for states and scenes for t
     tags: ["region"]
   });
 
-  assert.equal(johorProfile.strategy, "metro");
+  assert.equal(johorProfile.strategy, "landmark");
   assert.equal(johorProfile.subject, "Johor Bahru");
-  assert.match(johorProfile.queries[0], /Johor Bahru skyline/);
-  assert.equal(langkawiProfile.strategy, "scene");
-  assert.match(langkawiProfile.queries[0], /Langkawi Malaysia landscape photo/);
+  assert.match(johorProfile.queries[0], /Sultan Abu Bakar State Mosque Johor Bahru/);
+  assert.equal(langkawiProfile.strategy, "landmark");
+  assert.match(langkawiProfile.queries[0], /Langkawi Sky Bridge Malaysia/);
+  assert.match(formatExaPlaceImageQuery(langkawiProfile.queries[0]), /no banner no poster/);
 
   const ranked = rankPlaceImageCandidates(
     [
@@ -1515,7 +1531,7 @@ test("place image selection prefers capital skylines for states and scenes for t
   assert.ok(ranked[0].score > ranked[1].score);
   assert.match(ranked[0].imageUrl, /langkawi-beach-view/);
   assert.equal(isUsablePlaceImageUrl("https://cdn.example.com/langkawi-logo.png"), false);
-  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v2");
+  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v3");
 });
 
 test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
@@ -1538,6 +1554,7 @@ test("candidate region cards request Exa-backed reference photos through the pla
   // Server resolves place images via Exa and caches them in the runtime cache.
   assert.match(serverSource, /handlePlaceImageRequest/);
   assert.match(serverSource, /searchExaPlaceImageCandidates/);
+  assert.match(serverSource, /buildPlaceImageSearchQueries/);
   assert.match(serverSource, /inferPlaceImageProfile/);
   assert.match(serverSource, /rankPlaceImageCandidates/);
   assert.match(serverSource, /imageLinks/);
@@ -1565,8 +1582,15 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
   assert.match(appSource, /`region:\$\{region\.name\}`/);
   assert.match(appSource, /`theme:\$\{theme\.label\}`/);
   assert.match(styleSource, /\.draft-edit-modal-backdrop/);
+  assert.match(styleSource, /\.draft-chat-log--modal/);
+  assert.match(styleSource, /\.draft-chat-message--processing/);
+  assert.match(styleSource, /\.draft-chat-message--done/);
   assert.match(styleSource, /\.visually-hidden/);
   assert.match(styleSource, /\.draft-genai-button::after/);
+  assert.match(appSource, /renderDraftChatLog/);
+  assert.match(appSource, /Processing your instruction/);
+  assert.match(appSource, /status: "done"/);
+  assert.match(appSource, /replaceLatestProcessingMessage/);
   assert.match(appSource, /renderDraftMetadata/);
   assert.match(appSource, /Trust/);
   assert.match(appSource, /Needs review/);
@@ -1587,6 +1611,31 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
   assert.doesNotMatch(appSource, /Open explorer map/);
   assert.doesNotMatch(appSource, /routeForCountryExplorer/);
   assert.doesNotMatch(appSource, /createStarterMapExplorerPack/);
+});
+
+test("draft tree exposes drag handles for sorting top-level starter records", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+
+  assert.match(appSource, /data-draft-drag-handle/);
+  assert.match(appSource, /data-draft-sort-index/);
+  assert.match(appSource, /data-country-action="delete-draft-item"/);
+  assert.match(appSource, /deleteCurrentDraftItem/);
+  assert.match(appSource, /Delete \$\{itemLabel\} from this starter map/);
+  assert.match(appSource, /reorderCurrentDraftItems/);
+  assert.match(appSource, /reorderArray/);
+  assert.match(appSource, /persistCountryDraftReorder/);
+  assert.match(appSource, /\/api\/country-draft\/reorder/);
+  assert.match(appSource, /list: payload\.list/);
+  assert.match(appSource, /\[list\]: nextItems/);
+  assert.match(styleSource, /\.draft-sort-handle/);
+  assert.match(styleSource, /\.draft-delete-button/);
+  assert.match(styleSource, /\.draft-item\.is-drop-before/);
+  assert.match(styleSource, /\.draft-item\.is-drop-after/);
+  assert.match(serverSource, /\/api\/country-draft\/reorder/);
+  assert.match(serverSource, /handleCountryDraftReorderRequest/);
+  assert.match(serverSource, /Records still need source review/);
 });
 
 test("server exposes country-scoped generated cache flushing", () => {

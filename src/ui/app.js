@@ -31,6 +31,7 @@ const state = {
   countryDrafts: new Map(),
   countryDraftSectionTabs: new Map(),
   countryDraftGenAiOpen: new Map(),
+  countryDraftDrag: null,
   countryCacheFlushes: new Map(),
   checkedStoredDrafts: new Set(),
   currentPage: null,
@@ -51,7 +52,7 @@ const state = {
   routeNotice: null
 };
 
-const COUNTRY_CARD_IMAGE_VERSION = "country-media-v6";
+const COUNTRY_CARD_IMAGE_VERSION = "country-media-v7";
 const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
@@ -222,15 +223,28 @@ function bindCountryShell() {
       });
       return;
     }
+    if (action === "delete-draft-item" && state.selectedCountry) {
+      const button = event.target.closest("[data-country-action='delete-draft-item']");
+      const list = button?.dataset.draftList;
+      const index = Number(button?.dataset.draftIndex);
+      const label = button?.dataset.draftLabel ?? "this record";
+      deleteCurrentDraftItem(state.selectedCountry, { list, index, label });
+      return;
+    }
     if (action === "toggle-genai-prompt" && state.selectedCountry) {
       const slug = state.selectedCountry.slug;
       const target = event.target.closest("[data-country-action]")?.dataset.genaiTarget ?? null;
+      let shouldFocusPrompt = false;
       if (state.countryDraftGenAiOpen.get(slug) === target) {
         state.countryDraftGenAiOpen.delete(slug);
       } else {
         state.countryDraftGenAiOpen.set(slug, target);
+        shouldFocusPrompt = true;
       }
       render();
+      if (shouldFocusPrompt) {
+        focusOpenDraftGenAiTextarea(target);
+      }
       return;
     }
     if (action === "flush-runtime-cache" && state.selectedCountry) {
@@ -256,8 +270,10 @@ function bindCountryShell() {
     const target = form.dataset.genaiTarget;
     requestCountryDraftInfluence(
       state.selectedCountry,
-      target ? scopeInstructionToCandidate(target, instruction) : instruction
+      target ? scopeInstructionToCandidate(target, instruction) : instruction,
+      { target: target ?? "starter-map" }
     );
+    input.value = "";
   });
 
   elements.countryShell.addEventListener("click", (event) => {
@@ -270,6 +286,242 @@ function bindCountryShell() {
       placeName: trigger.dataset.placeName ?? ""
     });
   });
+
+  elements.countryShell.addEventListener("dragstart", (event) => {
+    const handle = event.target.closest("[data-draft-drag-handle]");
+    if (!handle || !state.selectedCountry) return;
+    const payload = {
+      countrySlug: state.selectedCountry.slug,
+      list: handle.dataset.draftList,
+      fromIndex: Number(handle.dataset.draftIndex)
+    };
+    if (!payload.list || !Number.isInteger(payload.fromIndex)) return;
+    state.countryDraftDrag = payload;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/json", JSON.stringify(payload));
+    event.dataTransfer.setData("text/plain", `${payload.list}:${payload.fromIndex}`);
+    handle.closest("[data-draft-sort-index]")?.classList.add("is-dragging");
+  });
+
+  elements.countryShell.addEventListener("dragover", (event) => {
+    const target = event.target.closest("[data-draft-sort-index]");
+    if (!target || !isSameDraftDragList(event, target)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    clearDraftDropClasses();
+    target.classList.add(getDraftDropClass(event, target));
+  });
+
+  elements.countryShell.addEventListener("dragleave", (event) => {
+    const target = event.target.closest("[data-draft-sort-index]");
+    if (target && !target.contains(event.relatedTarget)) {
+      target.classList.remove("is-drop-before", "is-drop-after");
+    }
+  });
+
+  elements.countryShell.addEventListener("drop", (event) => {
+    const target = event.target.closest("[data-draft-sort-index]");
+    if (!target || !state.selectedCountry) return;
+    const payload = state.countryDraftDrag ?? readDraftDragPayload(event);
+    if (!payload || payload.countrySlug !== state.selectedCountry.slug || payload.list !== target.dataset.draftList) return;
+    event.preventDefault();
+    const targetIndex = Number(target.dataset.draftSortIndex);
+    const insertAfter = getDraftDropClass(event, target) === "is-drop-after";
+    reorderCurrentDraftItems(state.selectedCountry, {
+      list: payload.list,
+      fromIndex: payload.fromIndex,
+      targetIndex,
+      insertAfter
+    });
+    clearDraftDragState();
+  });
+
+  elements.countryShell.addEventListener("dragend", () => {
+    clearDraftDragState();
+  });
+}
+
+function focusOpenDraftGenAiTextarea(target) {
+  window.requestAnimationFrame(() => {
+    const selector = target
+      ? `.draft-genai-form[data-genai-target="${CSS.escape(target)}"] textarea[name="instruction"]`
+      : `.draft-genai-form textarea[name="instruction"]`;
+    elements.countryShell.querySelector(selector)?.focus();
+  });
+}
+
+function isSameDraftDragList(event, target) {
+  const payload = state.countryDraftDrag ?? readDraftDragPayload(event);
+  return Boolean(payload && payload.countrySlug === state.selectedCountry?.slug && payload.list === target.dataset.draftList);
+}
+
+function readDraftDragPayload(event) {
+  const rawJson = event.dataTransfer?.getData("application/json");
+  if (!rawJson) return null;
+  try {
+    const parsed = JSON.parse(rawJson);
+    const fromIndex = Number(parsed.fromIndex);
+    if (!parsed.countrySlug || !parsed.list || !Number.isInteger(fromIndex)) return null;
+    return {
+      countrySlug: parsed.countrySlug,
+      list: parsed.list,
+      fromIndex
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getDraftDropClass(event, target) {
+  const box = target.getBoundingClientRect();
+  return event.clientY > box.top + box.height / 2 ? "is-drop-after" : "is-drop-before";
+}
+
+function clearDraftDropClasses() {
+  elements.countryShell
+    .querySelectorAll(".is-drop-before, .is-drop-after")
+    .forEach((item) => item.classList.remove("is-drop-before", "is-drop-after"));
+}
+
+function clearDraftDragState() {
+  state.countryDraftDrag = null;
+  elements.countryShell
+    .querySelectorAll(".is-dragging")
+    .forEach((item) => item.classList.remove("is-dragging"));
+  clearDraftDropClasses();
+}
+
+function reorderCurrentDraftItems(country, { list, fromIndex, targetIndex, insertAfter }) {
+  const existing = state.countryDrafts.get(country.slug);
+  const items = list === "regions" ? existing?.draft?.regions : list === "themes" ? existing?.draft?.themes : null;
+  if (!Array.isArray(items)) return;
+  const scrollSnapshot = captureCountryShellScroll();
+  const insertionIndex = targetIndex + (insertAfter ? 1 : 0);
+  const nextItems = reorderArray(items, fromIndex, insertionIndex);
+  if (!nextItems) return;
+  const draft = {
+    ...existing.draft,
+    [list]: nextItems
+  };
+  state.countryDrafts.set(country.slug, {
+    ...existing,
+    draft,
+    confirmation: null
+  });
+  render();
+  restoreCountryShellScroll(scrollSnapshot);
+  persistCountryDraftReorder(country, draft);
+}
+
+function deleteCurrentDraftItem(country, { list, index, label }) {
+  const existing = state.countryDrafts.get(country.slug);
+  const items = list === "regions" ? existing?.draft?.regions : list === "themes" ? existing?.draft?.themes : null;
+  if (!Array.isArray(items) || !Number.isInteger(index) || index < 0 || index >= items.length) return;
+  const itemLabel = label || items[index]?.name || items[index]?.label || "this record";
+  const confirmed = window.confirm(`Delete ${itemLabel} from this starter map? This only removes the draft record.`);
+  if (!confirmed) return;
+
+  const scrollSnapshot = captureCountryShellScroll();
+  const nextItems = items.filter((_, itemIndex) => itemIndex !== index);
+  const draft = {
+    ...existing.draft,
+    [list]: nextItems
+  };
+  state.countryDrafts.set(country.slug, {
+    ...existing,
+    draft,
+    confirmation: null
+  });
+  const openTarget = state.countryDraftGenAiOpen.get(country.slug);
+  const removedTarget = list === "regions" ? `region:${itemLabel}` : list === "themes" ? `theme:${itemLabel}` : null;
+  if (openTarget && openTarget === removedTarget) {
+    state.countryDraftGenAiOpen.delete(country.slug);
+  }
+  render();
+  restoreCountryShellScroll(scrollSnapshot);
+  persistCountryDraftReorder(country, draft);
+}
+
+function captureCountryShellScroll() {
+  const panel = elements.countryShell.querySelector(".country-shell-panel");
+  return {
+    shellTop: elements.countryShell.scrollTop,
+    shellLeft: elements.countryShell.scrollLeft,
+    panelTop: panel?.scrollTop ?? 0,
+    panelLeft: panel?.scrollLeft ?? 0
+  };
+}
+
+function restoreCountryShellScroll(snapshot) {
+  window.requestAnimationFrame(() => {
+    elements.countryShell.scrollTop = snapshot.shellTop;
+    elements.countryShell.scrollLeft = snapshot.shellLeft;
+    const panel = elements.countryShell.querySelector(".country-shell-panel");
+    if (panel) {
+      panel.scrollTop = snapshot.panelTop;
+      panel.scrollLeft = snapshot.panelLeft;
+    }
+  });
+}
+
+async function persistCountryDraftReorder(country, draft) {
+  try {
+    const response = await fetch(apiPath("/api/country-draft/reorder"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        countrySlug: country.slug,
+        currentDraft: draft
+      })
+    });
+    if (!response.ok) {
+      throw new Error(await readResponseError(response, "Starter map reorder failed"));
+    }
+    const payload = await response.json();
+    const existing = state.countryDrafts.get(country.slug);
+    if (existing?.draft !== draft) return;
+    state.countryDrafts.set(country.slug, {
+      ...existing,
+      draft: payload.draft ?? draft
+    });
+  } catch (error) {
+    const scrollSnapshot = captureCountryShellScroll();
+    const existing = state.countryDrafts.get(country.slug);
+    if (existing?.draft !== draft) return;
+    state.countryDrafts.set(country.slug, {
+      ...existing,
+      messages: [
+        ...(existing.messages ?? []),
+        {
+          role: "assistant",
+          status: "error",
+          text: explainClickError(error)
+        }
+      ].slice(-12)
+    });
+    render();
+    restoreCountryShellScroll(scrollSnapshot);
+  }
+}
+
+function reorderArray(items, fromIndex, insertionIndex) {
+  if (
+    fromIndex < 0 ||
+    fromIndex >= items.length ||
+    insertionIndex < 0 ||
+    insertionIndex > items.length
+  ) {
+    return null;
+  }
+  let nextInsertionIndex = insertionIndex;
+  if (fromIndex < nextInsertionIndex) {
+    nextInsertionIndex -= 1;
+  }
+  if (fromIndex === nextInsertionIndex) return null;
+  const nextItems = [...items];
+  const [moved] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(nextInsertionIndex, 0, moved);
+  return nextItems;
 }
 
 function handleDraftPhotoLightboxKeydown(event) {
@@ -776,9 +1028,7 @@ function getDraftEditModalContext(draft, target) {
 
 function renderDraftEditModal(draftState, modal) {
   const isSending = Boolean(draftState?.isSending);
-  const lastAssistantMessage = [...(draftState?.messages ?? [])]
-    .reverse()
-    .find((message) => message.role === "assistant");
+  const messages = draftMessagesForTarget(draftState?.messages ?? [], modal.target);
   return `
     <section class="draft-edit-modal-backdrop" role="presentation">
       <section class="draft-edit-modal" role="dialog" aria-modal="true" aria-label="Edit ${escapeHtml(modal.label)} with GenAI">
@@ -804,7 +1054,12 @@ function renderDraftEditModal(draftState, modal) {
             ${isSending ? "disabled" : ""}
           ></textarea>
           <button type="submit" ${isSending ? "disabled" : ""}>${isSending ? "Applying" : "Apply"}</button>
-          ${lastAssistantMessage ? `<p class="muted">${escapeHtml(lastAssistantMessage.text)}</p>` : ""}
+          <div class="draft-chat-log draft-chat-log--modal" aria-live="polite" aria-atomic="false">
+            ${renderDraftChatLog(messages, {
+              emptyText: "Chat history for this edit will appear here.",
+              isSending
+            })}
+          </div>
           <p class="muted">${escapeHtml(modal.note)}</p>
         </form>
       </section>
@@ -901,6 +1156,7 @@ function renderDraftConfirmation(draftState, { countryName, isRegisteredCountryP
 }
 
 function renderDraftRegion(region, indexPath, genAiContext) {
+  const index = indexPath[0] - 1;
   const nested = [`<li>${escapeHtml(region.why)}</li>`];
   if (region.sourceUrl) {
     nested.push(
@@ -908,8 +1164,9 @@ function renderDraftRegion(region, indexPath, genAiContext) {
     );
   }
   return `
-    <li class="draft-item">
+    <li class="draft-item" data-draft-list="regions" data-draft-sort-index="${index}">
       <div class="draft-item-heading">
+        ${renderDraftSortHandle("regions", index, region.name)}
         ${renderDraftPlacePhoto(region.name, region.children, genAiContext, region.kind)}
         ${renderDraftItemCounter(indexPath)}
         <strong>${escapeHtml(region.name)}</strong>
@@ -918,6 +1175,7 @@ function renderDraftRegion(region, indexPath, genAiContext) {
           item: region
         })}
         ${renderDraftGenAiButton(`region:${region.name}`, region.name, genAiContext)}
+        ${renderDraftDeleteButton("regions", index, region.name)}
       </div>
       <ul class="draft-item-nested">
         ${nested.join("")}
@@ -1009,6 +1267,7 @@ function renderDraftChildNodes(children, parentIndexPath) {
 }
 
 function renderDraftTheme(theme, indexPath, genAiContext) {
+  const index = indexPath[0] - 1;
   const nested = [`<li>${escapeHtml(theme.note)}</li>`];
   if (theme.sourceUrl) {
     nested.push(
@@ -1016,8 +1275,9 @@ function renderDraftTheme(theme, indexPath, genAiContext) {
     );
   }
   return `
-    <li class="draft-item">
+    <li class="draft-item" data-draft-list="themes" data-draft-sort-index="${index}">
       <div class="draft-item-heading">
+        ${renderDraftSortHandle("themes", index, theme.label)}
         ${renderDraftItemCounter(indexPath)}
         <strong>${escapeHtml(theme.label)}</strong>
         ${renderDraftMetadata("theme", theme.confidence, {
@@ -1026,11 +1286,50 @@ function renderDraftTheme(theme, indexPath, genAiContext) {
           item: theme
         })}
         ${renderDraftGenAiButton(`theme:${theme.label}`, theme.label, genAiContext)}
+        ${renderDraftDeleteButton("themes", index, theme.label)}
       </div>
       <ul class="draft-item-nested">
         ${nested.join("")}
       </ul>
     </li>
+  `;
+}
+
+function renderDraftSortHandle(list, index, label) {
+  return `
+    <button
+      type="button"
+      class="draft-sort-handle"
+      draggable="true"
+      data-draft-drag-handle
+      data-draft-list="${escapeHtml(list)}"
+      data-draft-index="${index}"
+      aria-label="Drag to reorder ${escapeHtml(label)}"
+      title="Drag to reorder"
+    >
+      <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+        <path d="M5 3h1.5v1.5H5V3Zm4.5 0H11v1.5H9.5V3ZM5 7.25h1.5v1.5H5v-1.5Zm4.5 0H11v1.5H9.5v-1.5ZM5 11.5h1.5V13H5v-1.5Zm4.5 0H11V13H9.5v-1.5Z"></path>
+      </svg>
+    </button>
+  `;
+}
+
+function renderDraftDeleteButton(list, index, label) {
+  return `
+    <button
+      type="button"
+      class="draft-delete-button"
+      data-country-action="delete-draft-item"
+      data-draft-list="${escapeHtml(list)}"
+      data-draft-index="${index}"
+      data-draft-label="${escapeHtml(label)}"
+      aria-label="Delete ${escapeHtml(label)} from starter map"
+      title="Delete from starter map"
+    >
+      <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+        <path d="M6.2 2h3.6l.6 1.2H13v1.3H3V3.2h2.6L6.2 2Zm-1.7 4h1.3l.3 7h3.8l.3-7h1.3l-.4 8.2H4.9L4.5 6Zm2.3.5H8v5.8H6.8V6.5Zm2.2 0h1.2v5.8H9V6.5Z"></path>
+      </svg>
+    </button>
   `;
 }
 
@@ -1156,14 +1455,16 @@ function titleCaseText(value) {
 function renderDraftChat(draftState) {
   const messages = draftState.messages ?? [];
   const isSending = Boolean(draftState.isSending);
-  const log = messages.length
-    ? messages.map(renderDraftChatMessage).join("")
-    : `<p class="muted">Ask for a different angle, such as states first, weekend trips, nature, food, family travel, or cross-border ideas.</p>`;
 
   return `
     <section class="draft-chat" aria-label="Starter map chat">
       <h3>Edit starter map</h3>
-      <div class="draft-chat-log" aria-live="polite">${log}</div>
+      <div class="draft-chat-log" aria-live="polite" aria-atomic="false">
+        ${renderDraftChatLog(messages, {
+          emptyText: "Ask for a different angle, such as states first, weekend trips, nature, food, family travel, or cross-border ideas.",
+          isSending
+        })}
+      </div>
       <form class="draft-chat-form" data-country-chat-form>
         <textarea
           name="instruction"
@@ -1179,13 +1480,46 @@ function renderDraftChat(draftState) {
   `;
 }
 
+function renderDraftChatLog(messages, { emptyText, isSending } = {}) {
+  const visibleMessages = (messages ?? []).filter((message) => !message.hidden);
+  if (!visibleMessages.length) {
+    return `<p class="muted">${escapeHtml(emptyText ?? "No chat history yet.")}</p>`;
+  }
+
+  const renderedMessages = visibleMessages.map(renderDraftChatMessage).join("");
+  const status = isSending
+    ? `<p class="draft-chat-status" role="status">Processing starter-map update...</p>`
+    : "";
+  return `${renderedMessages}${status}`;
+}
+
 function renderDraftChatMessage(message) {
+  const status = message.status ? ` data-status="${escapeHtml(message.status)}"` : "";
+  const label = draftChatMessageLabel(message);
   return `
-    <article class="draft-chat-message draft-chat-message--${escapeHtml(message.role)}">
-      <strong>${message.role === "user" ? "You" : "RoamAtlas"}</strong>
+    <article class="draft-chat-message draft-chat-message--${escapeHtml(message.role)}${message.status ? ` draft-chat-message--${escapeHtml(message.status)}` : ""}"${status}>
+      <strong>${escapeHtml(label)}</strong>
       <p>${escapeHtml(message.text)}</p>
     </article>
   `;
+}
+
+function draftChatMessageLabel(message) {
+  if (message.status === "processing") return "Processing";
+  if (message.status === "done") return "Done";
+  if (message.status === "error") return "Error";
+  return message.role === "user" ? "You" : "RoamAtlas";
+}
+
+function draftMessagesForTarget(messages, target) {
+  if (target === "starter-map") {
+    return (messages ?? []).filter((message) => !message.target || message.target === "starter-map");
+  }
+  return (messages ?? []).filter((message) => message.target === target);
+}
+
+function scopedDraftMessage(message, target) {
+  return { ...message, target };
 }
 
 async function requestCountryDraft(country, { force = false } = {}) {
@@ -1254,15 +1588,23 @@ async function loadStoredCountryDraft(country) {
   }
 }
 
-async function requestCountryDraftInfluence(country, rawInstruction) {
+async function requestCountryDraftInfluence(country, rawInstruction, { target = "starter-map" } = {}) {
   const instruction = String(rawInstruction ?? "").trim();
   if (!instruction) return;
 
   const existing = state.countryDrafts.get(country.slug);
   if (existing?.status === "loading" || existing?.isSending) return;
 
-  const userMessage = { role: "user", text: instruction };
-  const messages = [...(existing?.messages ?? []), userMessage].slice(-8);
+  const userMessage = scopedDraftMessage({ role: "user", text: instruction }, target);
+  const processingMessage = scopedDraftMessage(
+    {
+      role: "assistant",
+      status: "processing",
+      text: "Processing your instruction and updating the unconfirmed starter map."
+    },
+    target
+  );
+  const messages = [...(existing?.messages ?? []), userMessage, processingMessage].slice(-12);
   state.countryDrafts.set(country.slug, {
     ...existing,
     status: existing?.draft ? "ready" : "loading",
@@ -1285,30 +1627,47 @@ async function requestCountryDraftInfluence(country, rawInstruction) {
       throw new Error(await readResponseError(response, "Starter map update failed"));
     }
     const { draft, message } = await response.json();
+    const assistantMessage = scopedDraftMessage(
+      {
+        ...(message ?? { role: "assistant", text: "Starter map updated. All candidates remain unconfirmed." }),
+        status: "done"
+      },
+      target
+    );
     state.countryDrafts.set(country.slug, {
       status: "ready",
       draft,
       isSending: false,
       confirmation: null,
-      messages: [
-        ...messages,
-        message ?? { role: "assistant", text: "Starter map updated. All candidates remain unconfirmed." }
-      ].slice(-8)
+      messages: replaceLatestProcessingMessage(messages, assistantMessage, target).slice(-12)
     });
   } catch (error) {
+    const errorMessage = scopedDraftMessage(
+      { role: "assistant", status: "error", text: explainClickError(error) },
+      target
+    );
     state.countryDrafts.set(country.slug, {
       ...existing,
       status: existing?.draft ? "ready" : "failed",
       isSending: false,
       confirmation: existing?.confirmation ?? null,
-      messages: [
-        ...messages,
-        { role: "assistant", text: explainClickError(error) }
-      ].slice(-8),
+      messages: replaceLatestProcessingMessage(messages, errorMessage, target).slice(-12),
       error: explainClickError(error)
     });
   }
   render();
+}
+
+function replaceLatestProcessingMessage(messages, replacement, target) {
+  const nextMessages = [...(messages ?? [])];
+  for (let index = nextMessages.length - 1; index >= 0; index -= 1) {
+    const message = nextMessages[index];
+    if (message.role === "assistant" && message.status === "processing" && message.target === target) {
+      nextMessages[index] = replacement;
+      return nextMessages;
+    }
+  }
+  return [...nextMessages, replacement];
 }
 
 async function requestCountryDraftApproval(country, { target, approved }) {

@@ -213,6 +213,7 @@ const COUNTRY_IMAGE_OVERRIDES = {
   NA: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Thorn_Tree_Sossusvlei_Namib_Desert_Namibia_Luca_Galuzzi_2004.JPG/960px-Thorn_Tree_Sossusvlei_Namib_Desert_Namibia_Luca_Galuzzi_2004.JPG",
   NR: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/Nauru_satellite.jpg/960px-Nauru_satellite.jpg",
   PY: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Asunci%C3%B3n_Paraguay.jpg/960px-Asunci%C3%B3n_Paraguay.jpg",
+  PS: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Church_of_the_Nativity_%287703592746%29.jpg/960px-Church_of_the_Nativity_%287703592746%29.jpg",
   QA: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Lusail_skyline_with_the_Lusail_Marina_Iconic_Development_in_the_center.jpg/960px-Lusail_skyline_with_the_Lusail_Marina_Iconic_Development_in_the_center.jpg",
   RW: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Mountain_gorilla_%28Gorilla_beringei_beringei%29_yawn.jpg/960px-Mountain_gorilla_%28Gorilla_beringei_beringei%29_yawn.jpg",
   SY: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Palmyra_ruiny.jpg/960px-Palmyra_ruiny.jpg",

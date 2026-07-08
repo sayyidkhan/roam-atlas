@@ -32,6 +32,7 @@ import {
   rankPlaceImageCandidates
 } from "../src/domain/placeImageSelection.js";
 import { resolveRoamAtlasConfig } from "../src/config/roamAtlasConfig.js";
+import { resolveRoamAtlasExperienceConfig } from "../src/config/experienceConfig.js";
 import {
   buildCountryDraftInfluencePrompt,
   buildCountryDraftPrompt,
@@ -271,6 +272,10 @@ createServer(async (request, response) => {
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/confirm") {
       await handleCountryDraftConfirmRequest(request, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/country-draft/reorder") {
+      await handleCountryDraftReorderRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/approve-item") {
@@ -982,19 +987,29 @@ async function resolveLocalCountryCardImage(country) {
   };
 }
 
+function getCountryCardImageBasenames(country) {
+  const basenames = new Set([country.slug, country.code.toLowerCase()]);
+  if (country.code === "PS") {
+    basenames.add("palestine");
+  }
+  return [...basenames];
+}
+
 async function findExistingCountryCardImagePath(country) {
-  for (const ext of [".jpg", ".jpeg", ".png", ".webp"]) {
-    const filePath = path.join(COUNTRY_CARD_IMAGE_PUBLIC_DIR, `${country.slug}${ext}`);
-    try {
-      const fileStat = await stat(filePath);
-      if (fileStat.isFile()) {
-        return {
-          filePath,
-          url: `${COUNTRY_CARD_IMAGE_PUBLIC_PREFIX}/${country.slug}${ext}`
-        };
+  for (const basename of getCountryCardImageBasenames(country)) {
+    for (const ext of [".jpg", ".jpeg", ".png", ".webp"]) {
+      const filePath = path.join(COUNTRY_CARD_IMAGE_PUBLIC_DIR, `${basename}${ext}`);
+      try {
+        const fileStat = await stat(filePath);
+        if (fileStat.isFile()) {
+          return {
+            filePath,
+            url: `${COUNTRY_CARD_IMAGE_PUBLIC_PREFIX}/${basename}${ext}`
+          };
+        }
+      } catch {
+        // Try the next supported image extension.
       }
-    } catch {
-      // Try the next supported image extension.
     }
   }
   return null;
@@ -1843,6 +1858,36 @@ async function handleCountryDraftApproveRequest(request, response) {
           ? `${target.split(":")[1] ?? "Item"} marked as curated in the starter map. Update the country pack source file to make it permanent.`
           : `${target.split(":")[1] ?? "Item"} approved for map preview. Add a source URL to mark it as curated.`
         : `${target.split(":")[1] ?? "Item"} returned to needs-review status.`
+    }
+  }));
+}
+
+async function handleCountryDraftReorderRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  const draft = normalizeCurrentCountryDraft(body.currentDraft, country);
+  if (!draft) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "Build a starter map before sorting records." }));
+    return;
+  }
+
+  countryDraftCache.set(country.slug, draft);
+  await writeStoredCountryDraft(country, draft);
+
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    draft,
+    message: {
+      role: "assistant",
+      text: "Starter map order saved. Records still need source review before promotion."
     }
   }));
 }

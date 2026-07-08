@@ -43,7 +43,7 @@
       "facts": [
         {
           "id": "malaysia-starter-summary",
-          "text": "Malaysia is mapped as a RoamAtlas starter explorer. Region notes are unconfirmed until source review.",
+          "text": "Malaysia is organized as an unconfirmed explorer route across city, island, heritage, southern gateway, and Borneo nature chapters.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -60,7 +60,7 @@
       "facts": [
         {
           "id": "malaysia-kuala-lumpur-starter-note",
-          "text": "Kuala Lumpur is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Kuala Lumpur as the urban gateway chapter: skyline viewpoints, transit hubs, museums, food districts, and short city itineraries.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -77,7 +77,7 @@
       "facts": [
         {
           "id": "malaysia-penang-starter-note",
-          "text": "Penang is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Penang as a heritage-and-food chapter with George Town, coastal neighborhoods, hill viewpoints, and slower walking routes.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -94,7 +94,7 @@
       "facts": [
         {
           "id": "malaysia-langkawi-starter-note",
-          "text": "Langkawi is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Langkawi as an island-and-nature chapter: beaches, viewpoints, boat trips, and slower resort-style pacing.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -111,7 +111,7 @@
       "facts": [
         {
           "id": "malaysia-johor-starter-note",
-          "text": "Johor is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Johor as the Singapore-adjacent southern gateway chapter for family attractions, city food stops, and cross-border weekend routes.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -128,7 +128,7 @@
       "facts": [
         {
           "id": "malaysia-sabah-starter-note",
-          "text": "Sabah is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Sabah as a Borneo nature chapter for mountain landscapes, wildlife-oriented trips, islands, and longer outdoor itineraries.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -145,7 +145,7 @@
       "facts": [
         {
           "id": "malaysia-sarawak-starter-note",
-          "text": "Sarawak is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Sarawak as a Borneo culture-and-rainforest chapter for Kuching, cave systems, river towns, and slower nature routes.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
@@ -162,7 +162,7 @@
       "facts": [
         {
           "id": "malaysia-melaka-starter-note",
-          "text": "Melaka is a starter-map region in the Malaysia explorer. Replace this note with source-reviewed facts before using it for trip planning.",
+          "text": "Research Melaka as a compact heritage chapter for old-town walks, riverside scenes, museums, and food stops.",
           "sourceType": "ai_generated",
           "confidence": "unconfirmed",
           "sourceUrl": null
