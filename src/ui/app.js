@@ -32,6 +32,7 @@ const state = {
   countryDraftSectionTabs: new Map(),
   countryDraftGenAiOpen: new Map(),
   countryDraftDrag: null,
+  countryActionLegendOpen: new Map(),
   countryCacheFlushes: new Map(),
   checkedStoredDrafts: new Set(),
   currentPage: null,
@@ -189,7 +190,10 @@ function bindCountryShell() {
     }
     if (action === "build-starter-map" && state.selectedCountry) {
       const draftState = state.countryDrafts.get(state.selectedCountry.slug);
-      requestCountryDraft(state.selectedCountry, { force: Boolean(draftState?.draft) });
+      requestCountryDraft(state.selectedCountry, {
+        force: Boolean(draftState?.draft),
+        preserveScroll: Boolean(draftState?.draft)
+      });
       return;
     }
     if (action === "reset-country" && state.selectedCountry) {
@@ -201,7 +205,7 @@ function bindCountryShell() {
       return;
     }
     if (action === "reset-metadata" && state.selectedCountry) {
-      requestCountryDraft(state.selectedCountry, { force: true });
+      requestCountryDraft(state.selectedCountry, { force: true, preserveScroll: true });
       return;
     }
     if (action === "reset-open-country" && state.selectedCountry) {
@@ -229,6 +233,12 @@ function bindCountryShell() {
       const index = Number(button?.dataset.draftIndex);
       const label = button?.dataset.draftLabel ?? "this record";
       deleteCurrentDraftItem(state.selectedCountry, { list, index, label });
+      return;
+    }
+    if (action === "toggle-action-guide" && state.selectedCountry) {
+      const slug = state.selectedCountry.slug;
+      state.countryActionLegendOpen.set(slug, !state.countryActionLegendOpen.get(slug));
+      render();
       return;
     }
     if (action === "toggle-genai-prompt" && state.selectedCountry) {
@@ -769,6 +779,7 @@ function renderCountryShell() {
   const flushState = state.countryCacheFlushes.get(country.slug);
   const isDraftLoading = draftState?.status === "loading" || draftState?.isSending;
   const isCacheFlushing = flushState?.status === "loading";
+  const isActionLegendOpen = Boolean(state.countryActionLegendOpen.get(country.slug));
   const mapAction = canOpenMap
     ? renderCountryActionButton({
         action: "country-map",
@@ -789,6 +800,7 @@ function renderCountryShell() {
           <h1>${country.name}</h1>
           <p>Manage ${country.name} generated map data and starter information before opening the explorer.</p>
         </div>
+        ${renderCountryActionGuide(country, { canOpenMap, isOpen: isActionLegendOpen })}
       </header>
 
       <section class="country-shell-actions" aria-label="Manual country actions">
@@ -803,17 +815,52 @@ function renderCountryShell() {
           info: `Delete generated ${country.name} runtime data, including map images, click data, and stored starter-map artifacts.`,
           disabled: isCacheFlushing
         })}
-        ${renderCountryActionButton({
-          action: "reset-metadata",
-          label: isDraftLoading ? "Rebuilding info" : "Rebuild starter info",
-          info: `Rebuild ${country.name} candidate regions, summary, and research themes.`,
-          disabled: isDraftLoading
-        })}
         ${mapAction}
       </section>
       ${renderCountryCacheFlushNotice(flushState)}
       ${renderCountryDraftPanel(country, draftState)}
     </article>
+  `;
+}
+
+function renderCountryActionGuide(country, { canOpenMap, isOpen }) {
+  return `
+    <div class="country-action-guide">
+      <button
+        type="button"
+        class="ghost-button country-action-guide-button"
+        data-country-action="toggle-action-guide"
+        aria-expanded="${isOpen}"
+        aria-controls="country-action-legend"
+      >Action guide</button>
+      ${isOpen ? renderCountryActionLegend(country, { canOpenMap }) : ""}
+    </div>
+  `;
+}
+
+function renderCountryActionLegend(country, { canOpenMap }) {
+  const mapLabel = canOpenMap ? `Open ${country.name} map` : `Build ${country.name} starter map`;
+  const mapDescription = canOpenMap
+    ? `Enter the current ${country.name} explorer using the available starter or curated map data.`
+    : `Create an unconfirmed starter map for ${country.name} before opening the explorer.`;
+  return `
+    <section class="country-action-legend" id="country-action-legend" aria-label="Country action legend">
+      <p class="eyebrow">Action guide</p>
+      <dl>
+        <div>
+          <dt>Back to countries</dt>
+          <dd>Return to the full country picker without changing this starter map.</dd>
+        </div>
+        <div>
+          <dt>Reset generated data</dt>
+          <dd>Clear generated runtime artifacts for ${escapeHtml(country.name)}, including cached map images and stored starter-map snapshots.</dd>
+        </div>
+        <div>
+          <dt>${escapeHtml(mapLabel)}</dt>
+          <dd>${escapeHtml(mapDescription)}</dd>
+        </div>
+      </dl>
+    </section>
   `;
 }
 
@@ -862,7 +909,7 @@ function renderCountryDraftPanel(country, draftState) {
     `;
   }
 
-  if (draftState.status === "loading") {
+  if (draftState.status === "loading" && !draftState.draft) {
     return `
       <section class="country-draft" aria-label="AI starter map">
         <section class="country-draft-loading" aria-live="polite">
@@ -898,14 +945,12 @@ function renderCountryDraftPanel(country, draftState) {
     : `<li class="muted">No candidate themes were returned.</li>`;
   const activeSectionTab = state.countryDraftSectionTabs.get(country.slug) ?? "regions";
   const editModal = getDraftEditModalContext(draft, genAiContext.openTarget);
+  const isDraftBusy = Boolean(draftState?.status === "loading" || draftState?.isSending);
 
   return `
     <section class="country-draft" aria-label="AI starter map">
       <div class="country-draft-header">
-        <div>
-          <p class="eyebrow">AI starter map</p>
-          <h2>${escapeHtml(draft.countryName)}</h2>
-        </div>
+        <h2>AI starter map</h2>
       </div>
       <p>${escapeHtml(draft.summary)}</p>
       ${draft.unavailableReason ? `<p class="muted">${escapeHtml(draft.unavailableReason)}</p>` : ""}
@@ -931,18 +976,21 @@ function renderCountryDraftPanel(country, draftState) {
             data-country-draft-section-tab="themes"
           >Research themes (${draft.themes.length})</button>
         </div>
-        <button
-          type="button"
-          class="draft-genai-button draft-section-edit-button ${genAiContext.openTarget === "starter-map" ? "is-active" : ""}"
-          data-country-action="toggle-genai-prompt"
-          data-genai-target="starter-map"
-          data-tooltip-title="GenAI edit"
-          data-tooltip="Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review."
-          title="Use GenAI to suggest starter-map edits. Changes stay unconfirmed until source review."
-          aria-label="Edit starter map with GenAI"
-          aria-haspopup="dialog"
-          aria-expanded="${genAiContext.openTarget === "starter-map"}"
-        >${renderGenAiIcon()}<span class="visually-hidden">Edit starter map with GenAI</span></button>
+        <div class="draft-section-actions" aria-label="Starter map tools">
+          ${renderDraftResetButton(country, { disabled: isDraftBusy })}
+          <button
+            type="button"
+            class="draft-genai-button ${genAiContext.openTarget === "starter-map" ? "is-active" : ""}"
+            data-country-action="toggle-genai-prompt"
+            data-genai-target="starter-map"
+            data-tooltip-title="GenAI edit"
+            data-tooltip="Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review."
+            title="Use GenAI to suggest starter-map edits. Changes stay unconfirmed until source review."
+            aria-label="Edit starter map with GenAI"
+            aria-haspopup="dialog"
+            aria-expanded="${genAiContext.openTarget === "starter-map"}"
+          >${renderGenAiIcon()}<span class="visually-hidden">Edit starter map with GenAI</span></button>
+        </div>
       </div>
       ${editModal ? renderDraftEditModal(draftState, editModal) : ""}
       <section class="draft-section-panel">
@@ -951,6 +999,22 @@ function renderCountryDraftPanel(country, draftState) {
           : renderDraftTree(draft.countryName, regions, draft.regions.length)}
       </section>
     </section>
+  `;
+}
+
+function renderDraftResetButton(country, { disabled = false } = {}) {
+  const tooltip = `Rebuild ${country.name} starter regions, summary, and research themes. Manual draft edits may be replaced.`;
+  return `
+    <button
+      type="button"
+      class="draft-reset-button"
+      data-country-action="reset-metadata"
+      data-tooltip-title="Rebuild starter info"
+      data-tooltip="${escapeHtml(tooltip)}"
+      title="${escapeHtml(tooltip)}"
+      aria-label="Rebuild ${escapeHtml(country.name)} starter info"
+      ${disabled ? "disabled" : ""}
+    >${renderResetIcon()}<strong>Rebuild starter info</strong><span class="draft-button-tooltip" role="tooltip"><span class="draft-button-tooltip-title">Rebuild starter info</span><span class="draft-button-tooltip-copy">${escapeHtml(tooltip)}</span></span></button>
   `;
 }
 
@@ -995,6 +1059,14 @@ function renderGenAiIcon() {
     <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
       <path d="M12 3l1.7 5.1L19 10l-5.3 1.9L12 17l-1.7-5.1L5 10l5.3-1.9L12 3z"></path>
       <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15z"></path>
+    </svg>
+  `;
+}
+
+function renderResetIcon() {
+  return `
+    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+      <path d="M17.7 6.3A7.7 7.7 0 1 0 20 12h-2a5.7 5.7 0 1 1-1.7-4.1L13.5 10.7H21V3.2l-3.3 3.1Z"></path>
     </svg>
   `;
 }
@@ -1068,12 +1140,26 @@ function renderDraftEditModal(draftState, modal) {
 }
 
 function renderDraftReview(draft) {
+  const items = (draft.reviewChecklist ?? []).filter(Boolean);
+  if (!items.length) return "";
+
   return `
-    <section class="draft-review">
-      <h3>Before promotion</h3>
-      <ul>
-        ${draft.reviewChecklist.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-      </ul>
+    <section class="draft-review" aria-label="Before promotion">
+      <header class="draft-review-header">
+        <h3 class="draft-review-title">Before promotion</h3>
+        <p class="draft-review-lead">Keep starter facts unconfirmed until each item is source-reviewed.</p>
+      </header>
+      <ol class="draft-review-list">
+        ${items
+          .map(
+            (item, index) => `
+          <li class="draft-review-item">
+            <span class="draft-review-step" aria-hidden="true">${index + 1}</span>
+            <p>${escapeHtml(item)}</p>
+          </li>`
+          )
+          .join("")}
+      </ol>
     </section>
   `;
 }
@@ -1082,12 +1168,11 @@ function renderDraftConfirmation(draftState, { countryName, isRegisteredCountryP
   const draft = draftState.draft;
   if (draft.mode === "curated_pack_snapshot") {
     const isUnconfirmedPack = draft.confidence === "unconfirmed";
+    if (isUnconfirmedPack) return "";
     return `
       <section class="draft-confirmation">
-        <h3>${isUnconfirmedPack ? "Starter country pack" : "Source-reviewed country pack"}</h3>
-        <p>${isUnconfirmedPack
-          ? "This starter map comes from source-controlled starter data. Facts remain unconfirmed."
-          : "This starter map is already derived from source-controlled curated data."}</p>
+        <h3>Source-reviewed country pack</h3>
+        <p>This starter map is already derived from source-controlled curated data.</p>
       </section>
     `;
   }
@@ -1522,9 +1607,10 @@ function scopedDraftMessage(message, target) {
   return { ...message, target };
 }
 
-async function requestCountryDraft(country, { force = false } = {}) {
+async function requestCountryDraft(country, { force = false, preserveScroll = false } = {}) {
   const existing = state.countryDrafts.get(country.slug);
   if (existing?.status === "loading" || existing?.isSending) return false;
+  const scrollSnapshot = preserveScroll ? captureCountryShellScroll() : null;
   const nextMessages = force ? [] : existing?.messages ?? [];
   const nextConfirmation = force ? null : existing?.confirmation ?? null;
 
@@ -1532,9 +1618,10 @@ async function requestCountryDraft(country, { force = false } = {}) {
     status: "loading",
     messages: nextMessages,
     confirmation: nextConfirmation,
-    draft: null
+    draft: preserveScroll ? existing?.draft ?? null : null
   });
   render();
+  if (scrollSnapshot) restoreCountryShellScroll(scrollSnapshot);
   try {
     const forceParam = force ? "&force=true" : "";
     const response = await fetch(
@@ -1550,6 +1637,7 @@ async function requestCountryDraft(country, { force = false } = {}) {
       confirmation: nextConfirmation
     });
     render();
+    if (scrollSnapshot) restoreCountryShellScroll(scrollSnapshot);
     return true;
   } catch (error) {
     state.countryDrafts.set(country.slug, {
@@ -1557,6 +1645,7 @@ async function requestCountryDraft(country, { force = false } = {}) {
       error: explainClickError(error)
     });
     render();
+    if (scrollSnapshot) restoreCountryShellScroll(scrollSnapshot);
     return false;
   }
 }
