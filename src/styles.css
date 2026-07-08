@@ -1139,14 +1139,17 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  height: 24px;
   min-height: 24px;
+  box-sizing: border-box;
   border: 1px solid rgba(31, 44, 42, 0.12);
   border-radius: 999px;
-  padding: 3px 8px;
+  padding: 0 8px;
   background: rgba(255, 250, 240, 0.72);
   color: var(--ink);
   font-size: 11px;
   font-weight: 760;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -1157,6 +1160,9 @@ a {
 }
 
 button.draft-meta-chip--action {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
   cursor: pointer;
   font: inherit;
 }
@@ -1262,14 +1268,22 @@ button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
   transform: translateY(0) scale(1);
 }
 
-.draft-item-heading .draft-genai-button {
-  width: 30px;
-  height: 30px;
+.draft-item-heading .draft-genai-button,
+.draft-item-heading .draft-delete-button {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
 }
 
 .draft-item-heading .draft-genai-button svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
+}
+
+.draft-item-heading .draft-delete-button svg {
+  width: 13px;
+  height: 13px;
 }
 
 .draft-child-item .draft-item-heading {
