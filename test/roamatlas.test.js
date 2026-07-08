@@ -1424,6 +1424,7 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(appSource, /requestSceneArtwork/);
   assert.match(appSource, /renderRegionRail/);
   assert.match(appSource, /renderLoadingPanel/);
+  assert.match(appSource, /import \{ buildLoadingStepTrail \} from "\.\.\/domain\/loadingSteps\.js";/);
   assert.match(appSource, /mergePrefetchedArtwork/);
   assert.match(appSource, /loadExperienceConfig/);
   assert.match(appSource, /requestCurrentPageArtwork/);

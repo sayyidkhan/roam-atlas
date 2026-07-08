@@ -11,6 +11,7 @@ import {
 import { ROAMATLAS_EXPERIENCE_CONFIG } from "../config/experienceConfig.js";
 import { generatedTiles } from "../data/generatedTiles.js";
 import { factConfidenceLabel } from "../domain/guardrails.js";
+import { buildLoadingStepTrail } from "../domain/loadingSteps.js";
 import { PLACE_IMAGE_SELECTION_VERSION } from "../domain/placeImageSelection.js";
 import { listNextArtworkDestinations } from "../domain/nextArtworkDestinations.js";
 import {
