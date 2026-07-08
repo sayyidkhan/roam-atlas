@@ -717,12 +717,6 @@ a {
   filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.7));
 }
 
-.draft-genai-button::after {
-  content: attr(data-tooltip-title) "\A" attr(data-tooltip);
-  white-space: pre-line;
-}
-
-.draft-genai-button::after,
 .draft-button-tooltip {
   position: absolute;
   right: 0;
@@ -747,9 +741,6 @@ a {
   transform: translateY(4px) scale(0.98);
   transform-origin: bottom right;
   transition: opacity 140ms ease, transform 140ms ease;
-}
-
-.draft-button-tooltip {
   white-space: normal;
 }
 
@@ -781,8 +772,8 @@ a {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.draft-genai-button:hover::after,
-.draft-genai-button:focus-visible::after,
+.draft-genai-button:hover .draft-button-tooltip,
+.draft-genai-button:focus-visible .draft-button-tooltip,
 .draft-reset-button:hover .draft-button-tooltip,
 .draft-reset-button:focus-visible .draft-button-tooltip,
 .draft-genai-button:hover::before,
@@ -1249,34 +1240,26 @@ button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
   text-transform: uppercase;
 }
 
-.draft-meta-chip::after {
-  content: attr(data-tooltip);
+.draft-meta-chip::before {
+  content: "";
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 35;
-  width: 210px;
-  border: 1px solid rgba(31, 44, 42, 0.14);
-  border-radius: 8px;
-  padding: 7px 9px;
-  background: var(--ink);
-  color: var(--surface);
-  box-shadow: 0 12px 28px rgba(31, 44, 42, 0.16);
-  font-size: 11px;
-  font-weight: 650;
-  line-height: 1.35;
-  text-align: left;
-  white-space: normal;
+  right: 11px;
+  bottom: calc(100% + 5px);
+  z-index: 46;
+  border: 6px solid transparent;
+  border-top-color: rgba(246, 241, 230, 0.98);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(3px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transform: translateY(4px) scale(0.98);
+  transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.draft-meta-chip:hover::after,
-.draft-meta-chip:focus-within::after {
+.draft-meta-chip:hover .draft-button-tooltip,
+.draft-meta-chip:focus-within .draft-button-tooltip,
+.draft-meta-chip:hover::before,
+.draft-meta-chip:focus-within::before {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
 }
 
 .draft-item-heading .draft-genai-button {
@@ -1343,6 +1326,20 @@ button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
   color: var(--muted);
   font-size: 11px;
   font-weight: 750;
+}
+
+.draft-item .draft-button-tooltip-title,
+.draft-meta-chip .draft-button-tooltip-title {
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.draft-item .draft-button-tooltip-copy,
+.draft-meta-chip .draft-button-tooltip-copy {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
 }
 
 .draft-item p {

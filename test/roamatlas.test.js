@@ -1451,6 +1451,8 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(appSource, /renderCountryActionLegend/);
   assert.match(appSource, /Manual draft edits may be replaced/);
   assert.match(appSource, /preserveScroll: true/);
+  assert.match(appSource, /data-country-draft-section-tab/);
+  assert.match(appSource, /countryDraftSectionTabs\.set\(state\.selectedCountry\.slug, sectionTab\)/);
   assert.match(appSource, /restoreCountryShellScroll\(scrollSnapshot\)/);
   assert.match(appSource, /reset-map-data/);
   assert.match(appSource, /reset-metadata/);
@@ -1600,7 +1602,10 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
   assert.match(styleSource, /\.draft-chat-message--processing/);
   assert.match(styleSource, /\.draft-chat-message--done/);
   assert.match(styleSource, /\.visually-hidden/);
-  assert.match(styleSource, /\.draft-genai-button::after/);
+  assert.match(appSource, /renderDraftButtonTooltip/);
+  assert.match(styleSource, /\.draft-button-tooltip-title/);
+  assert.match(styleSource, /font-weight: 900/);
+  assert.match(styleSource, /\.draft-meta-chip:hover \.draft-button-tooltip/);
   assert.match(appSource, /renderDraftChatLog/);
   assert.match(appSource, /Processing your instruction/);
   assert.match(appSource, /status: "done"/);

@@ -265,8 +265,10 @@ function bindCountryShell() {
   elements.countryShell.addEventListener("click", (event) => {
     const sectionTab = event.target.closest("[data-country-draft-section-tab]")?.dataset.countryDraftSectionTab;
     if (sectionTab && state.selectedCountry) {
+      const scrollSnapshot = captureCountryShellScroll();
       state.countryDraftSectionTabs.set(state.selectedCountry.slug, sectionTab);
       render();
+      restoreCountryShellScroll(scrollSnapshot);
     }
   });
 
@@ -946,6 +948,7 @@ function renderCountryDraftPanel(country, draftState) {
   const activeSectionTab = state.countryDraftSectionTabs.get(country.slug) ?? "regions";
   const editModal = getDraftEditModalContext(draft, genAiContext.openTarget);
   const isDraftBusy = Boolean(draftState?.status === "loading" || draftState?.isSending);
+  const starterMapGenAiTooltip = "Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review.";
 
   return `
     <section class="country-draft" aria-label="AI starter map">
@@ -984,12 +987,11 @@ function renderCountryDraftPanel(country, draftState) {
             data-country-action="toggle-genai-prompt"
             data-genai-target="starter-map"
             data-tooltip-title="GenAI edit"
-            data-tooltip="Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review."
-            title="Use GenAI to suggest starter-map edits. Changes stay unconfirmed until source review."
+            data-tooltip="${escapeHtml(starterMapGenAiTooltip)}"
             aria-label="Edit starter map with GenAI"
             aria-haspopup="dialog"
             aria-expanded="${genAiContext.openTarget === "starter-map"}"
-          >${renderGenAiIcon()}<span class="visually-hidden">Edit starter map with GenAI</span></button>
+          >${renderGenAiIcon()}<span class="visually-hidden">Edit starter map with GenAI</span>${renderDraftButtonTooltip("GenAI edit", starterMapGenAiTooltip)}</button>
         </div>
       </div>
       ${editModal ? renderDraftEditModal(draftState, editModal) : ""}
@@ -1014,7 +1016,7 @@ function renderDraftResetButton(country, { disabled = false } = {}) {
       title="${escapeHtml(tooltip)}"
       aria-label="Rebuild ${escapeHtml(country.name)} starter info"
       ${disabled ? "disabled" : ""}
-    >${renderResetIcon()}<strong>Rebuild starter info</strong><span class="draft-button-tooltip" role="tooltip"><span class="draft-button-tooltip-title">Rebuild starter info</span><span class="draft-button-tooltip-copy">${escapeHtml(tooltip)}</span></span></button>
+    >${renderResetIcon()}<strong>Rebuild starter info</strong>${renderDraftButtonTooltip("Rebuild starter info", tooltip)}</button>
   `;
 }
 
@@ -1046,11 +1048,19 @@ function renderDraftGenAiButton(target, label, genAiContext) {
       data-genai-target="${escapeHtml(target)}"
       data-tooltip-title="GenAI edit"
       data-tooltip="${escapeHtml(tooltip)}"
-      title="${escapeHtml(tooltip)}"
       aria-label="Edit ${escapeHtml(label)} with GenAI"
       aria-haspopup="dialog"
       aria-expanded="${isOpen}"
-    >${renderGenAiIcon()}<span class="visually-hidden">Edit ${escapeHtml(label)} with GenAI</span></button>
+    >${renderGenAiIcon()}<span class="visually-hidden">Edit ${escapeHtml(label)} with GenAI</span>${renderDraftButtonTooltip("GenAI edit", tooltip)}</button>
+  `;
+}
+
+function renderDraftButtonTooltip(title, copy) {
+  return `
+    <span class="draft-button-tooltip" role="tooltip">
+      <span class="draft-button-tooltip-title">${escapeHtml(title)}</span>
+      <span class="draft-button-tooltip-copy">${escapeHtml(copy)}</span>
+    </span>
   `;
 }
 
@@ -1428,6 +1438,10 @@ function renderDraftMetadata(kind, confidence, options = null) {
   const item = typeof options === "object" ? options?.item : null;
   const approved = item?.confidence === "confirmed" || item?.reviewStatus === "human_approved";
   const approveLabel = approveTarget?.split(":")[1] ?? "item";
+  const kindValue = formatDraftKind(kindLabel);
+  const confidenceValue = formatDraftConfidence(confidence);
+  const kindDescription = describeDraftKind(kindLabel);
+  const confidenceDescription = describeDraftConfidence(confidence);
   const trustTitle = approved
     ? `Approved. Click to return ${approveLabel} to needs-review.`
     : item?.sourceUrl
@@ -1442,28 +1456,29 @@ function renderDraftMetadata(kind, confidence, options = null) {
         data-country-action="approve-draft-item"
         data-approve-target="${escapeHtml(approveTarget)}"
         data-approved="${approved ? "true" : "false"}"
-        data-tooltip="${escapeHtml(describeDraftConfidence(confidence))}"
         aria-label="${escapeHtml(approved ? `Unapprove ${approveLabel}` : `Approve ${approveLabel}`)}"
         aria-pressed="${approved}"
-        title="${escapeHtml(trustTitle)}"
       >
         <span class="draft-meta-label">Trust</span>
-        <span class="draft-meta-value">${escapeHtml(formatDraftConfidence(confidence))}</span>
+        <span class="draft-meta-value">${escapeHtml(confidenceValue)}</span>
         ${renderDraftTrustTick(approved)}
+        ${renderDraftButtonTooltip(`Trust: ${confidenceValue}`, trustTitle)}
       </button>
     `
     : `
-      <span class="draft-meta-chip draft-meta-chip--trust draft-meta-chip--${escapeHtml(confidence)}" data-tooltip="${escapeHtml(describeDraftConfidence(confidence))}">
+      <span class="draft-meta-chip draft-meta-chip--trust draft-meta-chip--${escapeHtml(confidence)}">
         <span class="draft-meta-label">Trust</span>
-        <span>${escapeHtml(formatDraftConfidence(confidence))}</span>
+        <span>${escapeHtml(confidenceValue)}</span>
+        ${renderDraftButtonTooltip(`Trust: ${confidenceValue}`, confidenceDescription)}
       </span>
     `;
 
   return `
-    <span class="draft-meta" aria-label="${escapeHtml(`${describeDraftKind(kindLabel)}. ${describeDraftConfidence(confidence)}`)}">
-      <span class="draft-meta-chip" data-tooltip="${escapeHtml(describeDraftKind(kindLabel))}">
+    <span class="draft-meta" aria-label="${escapeHtml(`${kindDescription}. ${confidenceDescription}`)}">
+      <span class="draft-meta-chip">
         <span class="draft-meta-label">Type</span>
-        <span>${escapeHtml(formatDraftKind(kindLabel))}</span>
+        <span>${escapeHtml(kindValue)}</span>
+        ${renderDraftButtonTooltip(`Type: ${kindValue}`, kindDescription)}
       </span>
       ${trustChip}
     </span>
