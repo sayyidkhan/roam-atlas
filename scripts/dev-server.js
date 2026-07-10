@@ -55,6 +55,7 @@ import {
   normalizeImageModel
 } from "../src/domain/imageProvider.js";
 import {
+  imageJobPriority,
   shouldQueueDefaultArtwork,
   sortImageJobsForProcessing
 } from "../src/domain/imageJobQueue.js";
@@ -86,6 +87,7 @@ const countryDraftCache = new Map();
 const countryImageCache = new Map();
 const placeImageCache = new Map();
 const placeImageRequestsInFlight = new Map();
+const placeImageClaimsByCountry = new Map();
 const COUNTRY_CARD_IMAGE_PUBLIC_PREFIX = "/public/country-cards";
 const COUNTRY_CARD_IMAGE_PUBLIC_DIR = path.join(root, "public", "country-cards");
 const COUNTRY_MEDIA_PAGE_OVERRIDES = {
@@ -349,6 +351,25 @@ async function handleFlipbookClick(request, response) {
         normalizedClick
       })
     : null;
+  if (body.targetNodeId || body.detourPhrase) {
+    const result = resolveFlipbookClick({
+      currentPage: body.currentPage,
+      normalizedClick,
+      targetNodeId: body.targetNodeId,
+      detourPhrase: body.detourPhrase,
+      scenes: pack.scenes,
+      nodes: pack.nodes,
+      sceneArtwork,
+      countryName: pack.title
+    });
+    if (result.page.status === "generation_required") {
+      result.page = await attachCodexArtworkToPage(result.page, pack);
+    }
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify(result));
+    return;
+  }
+
   if (semanticHit) {
     const semanticClick = semanticHit.cacheClick ?? centerOfBox(semanticHit.bbox) ?? normalizedClick;
     const result = resolveFlipbookClick({
@@ -882,7 +903,10 @@ async function handleArtworkRequest(url, response) {
   }
 
   const isPrefetch = url.searchParams.get("prefetch") === "true" || url.searchParams.get("prefetch") === "priority";
-  const jobKind = isPrefetch
+  const isInteractivePriority = url.searchParams.get("priority") === "interactive";
+  const jobKind = isInteractivePriority
+    ? "interactive"
+    : isPrefetch
     ? url.searchParams.get("prefetch") === "priority"
       ? "prefetch"
       : "artwork"
@@ -1122,7 +1146,7 @@ async function resolvePlaceImage(country, place, { context = "", kind = "", tags
 }
 
 async function resolvePlaceImageUncached(country, place, { context = "", kind = "", tags = [] }, paths) {
-  const storedRecord = await readStoredPlaceImageRecord(paths);
+  const storedRecord = await readStoredPlaceImageRecord(paths, { place });
   if (storedRecord) return storedRecord;
 
   if (!process.env.EXA_API_KEY) {
@@ -1140,6 +1164,11 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
   });
   const candidates = await searchExaPlaceImageCandidates(country, place, { context, kind, tags }, profile);
   for (const candidate of candidates) {
+    const claimKey = getPlaceImageCandidateClaimKey(candidate);
+    if (await isPlaceImageClaimedByAnotherPlace(paths, place, claimKey)) {
+      continue;
+    }
+    reservePlaceImageClaim(paths.countrySlug, place, claimKey);
     const record = await persistPlaceImage(paths, {
       country,
       place,
@@ -1147,6 +1176,7 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
       profile
     });
     if (record) return record;
+    releasePlaceImageClaim(paths.countrySlug, place, claimKey);
   }
 
   const notFoundRecord = {
@@ -1164,7 +1194,7 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
   return notFoundRecord;
 }
 
-async function readStoredPlaceImageRecord(paths) {
+async function readStoredPlaceImageRecord(paths, { place = null } = {}) {
   try {
     const record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
     if (record.selectionVersion !== PLACE_IMAGE_SELECTION_VERSION) {
@@ -1175,10 +1205,88 @@ async function readStoredPlaceImageRecord(paths) {
       path.join(runtimeCacheRoot, decodeURIComponent(record.imageUrl.slice(RUNTIME_CACHE_URL_PREFIX.length + 1)))
     );
     await stat(imagePath);
+    const claimKey = getPlaceImageRecordClaimKey(record);
+    if (await isPlaceImageClaimedByAnotherPlace(paths, place ?? record.place, claimKey)) {
+      return null;
+    }
+    reservePlaceImageClaim(paths.countrySlug, place ?? record.place, claimKey);
     return record;
   } catch {
     return null;
   }
+}
+
+async function isPlaceImageClaimedByAnotherPlace(paths, place, claimKey) {
+  if (!claimKey) return false;
+  const normalizedPlace = normalizePlaceImageClaimPlace(place);
+  const memoryClaim = placeImageClaimsByCountry.get(paths.countrySlug)?.get(claimKey);
+  if (memoryClaim && memoryClaim !== normalizedPlace) return true;
+
+  const records = await listStoredPlaceImageRecords(paths.countryCacheRoot);
+  return records.some((record) => {
+    if (record.selectionVersion !== PLACE_IMAGE_SELECTION_VERSION) return false;
+    if (normalizePlaceImageClaimPlace(record.place) === normalizedPlace) return false;
+    return getPlaceImageRecordClaimKey(record) === claimKey;
+  });
+}
+
+async function listStoredPlaceImageRecords(countryCacheRoot) {
+  try {
+    const dir = path.join(countryCacheRoot, "place-images");
+    const files = (await readdir(dir)).filter((file) => file.endsWith(".json"));
+    const records = [];
+    for (const file of files) {
+      try {
+        records.push(JSON.parse(await readFile(path.join(dir, file), "utf8")));
+      } catch {
+        // Ignore corrupt or half-written place-image metadata.
+      }
+    }
+    return records;
+  } catch {
+    return [];
+  }
+}
+
+function reservePlaceImageClaim(countrySlug, place, claimKey) {
+  if (!claimKey) return;
+  let claims = placeImageClaimsByCountry.get(countrySlug);
+  if (!claims) {
+    claims = new Map();
+    placeImageClaimsByCountry.set(countrySlug, claims);
+  }
+  claims.set(claimKey, normalizePlaceImageClaimPlace(place));
+}
+
+function releasePlaceImageClaim(countrySlug, place, claimKey) {
+  if (!claimKey) return;
+  const claims = placeImageClaimsByCountry.get(countrySlug);
+  if (claims?.get(claimKey) === normalizePlaceImageClaimPlace(place)) {
+    claims.delete(claimKey);
+  }
+}
+
+function getPlaceImageCandidateClaimKey(candidate) {
+  return normalizePlaceImageClaimUrl(candidate?.imageUrl);
+}
+
+function getPlaceImageRecordClaimKey(record) {
+  return normalizePlaceImageClaimUrl(record?.remoteImageUrl ?? record?.imageUrl);
+}
+
+function normalizePlaceImageClaimUrl(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw, "http://runtime.local");
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.toLowerCase();
+  } catch {
+    return raw.toLowerCase();
+  }
+}
+
+function normalizePlaceImageClaimPlace(value) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 async function writeStoredPlaceImageRecord(paths, record) {
@@ -2382,11 +2490,18 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     (existingJob?.status === "pending_codex_image_generation" ||
       existingJob?.status === "processing_openai_image")
   ) {
+    const promotedJobKind = chooseHigherPriorityJobKind(existingJob.jobKind, jobKind);
     if (hasConfiguredImageProvider() && existingJob.autoProcess !== true) {
       await writeCodexImageJob(jobPath, {
         ...existingJob,
-        jobKind: existingJob.jobKind ?? jobKind,
+        jobKind: promotedJobKind,
         autoProcess: true,
+        updatedAt: new Date().toISOString()
+      });
+    } else if (promotedJobKind !== existingJob.jobKind) {
+      await writeCodexImageJob(jobPath, {
+        ...existingJob,
+        jobKind: promotedJobKind,
         updatedAt: new Date().toISOString()
       });
     }
@@ -2432,6 +2547,13 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
       factBoundary: "Generated fallback art is visual only and is not a fact source."
     }
   };
+}
+
+function chooseHigherPriorityJobKind(existingJobKind, requestedJobKind) {
+  if (!existingJobKind) return requestedJobKind;
+  return imageJobPriority({ jobKind: requestedJobKind }) < imageJobPriority({ jobKind: existingJobKind })
+    ? requestedJobKind
+    : existingJobKind;
 }
 
 async function writeCodexImageJob(jobPath, job) {

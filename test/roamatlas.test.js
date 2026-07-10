@@ -155,6 +155,10 @@ test("country landing cards request country-specific media images", () => {
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("palestinian-territories")), /Church_of_the_Nativity/);
   assert.match(appSource, /country-card-photo/);
+  assert.match(appSource, /data-country-card-action="config"/);
+  assert.match(appSource, /setAttribute\("data-country-card-action", "open"\)/);
+  assert.match(appSource, /openCountryFromLanding/);
+  assert.match(appSource, /enterCountryShell\(country\)/);
   assert.match(appSource, /getCountryPhotoUrl/);
   assert.match(appSource, /\/api\/country-image\?countrySlug=/);
   assert.match(appSource, /country-media-v7/);
@@ -183,6 +187,8 @@ test("country landing cards request country-specific media images", () => {
   assert.doesNotMatch(serverSource, /flag-fallback/);
   assert.doesNotMatch(serverSource, /flagcdn\.com\/w640/);
   assert.match(styleSource, /\.country-card-photo/);
+  assert.match(styleSource, /\.country-card-menu/);
+  assert.match(styleSource, /\.country-card-menu-popover/);
   assert.doesNotMatch(styleSource, /country-card-atlas\.jpg/);
 });
 
@@ -750,6 +756,19 @@ test("country packs load source data dynamically instead of hardcoding every pac
   assert.equal(singaporeData.scenes["singapore-overview"].ambientLayers.length, 4);
   assert.equal(singaporeData.scenes["singapore-overview"].cameraPresets[0].id, "overview");
   assert.match(singaporeData.scenes["singapore-overview"].visualContext, /Singapore overview/);
+  assert.deepEqual(
+    singaporeData.scenes["singapore-overview"].hotspots
+      .filter((hotspot) => hotspot.mapNumber)
+      .map((hotspot) => [hotspot.label, hotspot.mapNumber]),
+    [
+      ["NTU / NUS", 1],
+      ["Marina Bay", 2],
+      ["Heritage Belt", 3],
+      ["Nature", 6],
+      ["Changi", 5],
+      ["Sentosa", 4]
+    ]
+  );
   assert.equal(malaysiaData.scenes["malaysia-overview"].ambientLayers.length, 4);
   assert.equal(malaysiaData.scenes["malaysia-overview"].cameraPresets[0].id, "overview");
   assert.deepEqual(
@@ -1419,10 +1438,25 @@ test("scene artwork registry does not reuse old public generated images", () => 
 
 test("frontend homepage requests runtime artwork without hardcoded local host", () => {
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
   assert.doesNotMatch(appSource, /overview-codex-local\.png/);
   assert.doesNotMatch(appSource, /127\.0\.0\.1:4173/);
   assert.match(appSource, /requestSceneArtwork/);
   assert.match(appSource, /renderRegionRail/);
+  assert.match(appSource, /renderLoadingSceneBoard/);
+  assert.match(appSource, /loading-destination-grid/);
+  assert.match(appSource, /loading-destination-card/);
+  assert.match(appSource, /buildImmediatePageFromTarget/);
+  assert.match(appSource, /buildImmediatePageFromClick/);
+  assert.match(appSource, /resolveFlipbookClick/);
+  assert.match(appSource, /targetNodeId: target\.nodeId/);
+  assert.match(appSource, /getPrefetchTargetState/);
+  assert.match(appSource, /region-rail-progress/);
+  assert.match(appSource, /getHotspotMapNumber/);
+  assert.match(appSource, /region-rail-number/);
+  assert.match(styleSource, /\.region-rail-number/);
+  assert.match(appSource, /renderRegionRailCheck/);
+  assert.match(appSource, /prefetchJobs/);
   assert.match(appSource, /renderLoadingPanel/);
   assert.match(appSource, /import \{ buildLoadingStepTrail \} from "\.\.\/domain\/loadingSteps\.js";/);
   assert.match(appSource, /mergePrefetchedArtwork/);
@@ -1431,7 +1465,14 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(appSource, /canCurrentPageUseSceneArtwork/);
   assert.match(appSource, /getPageArtworkJobKey/);
   assert.match(appSource, /pollCurrentPageArtworkJob/);
-  assert.match(appSource, /nodeId=\$\{encodeURIComponent\(page\.nodeId\)\}/);
+  assert.match(styleSource, /\.region-rail-item--loading \.region-rail-progress/);
+  assert.match(styleSource, /\.loading-scene-board/);
+  assert.match(styleSource, /\.loading-destination-grid/);
+  assert.match(styleSource, /\.loading-destination-card--loading \.loading-destination-progress/);
+  assert.match(styleSource, /\.region-rail-check/);
+  assert.match(styleSource, /--prefetch-progress/);
+  assert.match(appSource, /nodeId: page\.nodeId/);
+  assert.match(appSource, /params\.set\("priority", "interactive"\)/);
   assert.match(appSource, /apiPath\("\/api\/flipbook\/click"\)/);
   assert.match(appSource, /getCurrentRequestPage/);
   assert.match(appSource, /setBrowserPath\(canonicalRouteForNode/);
@@ -1555,11 +1596,12 @@ test("place image selection prefers capital skylines for states and scenes for t
   assert.ok(ranked[0].score > ranked[1].score);
   assert.match(ranked[0].imageUrl, /langkawi-beach-view/);
   assert.equal(isUsablePlaceImageUrl("https://cdn.example.com/langkawi-logo.png"), false);
-  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v3");
+  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v4");
 });
 
 test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
   const runtimeCacheSource = readFileSync(new URL("../src/domain/runtimeCache.js", import.meta.url), "utf8");
 
@@ -1569,15 +1611,28 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(serverSource, /\/api\/country-draft\/approve-item/);
   assert.match(serverSource, /approveDraftItem/);
   assert.match(appSource, /buildPlaceImageUrl/);
+  assert.match(appSource, /hydrateDraftPlacePhotos/);
+  assert.match(appSource, /data-photo-state="queued"/);
+  assert.match(appSource, /draft-photo-spinner/);
+  assert.match(appSource, /setDraftPhotoState/);
+  assert.match(appSource, /normalizeLoadedDraftPhotoUrl/);
   assert.match(appSource, /PLACE_IMAGE_SELECTION_VERSION/);
   assert.match(appSource, /\/api\/place-image\?/);
   assert.match(appSource, /map-hotspot-chip-photo/);
   assert.match(appSource, /Not verified travel data/);
   assert.doesNotMatch(appSource, /api\.exa\.ai/);
+  assert.match(styleSource, /\.draft-photo-spinner/);
+  assert.match(styleSource, /\[data-photo-state="ready"\]/);
+  assert.match(styleSource, /draft-photo-spin/);
+  assert.doesNotMatch(styleSource, /draft-photo-loading/);
 
   // Server resolves place images via Exa and caches them in the runtime cache.
   assert.match(serverSource, /handlePlaceImageRequest/);
   assert.match(serverSource, /searchExaPlaceImageCandidates/);
+  assert.match(serverSource, /isPlaceImageClaimedByAnotherPlace/);
+  assert.match(serverSource, /reservePlaceImageClaim/);
+  assert.match(serverSource, /getPlaceImageCandidateClaimKey/);
+  assert.match(serverSource, /placeImageClaimsByCountry/);
   assert.match(serverSource, /buildPlaceImageSearchQueries/);
   assert.match(serverSource, /inferPlaceImageProfile/);
   assert.match(serverSource, /rankPlaceImageCandidates/);
@@ -1697,7 +1752,11 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /getDefaultArtworkPageForNode/);
   assert.match(serverSource, /url\.searchParams\.get\("nodeId"\)/);
   assert.match(serverSource, /searchParams\.get\("prefetch"\) === "priority"/);
-  assert.match(serverSource, /jobKind = isPrefetch[\s\S]*"prefetch"/);
+  assert.match(serverSource, /searchParams\.get\("priority"\) === "interactive"/);
+  assert.match(serverSource, /jobKind = isInteractivePriority[\s\S]*"interactive"[\s\S]*isPrefetch[\s\S]*"prefetch"/);
+  assert.match(serverSource, /chooseHigherPriorityJobKind/);
+  assert.match(serverSource, /imageJobPriority/);
+  assert.match(serverSource, /if \(body\.targetNodeId \|\| body\.detourPhrase\)/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
   assert.match(promptSource, /environment-plan-v1/);

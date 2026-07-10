@@ -1174,6 +1174,7 @@
           },
           "zIndex": 2,
           "label": "NTU / NUS",
+          "mapNumber": 1,
           "confidence": "confirmed",
           "action": {
             "type": "enter_scene",
@@ -1192,6 +1193,7 @@
           },
           "zIndex": 2,
           "label": "Marina Bay",
+          "mapNumber": 2,
           "confidence": "confirmed",
           "action": {
             "type": "enter_scene",
@@ -1210,6 +1212,7 @@
           },
           "zIndex": 2,
           "label": "Heritage Belt",
+          "mapNumber": 3,
           "confidence": "confirmed",
           "action": {
             "type": "enter_scene",
@@ -1228,6 +1231,7 @@
           },
           "zIndex": 2,
           "label": "Nature",
+          "mapNumber": 6,
           "confidence": "confirmed",
           "action": {
             "type": "enter_scene",
@@ -1246,6 +1250,7 @@
           },
           "zIndex": 2,
           "label": "Changi",
+          "mapNumber": 5,
           "confidence": "confirmed",
           "action": {
             "type": "enter_scene",
@@ -1264,6 +1269,7 @@
           },
           "zIndex": 2,
           "label": "Sentosa",
+          "mapNumber": 4,
           "confidence": "confirmed",
           "action": {
             "type": "enter_scene",

@@ -12,6 +12,7 @@ import { ROAMATLAS_EXPERIENCE_CONFIG } from "../config/experienceConfig.js";
 import { generatedTiles } from "../data/generatedTiles.js";
 import { factConfidenceLabel } from "../domain/guardrails.js";
 import { buildLoadingStepTrail } from "../domain/loadingSteps.js";
+import { resolveFlipbookClick } from "../domain/flipbookPage.js";
 import { PLACE_IMAGE_SELECTION_VERSION } from "../domain/placeImageSelection.js";
 import { listNextArtworkDestinations } from "../domain/nextArtworkDestinations.js";
 import {
@@ -47,6 +48,7 @@ const state = {
   artworkByScene: new Map(),
   artworkByPage: new Map(),
   prefetchRequests: new Set(),
+  prefetchJobs: new Map(),
   prefetchSceneId: null,
   environmentPlans: new Map(),
   environmentPlanRequests: new Map(),
@@ -61,6 +63,7 @@ let activeCountryPhotoLoads = 0;
 let countryPhotoQueue = [];
 let draftPhotoLightbox = null;
 const prefetchPollers = new Map();
+let prefetchRenderFrame = null;
 
 const elements = {
   landing: document.querySelector("#country-landing"),
@@ -162,18 +165,43 @@ function bindCountryLanding() {
   });
 
   elements.countryGrid.addEventListener("click", (event) => {
+    const cardAction = event.target.closest("[data-country-card-action]");
     const card = event.target.closest("[data-country-code]");
     if (!card) return;
     const country = worldCountries.find((item) => item.code === card.dataset.countryCode);
     if (!country) return;
-    if (isConfiguredCountryPack(country.slug)) {
-      ensureCountryPack(country.slug)
-        .then((pack) => enterMappedCountry(pack))
-        .catch(showBootstrapError);
+
+    if (event.target.closest(".country-card-menu") && !cardAction) {
       return;
     }
-    enterCountryShell(country);
+
+    if (cardAction) {
+      const action = cardAction.dataset.countryCardAction;
+      if (action === "config") {
+        enterCountryShell(country);
+        return;
+      }
+      if (action === "open") {
+        openCountryFromLanding(country);
+        return;
+      }
+      if (action === "menu") {
+        return;
+      }
+    }
+
+    openCountryFromLanding(country);
   });
+}
+
+function openCountryFromLanding(country) {
+  if (isConfiguredCountryPack(country.slug)) {
+    ensureCountryPack(country.slug)
+      .then((pack) => enterMappedCountry(pack))
+      .catch(showBootstrapError);
+    return;
+  }
+  enterCountryShell(country);
 }
 
 function bindCountryShell() {
@@ -623,8 +651,7 @@ function renderCountryCard(country) {
   const pack = getCountryPack(country.slug);
   const isConfirmedPack = pack?.confidence !== "unconfirmed";
   const cardState = isConfirmedPack ? "mapped" : "available";
-  const card = document.createElement("button");
-  card.type = "button";
+  const card = document.createElement("article");
   card.className = `country-card country-card--${cardState}`;
   card.dataset.countryCode = country.code;
   card.setAttribute("aria-label", `${country.name}, ${isConfirmedPack ? "source-reviewed explorer" : "starter explorer"}`);
@@ -674,15 +701,34 @@ function renderCountryCard(country) {
   title.className = "country-name";
   title.textContent = country.name;
 
-  const status = document.createElement("span");
-  status.className = "country-status";
-  status.textContent = isConfirmedPack ? "Mapped" : "Open";
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.className = "country-status";
+  openButton.setAttribute("data-country-card-action", "open");
+  openButton.textContent = "Open";
+
+  const menu = document.createElement("details");
+  menu.className = "country-card-menu";
+  menu.innerHTML = `
+    <summary
+      class="country-card-menu-trigger"
+      data-country-card-action="menu"
+      aria-label="Country actions for ${escapeHtml(country.name)}"
+    >...</summary>
+    <div class="country-card-menu-popover">
+      <button
+        type="button"
+        class="country-card-menu-item"
+        data-country-card-action="config"
+      >Config</button>
+    </div>
+  `;
 
   const footer = document.createElement("span");
   footer.className = "country-card-footer";
-  footer.append(title, status, code);
+  footer.append(title, openButton, code);
 
-  card.append(photo, visual, footer);
+  card.append(photo, visual, menu, footer);
   return card;
 }
 
@@ -824,6 +870,7 @@ function renderCountryShell() {
       ${renderCountryDraftPanel(country, draftState)}
     </article>
   `;
+  hydrateDraftPlacePhotos(elements.countryShell);
 }
 
 function renderCountryActionGuide(country, { canOpenMap, isOpen }) {
@@ -1339,21 +1386,90 @@ function renderDraftPlacePhoto(placeName, children, genAiContext, kind = "region
     <button
       type="button"
       class="draft-item-photo-button"
+      data-draft-place-photo
+      data-photo-state="queued"
       data-place-name="${escapeHtml(placeName)}"
       aria-label="View reference photo for ${escapeHtml(placeName)}"
-      title="Reference photo from external search. Not verified travel data. Click to enlarge."
+      title="Loading reference photo from external search. Not verified travel data."
     >
-      <img
-        class="draft-item-photo"
-        src="${escapeHtml(src)}"
-        alt=""
-        loading="lazy"
-        decoding="async"
-        referrerpolicy="no-referrer"
-        onerror="this.closest('.draft-item-photo-button')?.remove()"
-      />
+      <span class="draft-item-photo-frame">
+        <img
+          class="draft-item-photo"
+          data-src="${escapeHtml(src)}"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerpolicy="no-referrer"
+        />
+        <span class="draft-photo-progress" aria-hidden="true"><span></span></span>
+        <span class="draft-photo-spinner" aria-hidden="true"></span>
+        <span class="draft-photo-status">Queued</span>
+        <span class="draft-photo-ready" aria-hidden="true">${renderRegionRailCheck()}</span>
+      </span>
     </button>
   `;
+}
+
+function hydrateDraftPlacePhotos(root) {
+  const buttons = [...root.querySelectorAll("[data-draft-place-photo]")];
+  if (!buttons.length) return;
+
+  const loadedUrls = new Set();
+  for (const button of buttons) {
+    const image = button.querySelector(".draft-item-photo");
+    const src = image?.dataset.src;
+    if (!image || !src || button.dataset.photoHydrated === "true") continue;
+
+    button.dataset.photoHydrated = "true";
+    setDraftPhotoState(button, "searching", "Searching", 0.18);
+
+    const timers = [
+      window.setTimeout(() => setDraftPhotoState(button, "selecting", "Selecting", 0.52), 650),
+      window.setTimeout(() => setDraftPhotoState(button, "caching", "Caching", 0.78), 1500)
+    ];
+    const clearTimers = () => timers.forEach((timer) => window.clearTimeout(timer));
+
+    image.addEventListener("load", () => {
+      clearTimers();
+      const imageUrl = normalizeLoadedDraftPhotoUrl(image.currentSrc || image.src);
+      if (loadedUrls.has(imageUrl)) {
+        setDraftPhotoState(button, "duplicate", "Duplicate", 1);
+        image.removeAttribute("src");
+        return;
+      }
+      loadedUrls.add(imageUrl);
+      setDraftPhotoState(button, "ready", "Ready", 1);
+      button.title = "Reference photo from external search. Not verified travel data. Click to enlarge.";
+    }, { once: true });
+
+    image.addEventListener("error", () => {
+      clearTimers();
+      setDraftPhotoState(button, "failed", "No photo", 1);
+      image.removeAttribute("src");
+      button.title = "No distinct reference photo found yet.";
+    }, { once: true });
+
+    image.src = src;
+    delete image.dataset.src;
+  }
+}
+
+function setDraftPhotoState(button, stateName, label, progress) {
+  button.dataset.photoState = stateName;
+  button.style.setProperty("--draft-photo-progress", `${Math.round(clamp01(progress) * 100)}%`);
+  const status = button.querySelector(".draft-photo-status");
+  if (status) status.textContent = label;
+  const placeName = button.dataset.placeName ?? "this place";
+  button.setAttribute("aria-label", `Reference photo for ${placeName}: ${label}`);
+}
+
+function normalizeLoadedDraftPhotoUrl(value) {
+  try {
+    const parsed = new URL(value, window.location.origin);
+    return `${parsed.origin}${parsed.pathname}`.toLowerCase();
+  } catch {
+    return String(value ?? "").trim().toLowerCase();
+  }
 }
 
 function renderDraftChildNodes(children, parentIndexPath) {
@@ -2185,22 +2301,6 @@ function renderScene() {
   elements.stage.classList.toggle("is-artwork-pending", isArtworkPending);
   elements.stage.classList.toggle("scroll-stage--placeholder", !imageUrl);
   applySceneLayout(scene, { hasArtwork: Boolean(imageUrl) });
-  const canvas = renderSceneCanvas(scene, { hasArtwork: Boolean(imageUrl) });
-  canvas.replaceChildren(
-    ...(imageUrl ? [renderSceneImage(imageUrl, scene.title, elements.stage)] : []),
-    ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
-    ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
-    ...renderMapHotspotLabels(scene, nodes, {
-      mode: imageUrl ? "hidden" : "chips",
-      countrySlug: state.activeCountrySlug
-    }),
-    ...(!imageUrl ? [renderScenePlaceholderHint(isArtworkPending)] : [])
-  );
-  elements.stage.replaceChildren(
-    canvas,
-    ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : [])
-  );
-  elements.viewport.querySelector(".region-rail")?.remove();
   const nextDestinations = listNextArtworkDestinations({
     scene,
     scenes: state.activePack.scenes,
@@ -2208,6 +2308,32 @@ function renderScene() {
     currentPage: state.currentPage,
     limit: state.experienceConfig.maxParallelImageJobs
   });
+  const canvas = renderSceneCanvas(scene, { hasArtwork: Boolean(imageUrl) });
+  canvas.replaceChildren(
+    ...(imageUrl ? [renderSceneImage(imageUrl, scene.title, elements.stage)] : []),
+    ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
+    ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
+    ...(imageUrl
+      ? renderMapHotspotLabels(scene, nodes, {
+          mode: "hidden",
+          countrySlug: state.activeCountrySlug
+        })
+      : [
+          renderLoadingSceneBoard({
+            scene,
+            nodes,
+            targets: nextDestinations,
+            pageTitle,
+            artworkJobKey,
+            isArtworkPending
+          })
+        ])
+  );
+  elements.stage.replaceChildren(
+    canvas,
+    ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : [])
+  );
+  elements.viewport.querySelector(".region-rail")?.remove();
   if (imageUrl && nextDestinations.length) {
     elements.viewport.appendChild(renderRegionRail(scene, nodes, nextDestinations));
   }
@@ -2217,9 +2343,11 @@ function renderScene() {
   }
   if (!imageUrl && !isArtworkPending) {
     if (canUseSceneArtwork) {
-      requestSceneArtwork(scene.id);
+      requestSceneArtwork(scene.id, {
+        jobKind: state.currentPage.parentId ? "interactive" : "artwork"
+      });
     } else {
-      requestCurrentPageArtwork();
+      requestCurrentPageArtwork({ jobKind: "interactive" });
     }
   }
   prefetchNextDestinations();
@@ -2272,19 +2400,30 @@ function renderRegionRail(scene, nodes, targets) {
 
     const hotspot = findHotspotForTarget(scene, target.nodeId);
     const label = hotspot?.label ?? node.title;
+    const mapNumber = getHotspotMapNumber(hotspot);
     const centerX = hotspot
       ? hotspot.shape.x + hotspot.shape.width / 2
       : space.width / 2;
     const centerY = hotspot
       ? hotspot.shape.y + hotspot.shape.height / 2
       : space.height / 2;
-    const ready = isArtworkTargetReady(target);
+    const prefetchState = getPrefetchTargetState(target);
 
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `region-rail-item${ready ? " is-ready" : ""}`;
-    button.textContent = label;
-    button.title = node.title;
+    button.className = `region-rail-item region-rail-item--${prefetchState.phase}`;
+    button.style.setProperty("--prefetch-progress", `${Math.round(prefetchState.progress * 100)}%`);
+    button.title = `${node.title} - ${prefetchState.label}`;
+    button.setAttribute(
+      "aria-label",
+      `${mapNumber ? `Map ${mapNumber}, ` : ""}${node.title}, ${prefetchState.label}`
+    );
+    button.innerHTML = `
+      <span class="region-rail-progress" aria-hidden="true"></span>
+      ${mapNumber ? `<span class="region-rail-number" aria-hidden="true">${escapeHtml(mapNumber)}</span>` : ""}
+      <span class="region-rail-label">${escapeHtml(label)}</span>
+      ${prefetchState.phase === "ready" ? renderRegionRailCheck() : ""}
+    `;
     button.addEventListener("click", () => {
       resolveOverlayTarget({
         normalizedClick: {
@@ -2299,6 +2438,135 @@ function renderRegionRail(scene, nodes, targets) {
 
   rail.appendChild(list);
   return rail;
+}
+
+function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobKey, isArtworkPending }) {
+  const board = document.createElement("section");
+  board.className = "loading-scene-board";
+  board.setAttribute("aria-label", `${pageTitle} loading`);
+
+  const job = state.artworkJobs.get(artworkJobKey) ?? {
+    status: isArtworkPending ? "pending_codex_image_generation" : "starting",
+    title: pageTitle
+  };
+  const trail = buildLoadingStepTrail({ job, pageTitle });
+  const readyCount = targets.filter(isArtworkTargetReady).length;
+
+  const header = document.createElement("div");
+  header.className = "loading-scene-board-head";
+  header.innerHTML = `
+    <div>
+      <span class="loading-scene-eyebrow">Illustration layer</span>
+      <strong>${escapeHtml(trail.current.message)}</strong>
+      <p>${escapeHtml(trail.current.detail)}</p>
+    </div>
+    <span class="loading-scene-count">${readyCount}/${targets.length || 0} ready</span>
+  `;
+
+  const progress = document.createElement("div");
+  progress.className = "loading-scene-progress";
+  progress.setAttribute("aria-hidden", "true");
+  progress.innerHTML = `<span style="width: ${Math.round(trail.current.progress * 100)}%"></span>`;
+
+  const grid = document.createElement("div");
+  grid.className = "loading-destination-grid";
+  grid.setAttribute("aria-label", "Available destinations");
+
+  const space = scene.coordinateSpace;
+  targets.forEach((target, index) => {
+    const node = nodes[target.nodeId];
+    if (!node) return;
+
+    const hotspot = findHotspotForTarget(scene, target.nodeId);
+    const label = hotspot?.label ?? node.title;
+    const mapNumber = getHotspotMapNumber(hotspot) || String(index + 1);
+    const centerX = hotspot && "width" in hotspot.shape
+      ? hotspot.shape.x + hotspot.shape.width / 2
+      : space.width / 2;
+    const centerY = hotspot && "height" in hotspot.shape
+      ? hotspot.shape.y + hotspot.shape.height / 2
+      : space.height / 2;
+    const prefetchState = getPrefetchTargetState(target);
+    const statusText = prefetchState.phase === "ready"
+      ? "Ready"
+      : prefetchState.phase === "failed"
+      ? "Retry later"
+      : "Drawing";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `loading-destination-card loading-destination-card--${prefetchState.phase}`;
+    button.style.setProperty("--prefetch-progress", `${Math.round(prefetchState.progress * 100)}%`);
+    button.setAttribute("aria-label", `${node.title}, ${prefetchState.label}`);
+    button.innerHTML = `
+      <span class="loading-destination-progress" aria-hidden="true"></span>
+      <span class="loading-destination-index">${escapeHtml(mapNumber)}</span>
+      <span class="loading-destination-copy">
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(statusText)}</span>
+      </span>
+      ${prefetchState.phase === "ready" ? renderRegionRailCheck() : ""}
+    `;
+    button.addEventListener("click", () => {
+      resolveOverlayTarget({
+        normalizedClick: {
+          x: clamp01(centerX / space.width),
+          y: clamp01(centerY / space.height)
+        },
+        nodeId: target.nodeId
+      });
+    });
+    grid.appendChild(button);
+  });
+
+  board.append(header, progress, grid);
+  return board;
+}
+
+function getHotspotMapNumber(hotspot) {
+  const value = hotspot?.mapNumber ?? hotspot?.displayNumber ?? hotspot?.anchorNumber;
+  if (value === null || value === undefined || value === "") return "";
+  return String(value);
+}
+
+function getPrefetchTargetState(target) {
+  if (isArtworkTargetReady(target)) {
+    return {
+      phase: "ready",
+      progress: 1,
+      label: "illustration ready"
+    };
+  }
+
+  const job = state.prefetchJobs.get(target.key);
+  if (!job) {
+    return {
+      phase: "idle",
+      progress: 0,
+      label: "not started yet"
+    };
+  }
+
+  const current = buildLoadingStepTrail({
+    job,
+    pageTitle: target.title
+  }).current;
+
+  return {
+    phase: current.phase === "failed" ? "failed" : "loading",
+    progress: current.progress,
+    label: current.phase === "failed" ? "illustration failed" : current.detail
+  };
+}
+
+function renderRegionRailCheck() {
+  return `
+    <span class="region-rail-check" aria-hidden="true">
+      <svg viewBox="0 0 14 14" focusable="false">
+        <path d="M3.1 7.1 5.8 9.8 11 4.2"></path>
+      </svg>
+    </span>
+  `;
 }
 
 function findHotspotForTarget(scene, nodeId) {
@@ -2928,6 +3196,12 @@ async function resolveClickAt(event) {
     y: clamp01((event.clientY - stageRect.top) / stageRect.height)
   };
   const imageClick = computeImageClick(event, getSceneCanvasRect());
+  const immediatePage = buildImmediatePageFromClick(normalizedClick);
+  if (immediatePage) {
+    enterReadyPage(immediatePage);
+    return;
+  }
+
   state.isResolvingClick = true;
   beginNavigationFeedback();
   try {
@@ -2944,14 +3218,29 @@ async function resolveClickAt(event) {
   }
 }
 
+function buildImmediatePageFromClick(normalizedClick) {
+  if (!state.activePack || !state.currentPage || !normalizedClick) return null;
+
+  const result = resolveFlipbookClick({
+    currentPage: getCurrentRequestPage(),
+    normalizedClick,
+    scenes: state.activePack.scenes,
+    nodes: state.activePack.nodes,
+    sceneArtwork: {},
+    countryName: state.activePack.title
+  });
+
+  return result.click?.status === "matched" ? mergePrefetchedArtwork(result.page) : null;
+}
+
 async function resolveOverlayTarget(target) {
   if (state.isResolvingClick || state.pendingJob) {
     return;
   }
 
-  const readyPage = buildReadyPageFromPrefetch(target.nodeId);
-  if (readyPage) {
-    enterReadyPage(readyPage);
+  const immediatePage = buildImmediatePageFromTarget(target);
+  if (immediatePage) {
+    enterReadyPage(immediatePage);
     return;
   }
 
@@ -2976,33 +3265,20 @@ async function resolveOverlayTarget(target) {
   }
 }
 
-function buildReadyPageFromPrefetch(nodeId) {
-  if (!nodeId) return null;
+function buildImmediatePageFromTarget(target) {
+  if (!target?.nodeId || !state.activePack?.nodes[target.nodeId]) return null;
 
-  const pack = state.activePack;
-  const node = pack.nodes[nodeId];
-  if (!node) return null;
+  const result = resolveFlipbookClick({
+    currentPage: getCurrentRequestPage(),
+    normalizedClick: target.normalizedClick ?? { x: 0.5, y: 0.5 },
+    targetNodeId: target.nodeId,
+    scenes: state.activePack.scenes,
+    nodes: state.activePack.nodes,
+    sceneArtwork: {},
+    countryName: state.activePack.title
+  });
 
-  const sceneId = findSceneIdForNode({ nodeId, nodes: pack.nodes, scenes: pack.scenes });
-  const scene = pack.scenes[sceneId];
-  if (!scene) return null;
-
-  const cached =
-    scene.rootNodeId === nodeId
-      ? state.artworkByScene.get(sceneId)
-      : state.artworkByPage.get(`node:${nodeId}`);
-  if (!cached?.imageUrl) return null;
-
-  return {
-    id: `node-${nodeId}`,
-    countrySlug: state.activeCountrySlug,
-    sceneId,
-    nodeId,
-    imageUrl: cached.imageUrl,
-    environmentUrl: cached.environmentUrl,
-    status: "ready",
-    plan: cached.page?.plan ?? { title: node.title }
-  };
+  return mergePrefetchedArtwork(result.page);
 }
 
 function beginNavigationFeedback(title) {
@@ -3051,18 +3327,22 @@ function getCurrentRequestPage() {
       };
 }
 
-async function requestSceneArtwork(sceneId) {
+async function requestSceneArtwork(sceneId, { jobKind = "artwork" } = {}) {
   if (state.artworkByScene.has(sceneId) || state.artworkJobs.has(sceneId)) {
     return;
   }
 
-  state.artworkJobs.set(sceneId, { status: "requesting" });
+  state.artworkJobs.set(sceneId, { status: "requesting", jobKind });
   render();
   try {
-    const response = await fetch(
-      apiPath(`/api/artwork?countrySlug=${encodeURIComponent(state.activeCountrySlug)}&sceneId=${encodeURIComponent(sceneId)}`),
-      { cache: "no-store" }
-    );
+    const params = new URLSearchParams({
+      countrySlug: state.activeCountrySlug,
+      sceneId
+    });
+    if (jobKind === "interactive") {
+      params.set("priority", "interactive");
+    }
+    const response = await fetch(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" });
     if (!response.ok) throw new Error(`Artwork request failed: ${response.status}`);
     const { page } = await response.json();
     if (page.status === "ready" && page.imageUrl) {
@@ -3084,6 +3364,7 @@ async function requestSceneArtwork(sceneId) {
     const jobUrl = page.generated?.jobUrl;
     state.artworkJobs.set(sceneId, {
       page,
+      jobKind,
       intervalId: jobUrl ? window.setInterval(() => pollArtworkJob(sceneId, jobUrl, page), 1600) : null
     });
     if (jobUrl) {
@@ -3095,24 +3376,25 @@ async function requestSceneArtwork(sceneId) {
   }
 }
 
-async function requestCurrentPageArtwork() {
+async function requestCurrentPageArtwork({ jobKind = "interactive" } = {}) {
   const page = state.currentPage;
   const artworkJobKey = getPageArtworkJobKey(page);
   if (!page.nodeId || page.imageUrl || state.artworkJobs.has(artworkJobKey)) {
     return;
   }
 
-  state.artworkJobs.set(artworkJobKey, { status: "requesting" });
+  state.artworkJobs.set(artworkJobKey, { status: "requesting", jobKind });
   render();
   try {
-    const response = await fetch(
-      apiPath(
-        `/api/artwork?countrySlug=${encodeURIComponent(state.activeCountrySlug)}&sceneId=${encodeURIComponent(
-          page.sceneId
-        )}&nodeId=${encodeURIComponent(page.nodeId)}`
-      ),
-      { cache: "no-store" }
-    );
+    const params = new URLSearchParams({
+      countrySlug: state.activeCountrySlug,
+      sceneId: page.sceneId,
+      nodeId: page.nodeId
+    });
+    if (jobKind === "interactive") {
+      params.set("priority", "interactive");
+    }
+    const response = await fetch(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" });
     if (!response.ok) throw new Error(`Artwork request failed: ${response.status}`);
     const { page: artworkPage } = await response.json();
     if (artworkPage.status === "ready" && artworkPage.imageUrl) {
@@ -3133,6 +3415,7 @@ async function requestCurrentPageArtwork() {
     const jobUrl = artworkPage.generated?.jobUrl;
     state.artworkJobs.set(artworkJobKey, {
       page: artworkPage,
+      jobKind,
       intervalId: jobUrl ? window.setInterval(() => pollCurrentPageArtworkJob(artworkJobKey, jobUrl, artworkPage), 1600) : null
     });
     if (jobUrl) {
@@ -3491,6 +3774,7 @@ function resetPrefetchForSceneChange(sceneId) {
   if (state.prefetchSceneId === sceneId) return;
   state.prefetchSceneId = sceneId;
   state.prefetchRequests.clear();
+  state.prefetchJobs.clear();
   for (const key of [...prefetchPollers.keys()]) {
     stopPrefetchPoller(key);
   }
@@ -3534,6 +3818,12 @@ function prefetchArtworkTarget(target) {
   if (state.artworkJobs.has(trackKey)) return;
 
   state.prefetchRequests.add(target.key);
+  state.prefetchJobs.set(target.key, {
+    status: "pending_codex_image_generation",
+    jobKind: "prefetch",
+    title: target.title
+  });
+  schedulePrefetchRailRender();
 
   const params = new URLSearchParams({
     countrySlug: state.activeCountrySlug,
@@ -3551,6 +3841,12 @@ function prefetchArtworkTarget(target) {
       if (page.status === "ready" && page.imageUrl) {
         storeArtworkCache(target, page);
         state.prefetchRequests.delete(target.key);
+        state.prefetchJobs.set(target.key, {
+          status: "ready",
+          jobKind: "prefetch",
+          title: target.title,
+          imageUrl: page.imageUrl
+        });
         render();
         return;
       }
@@ -3558,12 +3854,28 @@ function prefetchArtworkTarget(target) {
       const jobUrl = page.generated?.jobUrl;
       if (!jobUrl) {
         state.prefetchRequests.delete(target.key);
+        state.prefetchJobs.delete(target.key);
+        schedulePrefetchRailRender();
         return;
       }
+      state.prefetchJobs.set(target.key, {
+        status: page.status ?? "pending_codex_image_generation",
+        jobKind: "prefetch",
+        title: page.plan?.title ?? target.title,
+        generated: page.generated
+      });
+      schedulePrefetchRailRender();
       pollPrefetchJob(target, jobUrl, page);
     })
     .catch(() => {
       state.prefetchRequests.delete(target.key);
+      state.prefetchJobs.set(target.key, {
+        status: "failed",
+        jobKind: "prefetch",
+        title: target.title,
+        error: "Could not start background illustration."
+      });
+      schedulePrefetchRailRender();
     });
 }
 
@@ -3596,12 +3908,21 @@ function pollPrefetchJob(target, jobUrl, page) {
       const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
       if (!response.ok) return;
       const job = await response.json();
+      state.prefetchJobs.set(target.key, {
+        ...job,
+        jobKind: job.jobKind ?? "prefetch",
+        title: job.title ?? page.plan?.title ?? target.title
+      });
       if (job.status === "failed") {
         stopPrefetchPoller(target.key);
         state.prefetchRequests.delete(target.key);
+        schedulePrefetchRailRender();
         return;
       }
-      if (job.status !== "ready" || !job.imageUrl) return;
+      if (job.status !== "ready" || !job.imageUrl) {
+        schedulePrefetchRailRender();
+        return;
+      }
       stopPrefetchPoller(target.key);
       state.prefetchRequests.delete(target.key);
       storeArtworkCache(target, page, job);
@@ -3615,6 +3936,16 @@ function pollPrefetchJob(target, jobUrl, page) {
 
   tick();
   prefetchPollers.set(target.key, window.setInterval(tick, 1600));
+}
+
+function schedulePrefetchRailRender() {
+  if (prefetchRenderFrame) return;
+  prefetchRenderFrame = window.requestAnimationFrame(() => {
+    prefetchRenderFrame = null;
+    if (state.currentView === "explorer") {
+      render();
+    }
+  });
 }
 
 function stopPrefetchPoller(key) {

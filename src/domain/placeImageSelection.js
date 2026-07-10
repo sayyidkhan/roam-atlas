@@ -1,4 +1,4 @@
-export const PLACE_IMAGE_SELECTION_VERSION = "v3";
+export const PLACE_IMAGE_SELECTION_VERSION = "v4";
 
 const REGION_CAPITALS = {
   malaysia: {
