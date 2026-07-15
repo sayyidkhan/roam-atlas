@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import { readFileSync, watch } from "node:fs";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync, inflateSync } from "node:zlib";
@@ -56,13 +57,15 @@ import {
 } from "../src/domain/imageProvider.js";
 import {
   imageJobPriority,
-  shouldQueueDefaultArtwork,
-  sortImageJobsForProcessing
+  isStaleProcessingImageJob,
+  selectImageJobsForProcessing,
+  shouldQueueDefaultArtwork
 } from "../src/domain/imageJobQueue.js";
 import {
   DEFAULT_RUNTIME_COUNTRY_SLUG,
   RUNTIME_CACHE_URL_PREFIX,
   createCountryStarterMapCachePaths,
+  createImageVariantKey,
   createPlaceImageCachePaths,
   createRuntimeCachePaths,
   resolveRuntimeCacheRoot
@@ -82,7 +85,21 @@ const appExperienceConfig = resolveRoamAtlasExperienceConfig(process.env);
 const port = appConfig.server.port;
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
-const processingJobs = new Set();
+const processingJobs = new Map();
+const processingJobRuns = new Map();
+const processingJobAbortControllers = new Map();
+const cancelledImageJobs = new Set();
+const flushingCountryCacheRoots = new Set();
+const activeCountryImageJobCreations = new Map();
+const countryCacheFlushRuns = new Map();
+// Terminal variants remain addressable by their job URLs, but do not need to
+// be re-read and parsed on every three-second queue scan.
+const terminalImageJobs = new Set();
+const pendingEnvironmentPlans = new Map();
+let imageJobScanPromise = null;
+let imageJobRescanRequested = false;
+let environmentPlanProcessorActive = false;
+let activeEnvironmentTask = null;
 const countryDraftCache = new Map();
 const countryImageCache = new Map();
 const placeImageCache = new Map();
@@ -261,6 +278,10 @@ createServer(async (request, response) => {
       await handlePlaceImageRequest(url, response);
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/place-image/reset") {
+      await handlePlaceImageResetRequest(request, response);
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/country-packs") {
       await handleCountryPacksRequest(url, response);
       return;
@@ -296,8 +317,9 @@ createServer(async (request, response) => {
 
     await serveStatic(url.pathname, response);
   } catch (error) {
-    console.error("RoamAtlas dev server request failed:", error);
-    response.writeHead(500, { "Content-Type": "application/json" });
+    const statusCode = Number(error?.statusCode) || 500;
+    if (statusCode >= 500) console.error("RoamAtlas dev server request failed:", error);
+    response.writeHead(statusCode, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ error: String(error?.message ?? error) }));
   }
 }).listen(port, () => {
@@ -505,6 +527,8 @@ async function attachCodexArtworkToPage(page, pack) {
     ...page,
     status: artworkPage.status,
     imageUrl: artworkPage.imageUrl ?? page.imageUrl,
+    partialImageUrl: artworkPage.partialImageUrl,
+    assetVersion: artworkPage.assetVersion,
     environmentUrl: artworkPage.environmentUrl,
     generated: artworkPage.generated
   };
@@ -615,7 +639,9 @@ async function readPageUnderstanding(page) {
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
     imageModel: getConfiguredImageModel(),
-    countrySlug: getRuntimeCountrySlugForPage(page)
+    countrySlug: getRuntimeCountrySlugForPage(page),
+    outputFormat: appConfig.image.outputFormat,
+    variantKey: resolveAssetVersionForPage(page)
   });
   try {
     return JSON.parse(await readFile(paths.understandingPath, "utf8"));
@@ -630,7 +656,9 @@ async function writePageUnderstanding(page, understanding) {
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
     imageModel: getConfiguredImageModel(),
-    countrySlug: getRuntimeCountrySlugForPage(page)
+    countrySlug: getRuntimeCountrySlugForPage(page),
+    outputFormat: appConfig.image.outputFormat,
+    variantKey: resolveAssetVersionForPage(page)
   });
   await mkdir(path.dirname(paths.understandingPath), { recursive: true });
   await writeFile(
@@ -643,6 +671,7 @@ async function writePageUnderstanding(page, understanding) {
         sceneId: page.sceneId ?? understanding.sceneId,
         nodeId: page.nodeId ?? understanding.nodeId,
         imageUrl: page.imageUrl ?? understanding.imageUrl,
+        assetVersion: resolveAssetVersionForPage(page) ?? understanding.assetVersion,
         updatedAt: new Date().toISOString()
       },
       null,
@@ -660,6 +689,7 @@ function createBaseUnderstanding(page) {
     sceneId: page.sceneId,
     nodeId: page.nodeId,
     imageUrl: page.imageUrl,
+    assetVersion: resolveAssetVersionForPage(page),
     createdAt: timestamp,
     updatedAt: timestamp,
     regions: []
@@ -813,6 +843,21 @@ function getRuntimeCountrySlugFromUrl(imageUrl) {
   const [firstSegment] = relativePath.split("/");
   if (!firstSegment || isLegacyRuntimeDirectory(firstSegment)) return null;
   return sanitizeRuntimeCountrySlug(firstSegment);
+}
+
+function resolveAssetVersionForPage(page) {
+  return (
+    page?.assetVersion ??
+    page?.generated?.assetVersion ??
+    extractAssetVersionFromRuntimeUrl(page?.imageUrl) ??
+    extractAssetVersionFromRuntimeUrl(page?.generated?.jobUrl) ??
+    null
+  );
+}
+
+function extractAssetVersionFromRuntimeUrl(url) {
+  const match = String(url ?? "").match(/\.([a-f0-9]{16})(?:\.partial)?\.(?:json|png|jpe?g|webp)$/i);
+  return match?.[1] ?? null;
 }
 
 function sanitizeRuntimeCountrySlug(value) {
@@ -1101,13 +1146,59 @@ async function handlePlaceImageRequest(url, response) {
     return;
   }
 
+  // Serve our cached copy directly. A redirect worked in normal browsers, but
+  // embedded webviews can leave an <img> in a permanent pending state after
+  // following it. The cache is already local and immutable, so returning the
+  // bytes here is both simpler and more reliable for the config thumbnails.
+  const cachedImagePath = getImagePathFromUrl(record.imageUrl);
+  if (cachedImagePath) {
+    try {
+      const image = await readFile(cachedImagePath);
+      response.writeHead(200, {
+        "Content-Type": mimeTypeForImagePath(cachedImagePath),
+        // The server-side copy is the cache. Do not let the browser retain a
+        // stale thumbnail after the user resets generated visuals.
+        "Cache-Control": "no-store",
+        "X-RoamAtlas-Image-Source": toSafeHeaderValue(record.source),
+        "X-RoamAtlas-Image-Page": toSafeHeaderValue(record.sourceUrl)
+      });
+      response.end(image);
+      return;
+    } catch {
+      // The record can outlive a manually deleted image; fall back to the
+      // redirect path below so the normal image error handling remains intact.
+    }
+  }
+
   response.writeHead(302, {
     Location: record.imageUrl,
-    "Cache-Control": "public, max-age=86400",
+    "Cache-Control": "no-store",
     "X-RoamAtlas-Image-Source": toSafeHeaderValue(record.source),
     "X-RoamAtlas-Image-Page": toSafeHeaderValue(record.sourceUrl)
   });
   response.end();
+}
+
+async function handlePlaceImageResetRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const country = getCountryBySlug(countrySlug);
+  if (!country) {
+    response.writeHead(404, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
+    return;
+  }
+
+  const result = place
+    ? await resetStoredPlaceImage(country, place)
+    : await resetStoredCountryPlaceImages(country);
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    countrySlug: country.slug,
+    countryName: country.name,
+    ...result
+  }));
 }
 
 function respondPlaceImageNotFound(response, reason) {
@@ -1117,6 +1208,77 @@ function respondPlaceImageNotFound(response, reason) {
     "X-RoamAtlas-Image-Source": "not-found"
   });
   response.end(JSON.stringify({ error: "No place image found", reason }));
+}
+
+async function resetStoredCountryPlaceImages(country) {
+  const countryCacheRoot = path.normalize(path.join(runtimeCacheRoot, country.slug));
+  const placeImagesRoot = path.normalize(path.join(countryCacheRoot, "place-images"));
+  if (!isPathInside(runtimeCacheRoot, countryCacheRoot) || !isPathInside(countryCacheRoot, placeImagesRoot)) {
+    throw new Error(`Unsafe place image cache path for ${country.slug}.`);
+  }
+
+  await settlePlaceImageRequestsForCountry(country.slug);
+  await rm(placeImagesRoot, { recursive: true, force: true });
+  clearPlaceImageRuntimeMemory(country.slug);
+  return {
+    reset: true,
+    scope: "all-place-images",
+    removedFolders: ["place-images"],
+    factBoundary: "Reference-photo cache was cleared. Starter-map builder data and generated map illustrations were not changed."
+  };
+}
+
+async function resetStoredPlaceImage(country, place) {
+  const paths = createPlaceImageCachePaths({
+    cacheRoot: runtimeCacheRoot,
+    countrySlug: country.slug,
+    place
+  });
+  if (!isPathInside(runtimeCacheRoot, paths.countryCacheRoot)) {
+    throw new Error(`Unsafe place image cache path for ${country.slug}.`);
+  }
+
+  await settlePlaceImageRequestsForPlace(paths);
+  let record = null;
+  try {
+    record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
+  } catch {
+    record = null;
+  }
+
+  const imagePaths = [".jpg", ".jpeg", ".png", ".webp"]
+    .map((extension) => paths.imagePathForExtension(extension))
+    .filter((imagePath) => isPathInside(paths.countryCacheRoot, path.normalize(imagePath)));
+  await Promise.all([
+    rm(paths.metadataPath, { force: true }),
+    ...imagePaths.map((imagePath) => rm(imagePath, { force: true }))
+  ]);
+  clearPlaceImageRuntimeMemory(country.slug, {
+    placeSlug: paths.placeSlug,
+    place,
+    claimKey: record ? getPlaceImageRecordClaimKey(record) : ""
+  });
+  return {
+    reset: true,
+    scope: "single-place-image",
+    place,
+    removedFiles: [paths.metadataPath, ...imagePaths],
+    factBoundary: "One reference-photo cache entry was cleared. Starter-map builder data and generated map illustrations were not changed."
+  };
+}
+
+async function settlePlaceImageRequestsForCountry(countrySlug) {
+  const prefix = `${countrySlug}:`;
+  const requests = [...placeImageRequestsInFlight.entries()]
+    .filter(([cacheKey]) => cacheKey.startsWith(prefix))
+    .map(([, request]) => request);
+  if (requests.length) await Promise.allSettled(requests);
+}
+
+async function settlePlaceImageRequestsForPlace(paths) {
+  const cacheKey = `${paths.countrySlug}:${paths.placeSlug}:${PLACE_IMAGE_SELECTION_VERSION}`;
+  const request = placeImageRequestsInFlight.get(cacheKey);
+  if (request) await Promise.allSettled([request]);
 }
 
 async function resolvePlaceImage(country, place, { context = "", kind = "", tags = [] } = {}) {
@@ -1177,6 +1339,25 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
     });
     if (record) return record;
     releasePlaceImageClaim(paths.countrySlug, place, claimKey);
+  }
+
+  // A broad search result can legitimately be empty for a named district even
+  // when its well-known curated children have usable article photos. Use that
+  // as a reference-image fallback only; it never changes travel facts.
+  const wikipediaCandidate = await resolvePlaceWikipediaImage(country, place, { context });
+  if (wikipediaCandidate) {
+    const claimKey = getPlaceImageCandidateClaimKey(wikipediaCandidate);
+    if (!await isPlaceImageClaimedByAnotherPlace(paths, place, claimKey)) {
+      reservePlaceImageClaim(paths.countrySlug, place, claimKey);
+      const record = await persistPlaceImage(paths, {
+        country,
+        place,
+        candidate: wikipediaCandidate,
+        profile
+      });
+      if (record) return record;
+      releasePlaceImageClaim(paths.countrySlug, place, claimKey);
+    }
   }
 
   const notFoundRecord = {
@@ -1370,6 +1551,7 @@ async function persistPlaceImage(paths, { country, place, candidate, profile }) 
 
     const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
     if (imageBuffer.length < 4096) return null;
+    if (!hasUsablePlaceImageDimensions(imageBuffer, contentType)) return null;
 
     const extension = getCountryCardImageExtension(contentType, candidate.imageUrl);
     const imagePath = paths.imagePathForExtension(extension);
@@ -1395,6 +1577,84 @@ async function persistPlaceImage(paths, { country, place, candidate, profile }) 
   } catch {
     return null;
   }
+}
+
+function hasUsablePlaceImageDimensions(imageBuffer, contentType) {
+  const dimensions = readPlaceImageDimensions(imageBuffer, contentType);
+  if (!dimensions) return true;
+  const { width, height } = dimensions;
+  if (width < 240 || height < 160) return false;
+  const ratio = width / height;
+  return ratio >= 0.28 && ratio <= 3.5;
+}
+
+function readPlaceImageDimensions(imageBuffer, contentType) {
+  if (contentType.includes("image/png") && imageBuffer.length >= 24 && imageBuffer.toString("ascii", 1, 4) === "PNG") {
+    return { width: imageBuffer.readUInt32BE(16), height: imageBuffer.readUInt32BE(20) };
+  }
+  if (!contentType.includes("image/jpeg") && !contentType.includes("image/jpg")) return null;
+  let offset = 2;
+  while (offset + 9 < imageBuffer.length) {
+    if (imageBuffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = imageBuffer[offset + 1];
+    const length = imageBuffer.readUInt16BE(offset + 2);
+    if (length < 2) return null;
+    if (marker >= 0xc0 && marker <= 0xc3) {
+      return { height: imageBuffer.readUInt16BE(offset + 5), width: imageBuffer.readUInt16BE(offset + 7) };
+    }
+    offset += length + 2;
+  }
+  return null;
+}
+
+async function resolvePlaceWikipediaImage(country, place, { context = "" } = {}) {
+  const titles = getPlaceWikipediaArticleCandidates(country, place, context);
+  if (!titles.length) return null;
+  const endpoint = new URL("https://en.wikipedia.org/w/api.php");
+  endpoint.search = new URLSearchParams({
+    action: "query",
+    titles: titles.join("|"),
+    redirects: "1",
+    prop: "pageimages",
+    piprop: "thumbnail",
+    pithumbsize: "960",
+    format: "json",
+    origin: "*"
+  }).toString();
+  try {
+    const response = await fetch(endpoint, createCountryImageFetchOptions());
+    if (!response.ok || !(response.headers.get("content-type") ?? "").includes("application/json")) return null;
+    const pages = Object.values((await response.json())?.query?.pages ?? {});
+    const candidates = pages
+      .map((page) => ({
+        imageUrl: String(page?.thumbnail?.source ?? "").trim(),
+        pageTitle: String(page?.title ?? "").trim()
+      }))
+      .filter((candidate) => candidate.imageUrl && isUsablePlaceImageUrl(candidate.imageUrl))
+      .sort((left, right) => titles.indexOf(left.pageTitle) - titles.indexOf(right.pageTitle));
+    const selected = candidates[0];
+    if (!selected) return null;
+    return {
+      imageUrl: selected.imageUrl,
+      sourceUrl: `https://en.wikipedia.org/wiki/${encodeURIComponent(selected.pageTitle.replace(/\s+/g, "_"))}`,
+      query: "wikipedia article reference-photo fallback"
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getPlaceWikipediaArticleCandidates(country, place, context) {
+  return [...new Set([
+    place,
+    `${place}, ${country.name}`,
+    ...String(context).split(/\s{2,}|\n|(?<=\bBay)\s+(?=Sands|Gardens)/).map((item) => item.trim())
+  ])]
+    .filter(Boolean)
+    .slice(0, 8);
 }
 
 function getCountryCardImageExtension(contentType, imageUrl) {
@@ -2057,6 +2317,7 @@ async function handleCountryDraftConfirmRequest(request, response) {
 async function handleRuntimeCacheFlushRequest(request, response) {
   const body = await readJson(request);
   const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const scope = body.scope === "visuals" ? "visuals" : "all";
   const country = getCountryBySlug(countrySlug);
   if (!country) {
     response.writeHead(404, { "Content-Type": "application/json" });
@@ -2064,30 +2325,135 @@ async function handleRuntimeCacheFlushRequest(request, response) {
     return;
   }
 
-  const result = await flushCountryGeneratedRuntimeCache(country.slug);
+  const result = scope === "visuals"
+    ? await flushCountryGeneratedVisualCache(country.slug)
+    : await flushCountryGeneratedRuntimeCache(country.slug);
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify({
     countrySlug: country.slug,
     countryName: country.name,
+    scope,
     ...result
   }));
 }
 
-async function flushCountryGeneratedRuntimeCache(countrySlug) {
+async function flushCountryGeneratedVisualCache(countrySlug) {
+  const existingRun = countryCacheFlushRuns.get(countrySlug);
+  if (existingRun) return existingRun;
   const countryCacheRoot = path.normalize(path.join(runtimeCacheRoot, countrySlug));
   if (!isPathInside(runtimeCacheRoot, countryCacheRoot)) {
     throw new Error(`Unsafe runtime cache path for ${countrySlug}.`);
   }
 
-  clearProcessingJobsForCountry(countryCacheRoot);
-  await rm(countryCacheRoot, { recursive: true, force: true });
+  const visualFolders = ["image-jobs", "flipbook", "environment"];
+  const run = (async () => {
+    await Promise.allSettled([...(activeCountryImageJobCreations.get(countrySlug) ?? [])]);
+    flushingCountryCacheRoots.add(countryCacheRoot);
+    try {
+      const imageRuns = cancelProcessingJobsForCountry(countryCacheRoot);
+      const environmentRuns = cancelEnvironmentPlansForCountry(countryCacheRoot);
+      await Promise.allSettled([...imageRuns, ...environmentRuns]);
+      await Promise.all(visualFolders.map(async (folder) => {
+        const folderPath = path.normalize(path.join(countryCacheRoot, folder));
+        if (!isPathInside(countryCacheRoot, folderPath)) {
+          throw new Error(`Unsafe visual cache path for ${countrySlug}.`);
+        }
+        await rm(folderPath, { recursive: true, force: true });
+      }));
+      clearCountryVisualRuntimeMemory(countrySlug, countryCacheRoot);
 
-  return {
-    flushed: true,
-    removedRuntimeRoot: countryCacheRoot,
-    removedFolders: ["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft", "place-images"],
-    factBoundary: "Country runtime cache was cleared. Source-controlled country pack data was not changed."
-  };
+      return {
+        flushed: true,
+        scope: "visuals",
+        removedFolders: visualFolders,
+        preservedFolders: ["starter-map", "country-pack-draft", "understanding", "place-images"],
+        factBoundary: "Generated visual cache was cleared. Starter-map, reference photos, and source-controlled country pack data were not changed."
+      };
+    } finally {
+      flushingCountryCacheRoots.delete(countryCacheRoot);
+    }
+  })();
+  countryCacheFlushRuns.set(countrySlug, run);
+  try {
+    return await run;
+  } finally {
+    if (countryCacheFlushRuns.get(countrySlug) === run) {
+      countryCacheFlushRuns.delete(countrySlug);
+    }
+  }
+}
+
+async function flushCountryGeneratedRuntimeCache(countrySlug) {
+  const existingRun = countryCacheFlushRuns.get(countrySlug);
+  if (existingRun) return existingRun;
+  const countryCacheRoot = path.normalize(path.join(runtimeCacheRoot, countrySlug));
+  if (!isPathInside(runtimeCacheRoot, countryCacheRoot)) {
+    throw new Error(`Unsafe runtime cache path for ${countrySlug}.`);
+  }
+
+  const run = (async () => {
+    await Promise.allSettled([...(activeCountryImageJobCreations.get(countrySlug) ?? [])]);
+    flushingCountryCacheRoots.add(countryCacheRoot);
+    try {
+      const imageRuns = cancelProcessingJobsForCountry(countryCacheRoot);
+      const environmentRuns = cancelEnvironmentPlansForCountry(countryCacheRoot);
+      await Promise.allSettled([...imageRuns, ...environmentRuns]);
+      await rm(countryCacheRoot, { recursive: true, force: true });
+      clearCountryVisualRuntimeMemory(countrySlug, countryCacheRoot);
+
+      return {
+        flushed: true,
+        removedRuntimeRoot: countryCacheRoot,
+        removedFolders: ["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft", "place-images"],
+        factBoundary: "Country runtime cache was cleared. Source-controlled country pack data was not changed."
+      };
+    } finally {
+      flushingCountryCacheRoots.delete(countryCacheRoot);
+    }
+  })();
+  countryCacheFlushRuns.set(countrySlug, run);
+  try {
+    return await run;
+  } finally {
+    if (countryCacheFlushRuns.get(countrySlug) === run) {
+      countryCacheFlushRuns.delete(countrySlug);
+    }
+  }
+}
+
+function clearCountryVisualRuntimeMemory(countrySlug, countryCacheRoot) {
+  const cachePrefix = `${countrySlug}:`;
+  for (const jobPath of [...terminalImageJobs]) {
+    if (isPathInside(countryCacheRoot, path.normalize(jobPath))) {
+      terminalImageJobs.delete(jobPath);
+    }
+  }
+}
+
+function clearPlaceImageRuntimeMemory(countrySlug, place = null) {
+  const cachePrefix = `${countrySlug}:`;
+  if (!place?.placeSlug) {
+    for (const cacheKey of placeImageCache.keys()) {
+      if (cacheKey.startsWith(cachePrefix)) placeImageCache.delete(cacheKey);
+    }
+    for (const cacheKey of placeImageRequestsInFlight.keys()) {
+      if (cacheKey.startsWith(cachePrefix)) placeImageRequestsInFlight.delete(cacheKey);
+    }
+    placeImageClaimsByCountry.delete(countrySlug);
+    return;
+  }
+
+  const cacheKey = `${countrySlug}:${place.placeSlug}:${PLACE_IMAGE_SELECTION_VERSION}`;
+  placeImageCache.delete(cacheKey);
+  placeImageRequestsInFlight.delete(cacheKey);
+  if (place.claimKey) releasePlaceImageClaim(countrySlug, place.place ?? "", place.claimKey);
+  const normalizedPlace = normalizePlaceImageClaimPlace(place.place);
+  const claims = placeImageClaimsByCountry.get(countrySlug);
+  if (claims && normalizedPlace) {
+    for (const [claimKey, claimedPlace] of claims.entries()) {
+      if (claimedPlace === normalizedPlace) claims.delete(claimKey);
+    }
+  }
 }
 
 function isPathInside(parentPath, childPath) {
@@ -2095,12 +2461,49 @@ function isPathInside(parentPath, childPath) {
   return Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
 }
 
-function clearProcessingJobsForCountry(countryCacheRoot) {
-  for (const jobPath of [...processingJobs]) {
+function cancelProcessingJobsForCountry(countryCacheRoot) {
+  const activeRuns = [];
+  for (const jobPath of processingJobs.keys()) {
     if (isPathInside(countryCacheRoot, path.normalize(jobPath))) {
-      processingJobs.delete(jobPath);
+      cancelledImageJobs.add(jobPath);
+      processingJobAbortControllers.get(jobPath)?.abort(
+        new Error("Image generation cancelled because its country runtime cache was flushed.")
+      );
+      const run = processingJobRuns.get(jobPath);
+      if (run) activeRuns.push(run);
     }
   }
+  for (const jobPath of terminalImageJobs) {
+    if (isPathInside(countryCacheRoot, path.normalize(jobPath))) {
+      terminalImageJobs.delete(jobPath);
+    }
+  }
+  return activeRuns;
+}
+
+function cancelEnvironmentPlansForCountry(countryCacheRoot) {
+  const activeRuns = [];
+  for (const [environmentPath] of pendingEnvironmentPlans) {
+    if (isPathInside(countryCacheRoot, path.normalize(environmentPath))) {
+      pendingEnvironmentPlans.delete(environmentPath);
+    }
+  }
+  if (
+    activeEnvironmentTask &&
+    isPathInside(countryCacheRoot, path.normalize(activeEnvironmentTask.environmentPath))
+  ) {
+    activeEnvironmentTask.controller.abort(
+      new Error("Environment analysis cancelled because its country runtime cache was flushed.")
+    );
+    activeRuns.push(activeEnvironmentTask.done);
+  }
+  return activeRuns;
+}
+
+function isJobPathBeingFlushed(jobPath) {
+  return [...flushingCountryCacheRoots].some((cacheRoot) =>
+    isPathInside(cacheRoot, path.normalize(jobPath))
+  );
 }
 
 async function readStoredCountryDraft(country) {
@@ -2377,14 +2780,55 @@ function parseJsonObject(text) {
   }
 }
 
-async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
+async function createCodexImageJob(page, options = {}) {
+  const countrySlug = getRuntimeCountrySlugForPage(page);
+  const release = await beginCountryImageJobCreation(countrySlug);
+  try {
+    const result = await createCodexImageJobUnlocked(page, options);
+    if (countryCacheFlushRuns.has(countrySlug)) {
+      const error = new Error(`Runtime cache flush in progress for ${countrySlug}; retry artwork after it completes.`);
+      error.statusCode = 409;
+      throw error;
+    }
+    return result;
+  } finally {
+    release();
+  }
+}
+
+async function beginCountryImageJobCreation(countrySlug) {
+  while (countryCacheFlushRuns.has(countrySlug)) {
+    await countryCacheFlushRuns.get(countrySlug);
+  }
+  let resolveDone;
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+  const active = activeCountryImageJobCreations.get(countrySlug) ?? new Set();
+  active.add(done);
+  activeCountryImageJobCreations.set(countrySlug, active);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    active.delete(done);
+    if (active.size === 0) activeCountryImageJobCreations.delete(countrySlug);
+    resolveDone();
+  };
+}
+
+async function createCodexImageJobUnlocked(page, { jobKind = "interactive" } = {}) {
   const imageModel = getConfiguredImageModel();
   const countrySlug = getRuntimeCountrySlugForPage(page);
+  const prompt = page.plan?.imagePrompt;
+  const assetVersion = createAssetVersionForPage(page, { imageModel, prompt });
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
     imageModel,
-    countrySlug
+    countrySlug,
+    outputFormat: appConfig.image.outputFormat,
+    variantKey: assetVersion
   });
   const outputDir = path.dirname(paths.jobPath);
   const jobPath = paths.jobPath;
@@ -2392,34 +2836,46 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
 
   await mkdir(outputDir, { recursive: true });
   const existingJob = await readCodexImageJob(jobPath);
-  const prompt = page.plan?.imagePrompt;
+  const cachedImageAvailable = await isFileAvailable(paths.imagePath);
   const existingMatchesRequest =
     existingJob?.prompt === prompt &&
-    normalizeImageModel(existingJob?.imageModel ?? imageModel) === normalizeImageModel(imageModel);
+    existingJob?.assetVersion === assetVersion &&
+    normalizeImageModel(existingJob?.requestedImageModel ?? existingJob?.imageModel ?? imageModel) ===
+      normalizeImageModel(imageModel);
 
-  if (existingMatchesRequest && existingJob?.status === "ready" && existingJob.imageUrl) {
-    const environmentPlan = await ensureEnvironmentPlanForPage({
+  if (
+    existingMatchesRequest &&
+    existingJob?.status === "ready" &&
+    existingJob.imageUrl &&
+    cachedImageAvailable
+  ) {
+    const readyPage = {
       ...page,
       countrySlug,
+      assetVersion,
       imageUrl: existingJob.imageUrl,
       status: "ready"
-    }, paths);
-    await ensurePageUnderstanding({
-      ...page,
-      imageUrl: existingJob.imageUrl,
-      status: "ready"
-    });
+    };
+    const environmentPlan = await findMatchingEnvironmentPlan(readyPage, paths);
+    if (!environmentPlan && shouldQueueEnvironmentPlanForJobKind(jobKind)) {
+      queueEnvironmentPlan({ page: readyPage, paths, jobPath });
+    }
+    await ensurePageUnderstanding(readyPage);
     return {
       ...page,
       countrySlug,
+      assetVersion,
       imageUrl: existingJob.imageUrl,
       status: "ready",
       environmentUrl: paths.environmentUrl,
       generated: {
         source: existingJob.source ?? "image-cache",
         jobUrl,
+        assetVersion,
         environmentUrl: paths.environmentUrl,
-        environmentStatus: environmentPlan?.status ?? "ready",
+        environmentStatus:
+          environmentPlan?.status ??
+          (shouldQueueEnvironmentPlanForJobKind(jobKind) ? "pending" : "deferred"),
         reused: true,
         factBoundary: "Generated image is visual only and is not a fact source."
       }
@@ -2429,18 +2885,25 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   const existingMetadata = await readRuntimeImageMetadata(paths.metadataPath);
   const existingMetadataMatchesRequest =
     existingMetadata?.prompt === prompt &&
-    normalizeImageModel(existingMetadata?.imageModel ?? imageModel) === normalizeImageModel(imageModel) &&
-    existingMetadata.imageUrl;
+    existingMetadata?.assetVersion === assetVersion &&
+    normalizeImageModel(
+      existingMetadata?.requestedImageModel ?? existingMetadata?.imageModel ?? imageModel
+    ) === normalizeImageModel(imageModel) &&
+    existingMetadata.imageUrl &&
+    cachedImageAvailable;
   if (existingMetadataMatchesRequest) {
-    const environmentPlan = await ensureEnvironmentPlanForPage({
+    const readyPage = {
       ...page,
       countrySlug,
+      assetVersion,
       imageUrl: existingMetadata.imageUrl,
       status: "ready"
-    }, paths);
+    };
+    const environmentPlan = await findMatchingEnvironmentPlan(readyPage, paths);
     const readyJob = {
       pageId: page.id,
       countrySlug,
+      assetVersion,
       sceneId: page.sceneId,
       nodeId: page.nodeId,
       parentId: page.parentId,
@@ -2451,9 +2914,12 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
       source: `${existingMetadata.imageProvider ?? getConfiguredImageProvider()}-image-api`,
       imageProvider: existingMetadata.imageProvider ?? getConfiguredImageProvider(),
       imageModel: existingMetadata.imageModel ?? imageModel,
+      requestedImageModel: existingMetadata.requestedImageModel ?? imageModel,
       metadataUrl: paths.metadataUrl,
       environmentUrl: paths.environmentUrl,
-      environmentStatus: environmentPlan?.status ?? "ready",
+      environmentStatus:
+        environmentPlan?.status ??
+        (shouldQueueEnvironmentPlanForJobKind(jobKind) ? "pending" : "deferred"),
       prompt,
       title: page.plan?.title,
       pageType: page.plan?.pageType,
@@ -2463,22 +2929,25 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
       completedAt: existingMetadata.generatedAt ?? new Date().toISOString()
     };
     await writeCodexImageJob(jobPath, readyJob);
-    await ensurePageUnderstanding({
-      ...page,
-      imageUrl: existingMetadata.imageUrl,
-      status: "ready"
-    });
+    if (!environmentPlan && shouldQueueEnvironmentPlanForJobKind(jobKind)) {
+      queueEnvironmentPlan({ page: readyPage, paths, jobPath });
+    }
+    await ensurePageUnderstanding(readyPage);
     return {
       ...page,
       countrySlug,
+      assetVersion,
       imageUrl: existingMetadata.imageUrl,
       status: "ready",
       environmentUrl: paths.environmentUrl,
       generated: {
         source: readyJob.source,
         jobUrl,
+        assetVersion,
         environmentUrl: paths.environmentUrl,
-        environmentStatus: environmentPlan?.status ?? "ready",
+        environmentStatus:
+          environmentPlan?.status ??
+          (shouldQueueEnvironmentPlanForJobKind(jobKind) ? "pending" : "deferred"),
         reused: true,
         factBoundary: "Generated image is visual only and is not a fact source."
       }
@@ -2488,10 +2957,11 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   if (
     existingMatchesRequest &&
     (existingJob?.status === "pending_codex_image_generation" ||
-      existingJob?.status === "processing_openai_image")
+      existingJob?.status === "processing_openai_image" ||
+      existingJob?.status === "partial_ready")
   ) {
     const promotedJobKind = chooseHigherPriorityJobKind(existingJob.jobKind, jobKind);
-    if (hasConfiguredImageProvider() && existingJob.autoProcess !== true) {
+    if (canAutoProcessImages() && existingJob.autoProcess !== true) {
       await writeCodexImageJob(jobPath, {
         ...existingJob,
         jobKind: promotedJobKind,
@@ -2505,13 +2975,23 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
         updatedAt: new Date().toISOString()
       });
     }
+    if (processingJobs.has(jobPath)) {
+      processingJobs.set(jobPath, promotedJobKind);
+    }
+    if (promotedJobKind === "interactive") {
+      requestImageJobProcessing();
+    }
     return {
       ...page,
       countrySlug,
-      status: "pending_codex_image_generation",
+      assetVersion,
+      status: existingJob.status,
+      partialImageUrl: existingJob.partialImageUrl,
       generated: {
         source: "image-generation-required",
         jobUrl,
+        assetVersion,
+        partialImageUrl: existingJob.partialImageUrl,
         reused: true,
         factBoundary: "Generated image is visual only and is not a fact source."
       }
@@ -2521,13 +3001,14 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
   await writeCodexImageJob(jobPath, {
     pageId: page.id,
     countrySlug,
+    assetVersion,
     sceneId: page.sceneId,
     nodeId: page.nodeId,
     parentId: page.parentId,
     parentClick: page.parentClick,
     status: "pending_codex_image_generation",
     jobKind,
-    autoProcess: hasConfiguredImageProvider(),
+    autoProcess: canAutoProcessImages(),
     imageModel,
     prompt,
     title: page.plan?.title,
@@ -2537,13 +3018,19 @@ async function createCodexImageJob(page, { jobKind = "interactive" } = {}) {
     createdAt: new Date().toISOString()
   });
 
+  if (jobKind === "interactive") {
+    requestImageJobProcessing();
+  }
+
   return {
     ...page,
     countrySlug,
+    assetVersion,
     status: "pending_codex_image_generation",
     generated: {
       source: "image-generation-required",
       jobUrl,
+      assetVersion,
       factBoundary: "Generated fallback art is visual only and is not a fact source."
     }
   };
@@ -2556,9 +3043,52 @@ function chooseHigherPriorityJobKind(existingJobKind, requestedJobKind) {
     : existingJobKind;
 }
 
+function shouldQueueEnvironmentPlanForJobKind(jobKind) {
+  // A prefetched image becomes useful before its optional ambience does. Wait
+  // until the page is actually requested so stale speculation cannot delay the
+  // environment plan for the user's current page.
+  return jobKind !== "prefetch";
+}
+
+function createAssetVersionForPage(page, { imageModel, prompt }) {
+  const pack = getCountryPackForPage(page);
+  const scene = pack?.scenes?.[page?.sceneId];
+  return createImageVariantKey({
+    prompt,
+    imageModel,
+    fallbackImageModel: appConfig.image.fallbackModel,
+    size: appConfig.image.size,
+    quality: appConfig.image.quality,
+    outputFormat: appConfig.image.outputFormat,
+    outputCompression: appConfig.image.outputCompression,
+    promptVersion:
+      page?.plan?.promptVersion ?? page?.promptVersion ?? scene?.promptVersion ?? pack?.versions?.prompt,
+    styleVersion:
+      page?.plan?.styleVersion ?? page?.styleVersion ?? scene?.styleVersion ?? pack?.versions?.style,
+    dataVersion:
+      page?.plan?.dataVersion ?? page?.dataVersion ?? scene?.dataVersion ?? pack?.versions?.data
+  });
+}
+
 async function writeCodexImageJob(jobPath, job) {
+  throwIfImageJobCancelled(jobPath);
   await mkdir(path.dirname(jobPath), { recursive: true });
-  await writeFile(jobPath, `${JSON.stringify(job, null, 2)}\n`);
+  const tempPath = `${jobPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(
+      tempPath,
+      `${JSON.stringify({ ...job, updatedAt: new Date().toISOString() }, null, 2)}\n`
+    );
+    throwIfImageJobCancelled(jobPath);
+    await rename(tempPath, jobPath);
+  } finally {
+    await rm(tempPath, { force: true });
+  }
+  if (["ready", "failed"].includes(job?.status)) {
+    terminalImageJobs.add(jobPath);
+  } else {
+    terminalImageJobs.delete(jobPath);
+  }
 }
 
 async function readCodexImageJob(jobPath) {
@@ -2577,28 +3107,117 @@ async function readRuntimeImageMetadata(metadataPath) {
   }
 }
 
-async function ensureEnvironmentPlanForPage(page, paths) {
-  if (!page?.imageUrl) return null;
-
-  const existing = await readRuntimeEnvironmentPlan(paths.environmentPath);
-  if (
-    existing?.version === ENVIRONMENT_PLAN_SCHEMA_VERSION &&
-    existing.promptVersion === ENVIRONMENT_PLAN_PROMPT_VERSION &&
-    existing.imageUrl === page.imageUrl
-  ) {
-    return existing;
+async function isFileAvailable(filePath) {
+  try {
+    return (await stat(filePath)).isFile();
+  } catch {
+    return false;
   }
+}
+
+async function ensureEnvironmentPlanForPage(page, paths, { signal = null } = {}) {
+  if (!page?.imageUrl) return null;
+  throwIfAborted(signal);
+
+  const existing = await findMatchingEnvironmentPlan(page, paths);
+  if (existing) return existing;
 
   let plan;
   try {
-    plan = await createEnvironmentPlanWithOpenAI(page);
+    plan = await createEnvironmentPlanWithOpenAI(page, { signal });
   } catch (error) {
+    throwIfAborted(signal);
     plan = createEnvironmentFallbackPlan(page, String(error?.message ?? error));
   }
 
+  throwIfAborted(signal);
   await mkdir(path.dirname(paths.environmentPath), { recursive: true });
+  throwIfAborted(signal);
   await writeFile(paths.environmentPath, `${JSON.stringify(plan, null, 2)}\n`);
   return plan;
+}
+
+async function findMatchingEnvironmentPlan(page, paths) {
+  const existing = await readRuntimeEnvironmentPlan(paths.environmentPath);
+  return existing?.version === ENVIRONMENT_PLAN_SCHEMA_VERSION &&
+    existing.promptVersion === ENVIRONMENT_PLAN_PROMPT_VERSION &&
+    existing.imageUrl === page.imageUrl
+    ? existing
+    : null;
+}
+
+function queueEnvironmentPlan({ page, paths, jobPath }) {
+  if (
+    !page?.imageUrl ||
+    pendingEnvironmentPlans.has(paths.environmentPath) ||
+    isJobPathBeingFlushed(paths.environmentPath)
+  ) return;
+  pendingEnvironmentPlans.set(paths.environmentPath, { page, paths, jobPath });
+  scheduleEnvironmentPlanProcessing();
+}
+
+function scheduleEnvironmentPlanProcessing(delayMs = 250) {
+  if (environmentPlanProcessorActive) return;
+  setTimeout(() => {
+    processNextEnvironmentPlan().catch((error) => {
+      console.error("Environment plan processing failed:", error);
+    });
+  }, delayMs);
+}
+
+async function processNextEnvironmentPlan() {
+  if (environmentPlanProcessorActive || pendingEnvironmentPlans.size === 0) return;
+  if (Array.from(processingJobs.values()).includes("interactive")) {
+    scheduleEnvironmentPlanProcessing(1000);
+    return;
+  }
+
+  const [environmentPath, task] = pendingEnvironmentPlans.entries().next().value;
+  pendingEnvironmentPlans.delete(environmentPath);
+  environmentPlanProcessorActive = true;
+  const controller = new AbortController();
+  let resolveDone;
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+  activeEnvironmentTask = { environmentPath, controller, done };
+  const startedAt = new Date().toISOString();
+
+  try {
+    await updateReadyJobForImage(task.jobPath, task.page.imageUrl, {
+      environmentUrl: task.paths.environmentUrl,
+      environmentStatus: "processing",
+      environmentProcessingStartedAt: startedAt
+    });
+    const environmentPlan = await ensureEnvironmentPlanForPage(task.page, task.paths, {
+      signal: controller.signal
+    });
+    await updateReadyJobForImage(task.jobPath, task.page.imageUrl, {
+      environmentUrl: task.paths.environmentUrl,
+      environmentStatus: environmentPlan?.status ?? "fallback",
+      environmentCompletedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    await updateReadyJobForImage(task.jobPath, task.page.imageUrl, {
+      environmentUrl: task.paths.environmentUrl,
+      environmentStatus: "failed",
+      environmentError: String(error?.message ?? error),
+      environmentFailedAt: new Date().toISOString()
+    });
+  } finally {
+    if (activeEnvironmentTask?.done === done) activeEnvironmentTask = null;
+    resolveDone();
+    environmentPlanProcessorActive = false;
+    if (pendingEnvironmentPlans.size > 0) scheduleEnvironmentPlanProcessing();
+  }
+}
+
+async function updateReadyJobForImage(jobPath, imageUrl, patch) {
+  const currentJob = await readCodexImageJob(jobPath);
+  if (currentJob?.status !== "ready" || currentJob.imageUrl !== imageUrl) return false;
+  await writeCodexImageJob(jobPath, { ...currentJob, ...patch });
+  return true;
 }
 
 async function readRuntimeEnvironmentPlan(environmentPath) {
@@ -2609,7 +3228,7 @@ async function readRuntimeEnvironmentPlan(environmentPath) {
   }
 }
 
-async function createEnvironmentPlanWithOpenAI(page) {
+async function createEnvironmentPlanWithOpenAI(page, { signal = null } = {}) {
   if (!process.env.OPENAI_API_KEY) {
     return createEnvironmentFallbackPlan(page, "OPENAI_API_KEY is not configured.");
   }
@@ -2628,6 +3247,7 @@ async function createEnvironmentPlanWithOpenAI(page) {
   if (model) {
     const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
+      signal: createServerRequestSignal(signal, 90_000),
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json"
@@ -2668,6 +3288,32 @@ async function createEnvironmentPlanWithOpenAI(page) {
   }
 
   return createEnvironmentFallbackPlan(page, lastError ?? "No environment planner model is configured.");
+}
+
+function createServerRequestSignal(externalSignal, timeoutMs) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  if (!externalSignal) return timeoutSignal;
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([externalSignal, timeoutSignal]);
+  }
+  const controller = new AbortController();
+  const forwardAbort = (source) => {
+    if (!controller.signal.aborted) controller.abort(source.reason);
+  };
+  for (const source of [externalSignal, timeoutSignal]) {
+    if (source.aborted) {
+      forwardAbort(source);
+      break;
+    }
+    source.addEventListener("abort", () => forwardAbort(source), { once: true });
+  }
+  return controller.signal;
+}
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw signal.reason ?? new Error("Operation aborted.");
+  }
 }
 
 function getEnvironmentPromptContext(page) {
@@ -2809,6 +3455,10 @@ function startImageJobProcessor() {
     console.log("RoamAtlas image job processor idle: no image provider key is configured.");
     return;
   }
+  if (appExperienceConfig.providerConcurrency === 0) {
+    console.log("RoamAtlas image job processor disabled: provider concurrency is 0.");
+    return;
+  }
 
   console.log(`RoamAtlas image job processor enabled with ${getConfiguredImageProvider()}.`);
   const initialQueue = shouldQueueDefaultArtwork()
@@ -2817,14 +3467,34 @@ function startImageJobProcessor() {
   if (!shouldQueueDefaultArtwork()) {
     console.log("RoamAtlas default artwork pre-generation skipped. Set ROAMATLAS_LOAD_COUNTRY_PACK_EARLY=true to enable it.");
   }
-  initialQueue.then(processPendingCodexJobs).catch((error) => {
+  initialQueue.then(requestImageJobProcessing).catch((error) => {
     console.error("Initial image job processing failed:", error);
   });
   setInterval(() => {
-    processPendingCodexJobs().catch((error) => {
-      console.error("Image job processing failed:", error);
-    });
+    requestImageJobProcessing();
   }, 3000);
+}
+
+function requestImageJobProcessing() {
+  if (!canAutoProcessImages()) return null;
+  if (imageJobScanPromise) {
+    imageJobRescanRequested = true;
+    return imageJobScanPromise;
+  }
+
+  imageJobScanPromise = Promise.resolve()
+    .then(processPendingCodexJobs)
+    .catch((error) => {
+      console.error("Image job processing failed:", error);
+    })
+    .finally(() => {
+      imageJobScanPromise = null;
+      if (imageJobRescanRequested) {
+        imageJobRescanRequested = false;
+        requestImageJobProcessing();
+      }
+    });
+  return imageJobScanPromise;
 }
 
 async function queueDefaultArtworkJobs() {
@@ -2840,22 +3510,43 @@ async function processPendingCodexJobs() {
   const jobs = [];
 
   for (const { fileName, jobPath } of jobFiles) {
-    const job = await readCodexImageJob(jobPath);
+    if (terminalImageJobs.has(jobPath)) continue;
+    let job = await readCodexImageJob(jobPath);
+    if (["ready", "failed"].includes(job?.status)) {
+      terminalImageJobs.add(jobPath);
+      continue;
+    }
+    if (isStaleProcessingImageJob(job) && !processingJobs.has(jobPath)) {
+      job = {
+        ...job,
+        status: "pending_codex_image_generation",
+        recoveredAt: new Date().toISOString(),
+        recoveryCount: (job.recoveryCount ?? 0) + 1,
+        lastRecoveryReason: "processing lease expired after a server interruption"
+      };
+      await writeCodexImageJob(jobPath, job);
+    }
     jobs.push({ fileName, jobPath, job });
   }
 
-  const maxParallel = appExperienceConfig.maxParallelImageJobs;
-  const availableSlots = Math.max(0, maxParallel - processingJobs.size);
-  if (availableSlots === 0) return;
+  const eligibleJobs = jobs.filter(({ jobPath, job }) => shouldProcessCodexJob(job, jobPath));
+  const selectedJobs = selectImageJobsForProcessing({
+    jobs: eligibleJobs,
+    runningJobKinds: processingJobs.values(),
+    providerConcurrency: appExperienceConfig.providerConcurrency,
+    interactiveReservedSlots: appExperienceConfig.interactiveReservedSlots
+  });
 
-  let started = 0;
-  for (const { jobPath, job } of sortImageJobsForProcessing(jobs)) {
-    if (started >= availableSlots) break;
-    if (!shouldProcessCodexJob(job, jobPath)) continue;
-    started += 1;
-    processCodexImageJob(jobPath, job).catch((error) => {
-      console.error("Image job processing failed:", error);
-    });
+  for (const { jobPath, job } of selectedJobs) {
+    const run = processCodexImageJob(jobPath, job);
+    processingJobRuns.set(jobPath, run);
+    run
+      .catch((error) => {
+        console.error("Image job processing failed:", error);
+      })
+      .finally(() => {
+        if (processingJobRuns.get(jobPath) === run) processingJobRuns.delete(jobPath);
+      });
   }
 }
 
@@ -2900,71 +3591,140 @@ async function collectImageJobFiles({ jobDir, fileNamePrefix }) {
 }
 
 function shouldProcessCodexJob(job, jobPath) {
+  const retryAt = Date.parse(job?.retryNotBefore ?? "");
   return (
     job &&
     job.status === "pending_codex_image_generation" &&
     job.autoProcess === true &&
+    Boolean(job.assetVersion) &&
     Boolean(job.prompt) &&
-    !processingJobs.has(jobPath)
+    (!Number.isFinite(retryAt) || retryAt <= Date.now()) &&
+    !processingJobs.has(jobPath) &&
+    !isJobPathBeingFlushed(jobPath)
   );
 }
 
 async function processCodexImageJob(jobPath, job) {
-  processingJobs.add(jobPath);
+  processingJobs.set(jobPath, job.jobKind ?? "prewarm");
+  const abortController = new AbortController();
+  processingJobAbortControllers.set(jobPath, abortController);
   const imageModel = getConfiguredImageModel();
   const countrySlug = getRuntimeCountrySlugForJob(job);
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: job.pageId,
     imageModel,
-    countrySlug
+    countrySlug,
+    outputFormat: appConfig.image.outputFormat,
+    variantKey: job.assetVersion
   });
+  const processingStartedAt = new Date().toISOString();
+  const processingJob = {
+    ...job,
+    countrySlug,
+    status: "processing_openai_image",
+    imageModel,
+    requestedImageModel: imageModel,
+    attemptCount: (job.attemptCount ?? 0) + 1,
+    firstProcessingStartedAt: job.firstProcessingStartedAt ?? job.processingStartedAt ?? processingStartedAt,
+    processingStartedAt,
+    providerStartedAt: processingStartedAt,
+    retryNotBefore: null,
+    error: null
+  };
+  let firstPartialAt = job.firstPartialAt ?? null;
+  let latestPartialAt = job.latestPartialAt ?? null;
 
   try {
+    throwIfImageJobCancelled(jobPath);
     await mkdir(path.dirname(paths.imagePath), { recursive: true });
-    await writeCodexImageJob(jobPath, {
-      ...job,
-      countrySlug,
-      status: "processing_openai_image",
-      imageModel,
-      processingStartedAt: new Date().toISOString()
-    });
+    throwIfImageJobCancelled(jobPath);
+    await writeCodexImageJob(jobPath, processingJob);
 
     const generated = await generateConfiguredImage({
       model: imageModel,
-      prompt: job.prompt
+      prompt: job.prompt,
+      signal: abortController.signal,
+      onPartialImage: async (partial) => {
+        if (cancelledImageJobs.has(jobPath)) return;
+        const receivedAt = new Date().toISOString();
+        firstPartialAt ??= receivedAt;
+        latestPartialAt = receivedAt;
+        await writeFile(paths.partialImagePath, Buffer.from(partial.b64Json, "base64"));
+        const partialImageWrittenAt = new Date().toISOString();
+        const currentJob = await readCodexImageJob(jobPath);
+        if (
+          currentJob?.assetVersion !== job.assetVersion ||
+          cancelledImageJobs.has(jobPath) ||
+          !processingJobs.has(jobPath) ||
+          !["processing_openai_image", "partial_ready"].includes(currentJob.status)
+        ) {
+          return;
+        }
+        await writeCodexImageJob(jobPath, {
+          ...currentJob,
+          status: "partial_ready",
+          partialImageUrl: paths.partialImageUrl,
+          firstPartialAt: currentJob.firstPartialAt ?? firstPartialAt,
+          latestPartialAt,
+          partialImageWrittenAt,
+          partialImageIndex: partial.partialImageIndex ?? 0
+        });
+      }
     });
+    const providerCompletedAt = new Date().toISOString();
 
+    throwIfImageJobCancelled(jobPath);
     await writeFile(paths.imagePath, Buffer.from(generated.b64Json, "base64"));
+    const imageWrittenAt = new Date().toISOString();
+    const metadataPreparedAt = new Date().toISOString();
+    throwIfImageJobCancelled(jobPath);
     await writeFile(
       paths.metadataPath,
       JSON.stringify(
         {
           pageId: job.pageId,
           countrySlug,
+          assetVersion: job.assetVersion,
           sceneId: job.sceneId,
           nodeId: job.nodeId,
           parentId: job.parentId,
           parentClick: job.parentClick,
           imageModel: generated.model,
+          requestedImageModel: imageModel,
           imageProvider: generated.provider ?? getConfiguredImageProvider(),
           size: generated.size,
+          quality: generated.quality ?? appConfig.image.quality,
+          outputFormat: generated.outputFormat ?? appConfig.image.outputFormat,
+          outputCompression: generated.outputCompression ?? appConfig.image.outputCompression,
           imageUrl: paths.imageUrl,
           environmentUrl: paths.environmentUrl,
           prompt: job.prompt,
           revisedPrompt: generated.revisedPrompt,
+          usage: generated.usage ?? null,
           cacheKind: "runtime",
-          generatedAt: new Date().toISOString(),
+          generatedAt: providerCompletedAt,
+          processingStartedAt,
+          providerCompletedAt,
+          firstPartialAt,
+          imageWrittenAt,
+          metadataPreparedAt,
           factBoundary: "Generated image is visual only and is not a fact source."
         },
         null,
         2
       )
     );
-
-    const environmentPlan = await ensureEnvironmentPlanForPage({
+    const metadataWrittenAt = new Date().toISOString();
+    throwIfImageJobCancelled(jobPath);
+    const readyAt = new Date().toISOString();
+    const currentJob = await readCodexImageJob(jobPath);
+    const completedJobKind = currentJob?.jobKind ?? processingJob.jobKind;
+    const shouldQueueEnvironment = shouldQueueEnvironmentPlanForJobKind(completedJobKind);
+    const readyPage = {
       id: job.pageId,
       countrySlug,
+      assetVersion: job.assetVersion,
       sceneId: job.sceneId,
       nodeId: job.nodeId,
       imageUrl: paths.imageUrl,
@@ -2973,41 +3733,81 @@ async function processCodexImageJob(jobPath, job) {
         title: job.title,
         pageType: job.pageType
       }
-    }, paths);
+    };
 
     await writeCodexImageJob(jobPath, {
-      ...job,
+      ...(currentJob?.assetVersion === job.assetVersion ? currentJob : processingJob),
       countrySlug,
       status: "ready",
+      assetVersion: job.assetVersion,
       imageUrl: paths.imageUrl,
+      partialImageUrl: firstPartialAt ? paths.partialImageUrl : undefined,
       source: `${generated.provider ?? getConfiguredImageProvider()}-image-api`,
       imageProvider: generated.provider ?? getConfiguredImageProvider(),
       imageModel: generated.model,
+      requestedImageModel: imageModel,
       metadataUrl: paths.metadataUrl,
       environmentUrl: paths.environmentUrl,
-      environmentStatus: environmentPlan?.status ?? "ready",
+      environmentStatus: shouldQueueEnvironment ? "pending" : "deferred",
       cacheKind: "runtime",
-      completedAt: new Date().toISOString()
+      processingStartedAt,
+      providerCompletedAt,
+      firstPartialAt,
+      latestPartialAt,
+      imageWrittenAt,
+      metadataWrittenAt,
+      readyAt,
+      completedAt: readyAt
     });
-    await ensurePageUnderstanding({
-      id: job.pageId,
-      countrySlug,
-      sceneId: job.sceneId,
-      nodeId: job.nodeId,
-      imageUrl: paths.imageUrl,
-      status: "ready"
-    });
+    throwIfImageJobCancelled(jobPath);
+    if (shouldQueueEnvironment) {
+      queueEnvironmentPlan({ page: readyPage, paths, jobPath });
+    }
+    await ensurePageUnderstanding(readyPage);
   } catch (error) {
+    if (cancelledImageJobs.has(jobPath)) return;
+    const failedAt = new Date().toISOString();
+    const currentJob = await readCodexImageJob(jobPath);
+    const retryable = isTransientImageGenerationError(error) && processingJob.attemptCount < 3;
+    const retryDelayMs = Math.min(
+      5 * 60 * 1000,
+      Math.max(
+        1000 * 2 ** (processingJob.attemptCount - 1),
+        Number(error?.retryAfterMs) || 0
+      )
+    );
     await writeCodexImageJob(jobPath, {
-      ...job,
+      ...(currentJob?.assetVersion === job.assetVersion ? currentJob : processingJob),
       countrySlug,
-      status: "failed",
+      status: retryable ? "pending_codex_image_generation" : "failed",
       error: String(error?.message ?? error),
-      failedAt: new Date().toISOString()
+      transientError: retryable,
+      retryNotBefore: retryable ? new Date(Date.now() + retryDelayMs).toISOString() : null,
+      retryScheduledAt: retryable ? failedAt : null,
+      failedAt: retryable ? null : failedAt,
+      lastAttemptFailedAt: failedAt,
+      processingStartedAt,
+      firstPartialAt,
+      latestPartialAt
     });
   } finally {
     processingJobs.delete(jobPath);
+    processingJobAbortControllers.delete(jobPath);
+    cancelledImageJobs.delete(jobPath);
+    requestImageJobProcessing();
   }
+}
+
+function throwIfImageJobCancelled(jobPath) {
+  if (cancelledImageJobs.has(jobPath)) {
+    throw new Error("Image generation cancelled because its runtime cache was flushed.");
+  }
+}
+
+function isTransientImageGenerationError(error) {
+  return /(?:\b408\b|\b409\b|\b429\b|\b5\d\d\b|fetch failed|network|econnreset|etimedout|timeout|aborted|terminated|premature close|socket hang up)/i.test(
+    String(error?.message ?? error)
+  );
 }
 
 function getConfiguredImageModel() {
@@ -3022,13 +3822,23 @@ function hasConfiguredImageProvider() {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 
-async function generateConfiguredImage({ model, prompt }) {
+function canAutoProcessImages() {
+  return hasConfiguredImageProvider() && appExperienceConfig.providerConcurrency > 0;
+}
+
+async function generateConfiguredImage({ model, prompt, onPartialImage, signal = null }) {
   return generateTileImageWithOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model,
     prompt,
     fallbackModel: appConfig.image.fallbackModel,
-    size: appConfig.image.size
+    size: appConfig.image.size,
+    quality: appConfig.image.quality,
+    outputFormat: appConfig.image.outputFormat,
+    outputCompression: appConfig.image.outputCompression,
+    partialImages: appConfig.image.partialImages,
+    onPartialImage,
+    signal
   });
 }
 
@@ -3086,10 +3896,16 @@ async function resolveClickPhraseWithOpenAI({
     ? `Click coordinates normalized to the visible viewport: x=${normalizedClick.x}, y=${normalizedClick.y}.`
     : `Click coordinates in displayed image space: x=${point?.x}, y=${point?.y}.`;
   const candidateText = getSceneCandidateText(sceneId, pack);
+  const markerInstruction = markedImage
+    ? "A red crosshair with a white halo marks the user's click. Ignore the marker itself."
+    : "No marker was drawn on this image. Use the supplied original-image coordinates to locate the user's click.";
+  const targetInstruction = markedImage
+    ? `Describe only the exact visual subject under or closest to the crosshair in this illustrated ${pack.title} atlas image.`
+    : `Describe only the exact visual subject at or closest to the supplied coordinates in this illustrated ${pack.title} atlas image.`;
   const prompt = [
     "You are RoamAtlas' click resolver.",
-    "A red crosshair with a white halo marks the user's click. Ignore the marker itself.",
-    `Describe only the exact visual subject under or closest to the crosshair in this illustrated ${pack.title} atlas image.`,
+    markerInstruction,
+    targetInstruction,
     "If the clicked region contains or is closest to one of the known RoamAtlas candidate labels, return that exact candidate label.",
     "Be specific. If the user clicked an infinity pool, roof garden, animal, dome, bridge, beach, canopy, food stall, or building part, name that visual subject.",
     candidateText,

@@ -88,7 +88,7 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName
   const childTitles = (node.childIds ?? [])
     .map((childId) => nodes[childId]?.title)
     .filter(Boolean);
-  const visualContext = resolveArtworkVisualContext({ scene, node });
+  const visualContext = resolveArtworkVisualContext({ scene, node, nodes });
 
   return {
     id: pageId,
@@ -113,7 +113,7 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName
         density: zoomLevel === 0 ? "minimal" : "restrained",
         knownChildNodeTitles: childTitles,
         countryName,
-        aspectRatio: "16:9"
+        aspectRatio: "3:2"
       })
     }
   };
@@ -125,9 +125,27 @@ function hasUnconfirmedNodeFacts(node) {
   );
 }
 
-function resolveArtworkVisualContext({ scene, node }) {
+function resolveArtworkVisualContext({ scene, node, nodes }) {
   if (node.artworkVisualContext) return node.artworkVisualContext;
-  if (scene.artworkVisualContext) return scene.artworkVisualContext;
-  if (scene.visualContext) return scene.visualContext;
-  return `${node.title} as a restrained travel flipbook encyclopedia page with clear click targets, sparse layout, and short readable labels.`;
+
+  // A scene description belongs to the scene root. Reusing it for a child node
+  // made unrelated landmarks leak into on-demand artwork (for example, a
+  // Marina Bay Sands page could inherit the Gardens by the Bay conservatories).
+  if (scene.rootNodeId === node.id) {
+    if (scene.artworkVisualContext) return scene.artworkVisualContext;
+    if (scene.visualContext) return scene.visualContext;
+  }
+
+  const tags = (node.tags ?? []).slice(0, 5);
+  const childTitles = (node.childIds ?? [])
+    .map((childId) => nodes[childId]?.title)
+    .filter(Boolean)
+    .slice(0, 5);
+  const visualCues = tags.length > 0 ? ` Visual cues: ${tags.join(", ")}.` : "";
+  const childCues =
+    childTitles.length > 0
+      ? ` Leave subtle optional anchors for these curated child subjects: ${childTitles.join(", ")}.`
+      : "";
+
+  return `A focused ${node.type ?? "travel subject"} study of ${node.title}.${visualCues}${childCues} Keep the composition sparse and do not borrow landmarks from the parent scene.`;
 }

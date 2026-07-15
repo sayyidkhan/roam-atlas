@@ -7,9 +7,25 @@ export const ROAMATLAS_EXPERIENCE_CONFIG = {
   // While you are on a screen, load artwork for the next destinations in the background.
   loadNextDestinationsEarly: true,
 
-  // ROAMATLAS_MAX_PARALLEL_IMAGE_JOBS
-  // Max image jobs to queue ahead per screen, and max the server runs in parallel.
+  // ROAMATLAS_MAX_PARALLEL_IMAGE_JOBS (legacy compatibility only)
+  // Older clients used one value for both prefetch breadth and provider concurrency.
   maxParallelImageJobs: 10,
+
+  // ROAMATLAS_IMAGE_PROVIDER_CONCURRENCY
+  // Total image-provider requests that may run at once. Keep this aligned with
+  // the direct-child prefetch breadth so entering a parent can draw its whole
+  // first layer concurrently.
+  providerConcurrency: 10,
+
+  // ROAMATLAS_INTERACTIVE_RESERVED_SLOTS
+  // Capacity that speculative/background jobs may never consume.
+  interactiveReservedSlots: 1,
+
+  // ROAMATLAS_PREFETCH_DESTINATION_LIMIT
+  // Maximum direct-child destinations queued from the current screen.
+  // The first Singapore layer has seven destinations; ten leaves headroom for
+  // the rest of the demo graph without speculating beyond one level.
+  prefetchDestinationLimit: 10,
 
   // ROAMATLAS_LOAD_COUNTRY_PACK_EARLY (ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK also works)
   // Load country pack artwork early when the server starts.
@@ -21,9 +37,30 @@ export const ROAMATLAS_EXPERIENCE_CONFIG = {
 };
 
 export function resolveRoamAtlasExperienceConfig(env = {}) {
-  const maxParallelImageJobs = readInt(
-    env.ROAMATLAS_MAX_PARALLEL_IMAGE_JOBS ?? env.ROAMATLAS_MAX_IMAGE_JOBS,
+  const legacyMaxParallelOverride =
+    env.ROAMATLAS_MAX_PARALLEL_IMAGE_JOBS ?? env.ROAMATLAS_MAX_IMAGE_JOBS;
+  const maxParallelImageJobs = readNonNegativeInt(
+    legacyMaxParallelOverride,
     ROAMATLAS_EXPERIENCE_CONFIG.maxParallelImageJobs
+  );
+  // Preserve the legacy value `0` as an explicit provider-off switch. This is
+  // important because turning an old deployment back on could incur paid calls.
+  const providerConcurrency = readNonNegativeInt(
+    env.ROAMATLAS_IMAGE_PROVIDER_CONCURRENCY ??
+      env.ROAMATLAS_PROVIDER_CONCURRENCY ??
+      legacyMaxParallelOverride,
+    ROAMATLAS_EXPERIENCE_CONFIG.providerConcurrency
+  );
+  const interactiveReservedSlots = Math.min(
+    Math.max(0, providerConcurrency - 1),
+    readNonNegativeInt(
+      env.ROAMATLAS_INTERACTIVE_RESERVED_SLOTS,
+      ROAMATLAS_EXPERIENCE_CONFIG.interactiveReservedSlots
+    )
+  );
+  const prefetchDestinationLimit = readNonNegativeInt(
+    env.ROAMATLAS_PREFETCH_DESTINATION_LIMIT ?? legacyMaxParallelOverride,
+    ROAMATLAS_EXPERIENCE_CONFIG.prefetchDestinationLimit
   );
 
   return {
@@ -32,6 +69,9 @@ export function resolveRoamAtlasExperienceConfig(env = {}) {
       ROAMATLAS_EXPERIENCE_CONFIG.loadNextDestinationsEarly
     ),
     maxParallelImageJobs,
+    providerConcurrency,
+    interactiveReservedSlots,
+    prefetchDestinationLimit,
     loadCountryPackEarly: readBool(
       env.ROAMATLAS_LOAD_COUNTRY_PACK_EARLY ?? env.ROAMATLAS_PREGENERATE_DEFAULT_ARTWORK,
       ROAMATLAS_EXPERIENCE_CONFIG.loadCountryPackEarly
@@ -51,7 +91,7 @@ function readBool(value, fallback) {
   return fallback;
 }
 
-function readInt(value, fallback) {
+function readNonNegativeInt(value, fallback) {
   const parsed = Number.parseInt(String(value ?? "").trim(), 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }

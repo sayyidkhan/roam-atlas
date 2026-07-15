@@ -39,3 +39,55 @@ export function sortImageJobsForProcessing(jobs) {
     return String(a.fileName).localeCompare(String(b.fileName));
   });
 }
+
+export function isInteractiveImageJob(job) {
+  return job?.jobKind === "interactive";
+}
+
+/**
+ * Select work without allowing speculative jobs to occupy capacity reserved
+ * for a click/navigation request. Callers should pass only eligible jobs.
+ */
+export function selectImageJobsForProcessing({
+  jobs,
+  runningJobKinds = [],
+  providerConcurrency,
+  interactiveReservedSlots
+}) {
+  const parsedConcurrency = Number.parseInt(providerConcurrency, 10);
+  const concurrency = Math.max(0, Number.isFinite(parsedConcurrency) ? parsedConcurrency : 0);
+  if (concurrency === 0) return [];
+  const reservedSlots = Math.min(
+    concurrency,
+    Math.max(0, Number.parseInt(interactiveReservedSlots, 10) || 0)
+  );
+  const runningKinds = Array.from(runningJobKinds);
+  let availableSlots = Math.max(0, concurrency - runningKinds.length);
+  let availableBackgroundSlots = Math.max(
+    0,
+    concurrency - reservedSlots - runningKinds.filter((kind) => kind !== "interactive").length
+  );
+  const selected = [];
+
+  for (const entry of sortImageJobsForProcessing(jobs)) {
+    if (availableSlots === 0) break;
+    if (!isInteractiveImageJob(entry.job) && availableBackgroundSlots === 0) continue;
+
+    selected.push(entry);
+    availableSlots -= 1;
+    if (!isInteractiveImageJob(entry.job)) {
+      availableBackgroundSlots -= 1;
+    }
+  }
+
+  return selected;
+}
+
+export function isStaleProcessingImageJob(job, {
+  now = Date.now(),
+  leaseMs = 10 * 60 * 1000
+} = {}) {
+  if (!["processing_openai_image", "partial_ready"].includes(job?.status)) return false;
+  const startedAt = Date.parse(job.processingStartedAt ?? job.updatedAt ?? "");
+  return Number.isFinite(startedAt) && now - startedAt > leaseMs;
+}

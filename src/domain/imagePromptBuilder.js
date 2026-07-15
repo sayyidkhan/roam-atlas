@@ -7,7 +7,7 @@ export function buildRoamAtlasImagePrompt({
   pageType = "region_overview",
   zoomLevel = 1,
   density = "balanced",
-  aspectRatio = "16:9",
+  aspectRatio = "3:2",
   parentNodeTitle,
   knownChildNodeTitles = [],
   countryName
@@ -78,9 +78,10 @@ function normalizeDensity(density) {
 }
 
 function normalizeAspectRatio(aspectRatio) {
-  if (["16:9", "2:1", "4:3", "1:1"].includes(aspectRatio)) return aspectRatio;
+  if (["3:2", "16:9", "2:1", "4:3", "1:1"].includes(aspectRatio)) return aspectRatio;
+  if (String(aspectRatio).includes("3:2")) return "3:2";
   if (String(aspectRatio).includes("2:1")) return "2:1";
   if (String(aspectRatio).includes("4:3")) return "4:3";
   if (String(aspectRatio).includes("1:1")) return "1:1";
-  return "16:9";
+  return "3:2";
 }

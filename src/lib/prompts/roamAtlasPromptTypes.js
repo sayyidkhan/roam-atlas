@@ -29,7 +29,7 @@
  * @property {string=} countryName
  * @property {RoamAtlasDensity=} density
  * @property {RoamAtlasFactMode=} factMode
- * @property {"16:9" | "2:1" | "4:3" | "1:1"=} aspectRatio
+ * @property {"3:2" | "16:9" | "2:1" | "4:3" | "1:1"=} aspectRatio
  * @property {string[]=} knownChildNodeTitles
  *
  * @typedef {object} RoamAtlasPromptOutput

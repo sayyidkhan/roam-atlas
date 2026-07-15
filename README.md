@@ -63,7 +63,8 @@ OPENAI_API_KEY="..."
 Non-secret model defaults live in `src/config/roamAtlasConfig.js`.
 
 - Text, VLM, and environment models must stay on GPT-5-family or newer models.
-- Image generation uses OpenAI image models.
+- Interactive image generation uses `gpt-image-2` with an explicit medium-quality,
+  compressed JPEG profile and a streamed partial preview.
 - Do not add model env overrides for normal local development; edit the config
   file when the project default should change.
 
@@ -97,6 +98,18 @@ roamatlas-runtime-cache/
 
 For example, Singapore-generated pages are served from
 `/runtime-cache/singapore/flipbook/...`.
+Generated filenames include an asset-version hash derived from the prompt,
+model, output profile, prompt version, style version, and data version. This
+keeps immutable browser caches safe when any generation input changes.
+
+Image jobs can move through `pending_codex_image_generation`,
+`processing_openai_image`, `partial_ready`, `ready`, or `failed`. The final
+image is published as soon as it is written and decoded; optional ambient-layer
+analysis runs afterward and never blocks the factual page or itinerary UI.
+Interactive jobs have reserved provider capacity. By default, the app queues
+up to ten direct children when a parent opens and the provider can draw up to
+ten images concurrently; tune `ROAMATLAS_PREFETCH_DESTINATION_LIMIT` and
+`ROAMATLAS_IMAGE_PROVIDER_CONCURRENCY` together when changing that experience.
 Unconfirmed country starter maps are stored per country at
 `/runtime-cache/{countrySlug}/starter-map/country.json`.
 For registered country packs such as Singapore, that starter-map file is a

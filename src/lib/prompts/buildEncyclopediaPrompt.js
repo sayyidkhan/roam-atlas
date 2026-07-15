@@ -39,80 +39,44 @@ Show one main subject with optional inset diagrams, blank callout panels, fine l
 
 export function buildEncyclopediaPrompt(input) {
   const detailTreatment = getDetailTreatment(input.pageType);
-  const countryName = getPromptCountryName(input);
+  const countryName = getPromptCountryName(input, { fallbackToNodeTitle: false });
+  const countrySuffix = countryName === "selected country" ? "" : ` in ${countryName}`;
 
   const prompt = `
-Create a restrained illustrated encyclopedia plate for ${input.nodeTitle} in ${countryName}.
+Create a restrained illustrated encyclopedia plate for ${input.nodeTitle}${countrySuffix}.
 
-Page type:
-${input.pageType}
-
-Zoom level:
-${input.zoomLevel}
-
-Purpose:
-This page is a deep flipbook drill-down page.
-It should feel like the user has turned from a map into an illustrated encyclopedia.
-It should no longer feel like a city overview.
-It should focus on one subject and explain it visually through composition.
-
-Scene / subject:
-${input.visualContext}
-
-Parent context:
-${input.parentNodeTitle ? `This page is reached from ${input.parentNodeTitle}. Preserve subtle stylistic continuity, but shift into a more focused study-plate layout.` : `Preserve the ${countryName} explorer's calm restrained visual language.`}
+Page type: ${input.pageType}
+Zoom level: ${input.zoomLevel}
+Density: ${input.density ?? "restrained"}
+Subject: ${input.visualContext}
+Continuity: ${input.parentNodeTitle ? `preserve subtle style continuity with ${input.parentNodeTitle}` : countryName === "selected country" ? "the established calm visual language" : `the calm ${countryName} visual language`}
 
 Encyclopedia treatment:
 ${detailTreatment}
 
 Composition:
 - One main subject only.
-- Use generous margins and breathing room.
-- Use clean cutaway, exploded view, sectional view, or focused study composition when appropriate.
-- Optional small inset diagrams are allowed.
-- Optional circular numbered callout anchors are allowed.
-- Optional fine leader lines are allowed.
-- Optional caption boxes are allowed.
-- Keep callout text short: one to three words, numbered anchors, supplied titles, or category labels only.
-- Do not create a busy scientific poster.
-- Do not create a text-heavy infographic.
-- Do not include a city-wide background.
+- Use generous margins and a clean cutaway, exploded view, sectional view, or focused study composition.
+- Optional small inset diagrams, numbered anchors, fine leader lines, and blank callout panels are allowed.
+- Readable image text is allowed only for supplied titles or one- to three-word category labels.
+- Do not create a busy scientific poster, text-heavy infographic, or city-wide background.
 - Include only the minimum context needed to understand the subject.
 
 Visual explanation:
-- Make the page feel educational through structure: blank callout panels, numbered anchor dots, leader lines, small inset diagrams, exploded components, or cutaway layers.
-- The viewer should understand that the image is explaining the subject through readable labels and visual structure.
-- Use short image text like chapter labels, category labels, and supplied subject names.
-- Do not write long factual captions, source-backed claims, prices, hours, or route details.
-
-Visual feeling:
-- illustrated encyclopedia plate
-- museum interpretation diagram
-- architectural study drawing
-- natural history plate
-- calm, precise, spacious, educational
+- Explain through visual structure: blank callout panels, numbered anchor dots, leader lines, inset diagrams, exploded components, or cutaway layers.
+- Exact facts and source-backed claims belong to frontend overlays.
+- No long factual captions, prices, hours, route details, or recommendations.
 
 ${CORE_VISUAL_STYLE}
 
-Additional style for detail pages:
-- light paper-like background
-- clean margins
-- centered subject
-- restrained diagrammatic layout
-- fine grey leader lines if needed
-- subtle inset panels
-- low visual clutter
-
 ${GLOBAL_IMAGE_RULES}
 
-Labels:
-Readable image text is allowed for page title, supplied subject names, numbered anchors, short category labels, and one- to three-word callout headings. Do not render any product logo or app name as a logo or title. No official signage. No prices. No hours. No route times. No source citations. No long factual captions. Frontend overlays render exact source-backed facts only when needed.
+No prices. No hours. No route times. No source citations or factual captions.
 
 Avoid:
 ${NEGATIVE_STYLE_TERMS.join(", ")}, busy scientific poster, dense callouts, long readable captions, textbook page full of words, photorealistic rendering.
 
-Aspect ratio:
-${input.aspectRatio ?? "16:9"}.
+Aspect ratio: ${input.aspectRatio ?? "3:2"}.
 `.trim();
 
   return {

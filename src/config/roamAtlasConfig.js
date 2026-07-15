@@ -8,7 +8,18 @@ export const ROAMATLAS_CONFIG = {
     provider: "openai",
     model: "gpt-image-2",
     fallbackModel: null,
-    size: "1536x1024"
+    // Use the widest landscape size supported by the Images API. The browser
+    // preserves this 3:2 composition so generated pixels are not cropped.
+    size: "1536x1024",
+    // Auto can select the slowest quality tier. Medium is the default interactive
+    // balance; reviewed core artwork can still be generated at a higher tier.
+    quality: "medium",
+    // RoamAtlas artwork is opaque. JPEG materially reduces transfer and decode
+    // work compared with the previous multi-megabyte PNG output.
+    outputFormat: "jpeg",
+    outputCompression: 82,
+    // The first partial is a perception aid, not a fact source or final asset.
+    partialImages: 1
   },
   server: {
     port: 4173

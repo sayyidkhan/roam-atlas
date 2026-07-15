@@ -1,4 +1,6 @@
-export const PLACE_IMAGE_SELECTION_VERSION = "v4";
+// Bump whenever eligibility changes so old, low-quality cached selections are
+// re-evaluated rather than surviving indefinitely in the local runtime cache.
+export const PLACE_IMAGE_SELECTION_VERSION = "v5";
 
 const REGION_CAPITALS = {
   malaysia: {
@@ -44,7 +46,7 @@ const TOURIST_SCENE_TERMS = [
 ];
 
 const POSTER_PENALTY_PATTERN =
-  /(?:^|[^a-z])(?:poster|brochure|banner|flyer|logo|logotype|favicon|sprite|icon|emblem|coat[- ]of[- ]arms|flag|infographic|promo|campaign|visit[-_.]|tourism[-_.]?board|travel[-_.]?fair|expo|thumbnail[-_.]?logo|brand[-_.]?guide|hero[-_.]?image|cover[-_.]?photo|header[-_.]?image|welcome[-_.]|discover[-_.]|official[-_.]?site|text[-_.]?overlay|watermark)(?:[^a-z]|$)/i;
+  /(?:^|[^a-z])(?:poster|brochure|banner|flyer|logo|logotype|favicon|sprite|icon|emblem|coat[- ]of[- ]arms|flag|infographic|promo|campaign|visit[-_.]|tourism[-_.]?board|travel[-_.]?fair|expo|thumbnail[-_.]?logo|brand[-_.]?guide|hero[-_.]?image|cover[-_.]?photo|header[-_.]?image|welcome[-_.]|discover[-_.]|official[-_.]?site|text[-_.]?overlay|watermark|creative[-_.]?commons|cc[-_.]?(?:by|zero|0)|rights[-_.]?(?:reserved|managed)|copyright|license[-_.]?badge)(?:[^a-z]|$)/i;
 
 const PHOTO_BOOST_PATTERN =
   /(?:photo|photograph|gallery|image|skyline|cityscape|beach|coast|harbour|harbor|landscape|view|aerial|island|waterfall|rainforest|bay|lagoon|street|heritage|downtown|skyscraper|monument|temple|mosque|cathedral|fort|palace|landmark|attraction|waterfront|old town|geopark|cable car|skybridge|sky bridge)/i;
@@ -179,7 +181,7 @@ export function isUsablePlaceImageUrl(value) {
     if (parsed.protocol !== "https:") return false;
     const pathname = parsed.pathname.toLowerCase();
     if (/\.(?:svg|ico|gif)$/.test(pathname)) return false;
-    if (POSTER_PENALTY_PATTERN.test(pathname)) return false;
+    if (POSTER_PENALTY_PATTERN.test(imageUrl)) return false;
     return true;
   } catch {
     return false;

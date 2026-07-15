@@ -33,9 +33,11 @@ const state = {
   countryDrafts: new Map(),
   countryDraftSectionTabs: new Map(),
   countryDraftGenAiOpen: new Map(),
+  countryDraftToolMenuOpen: new Map(),
   countryDraftDrag: null,
   countryActionLegendOpen: new Map(),
   countryCacheFlushes: new Map(),
+  placeImageRefreshes: new Map(),
   checkedStoredDrafts: new Set(),
   currentPage: null,
   currentSceneId: null,
@@ -52,18 +54,31 @@ const state = {
   prefetchSceneId: null,
   environmentPlans: new Map(),
   environmentPlanRequests: new Map(),
+  artworkImageLoads: new Map(),
   isResolvingClick: false,
+  activeNavigationRequestId: null,
   routeNotice: null
 };
 
 const COUNTRY_CARD_IMAGE_VERSION = "country-media-v7";
 const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
+const ARTWORK_POLL_INTERVAL_MS = 1600;
+const ARTWORK_POLL_TIMEOUT_MS = 3 * 60 * 1000;
+const ARTWORK_REQUEST_TIMEOUT_MS = 15 * 1000;
+const ARTWORK_POLL_MAX_ATTEMPTS = Math.ceil(ARTWORK_POLL_TIMEOUT_MS / ARTWORK_POLL_INTERVAL_MS);
+const ENVIRONMENT_PLAN_RETRY_DELAYS_MS = [0, 2000, 5000, 10000, 20000, 30000];
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
 let countryPhotoQueue = [];
 let draftPhotoLightbox = null;
 const prefetchPollers = new Map();
 let prefetchRenderFrame = null;
+let prefetchEpoch = 0;
+let environmentPlanEpoch = 0;
+let artworkAttemptSequence = 0;
+let navigationRequestSequence = 0;
+let navigationAbortController = null;
+let appToastTimer = null;
 
 const elements = {
   landing: document.querySelector("#country-landing"),
@@ -86,6 +101,7 @@ const elements = {
 bootstrap();
 
 window.addEventListener("popstate", () => {
+  cancelPendingNavigation();
   applyRouteFromLocation().catch(showBootstrapError);
 });
 
@@ -95,7 +111,7 @@ elements.countryButton.addEventListener("click", () => {
 
 elements.backButton.addEventListener("click", () => {
   clearPendingJob();
-  state.isResolvingClick = false;
+  cancelPendingNavigation();
   const previous = state.history.pop();
   if (!previous) return;
   state.currentPage = previous.page;
@@ -114,6 +130,11 @@ elements.closeDetail.addEventListener("click", () => {
   renderNodeDetail();
 });
 
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("[data-dismiss-app-toast]")) return;
+  dismissAppToast();
+});
+
 elements.detailSheet.addEventListener("click", (event) => {
   const action = event.target.closest("[data-detail-action]")?.dataset.detailAction;
   if (action === "expand") {
@@ -128,6 +149,7 @@ elements.detailSheet.addEventListener("click", (event) => {
 });
 
 function render() {
+  const focusKey = captureExplorerFocusKey();
   const isCountryLanding = state.currentView === "countries";
   const isCountryShell = state.currentView === "country";
   elements.landing.classList.toggle("is-hidden", !isCountryLanding);
@@ -156,6 +178,20 @@ function render() {
   }
   elements.backButton.disabled = state.history.length === 0;
   elements.viewport.classList.toggle("is-busy", state.isResolvingClick || Boolean(state.pendingJob));
+  restoreExplorerFocus(focusKey);
+}
+
+function captureExplorerFocusKey() {
+  const activeElement = document.activeElement;
+  if (!activeElement || !elements.viewport.contains(activeElement)) return null;
+  return activeElement.dataset.roamFocusKey ?? null;
+}
+
+function restoreExplorerFocus(focusKey) {
+  if (!focusKey) return;
+  const target = [...elements.viewport.querySelectorAll("[data-roam-focus-key]")]
+    .find((element) => element.dataset.roamFocusKey === focusKey);
+  target?.focus({ preventScroll: true });
 }
 
 function bindCountryLanding() {
@@ -229,12 +265,32 @@ function bindCountryShell() {
       resetCountry(state.selectedCountry);
       return;
     }
-    if (action === "reset-map-data" && state.selectedCountry) {
-      requestCountryRuntimeCacheFlush(state.selectedCountry, { confirm: false });
+    if (action === "reset-generated-visuals" && state.selectedCountry) {
+      requestCountryRuntimeCacheFlush(state.selectedCountry, { confirm: false, scope: "visuals" });
+      return;
+    }
+    if (action === "reset-reference-photos" && state.selectedCountry) {
+      state.countryDraftToolMenuOpen.delete(state.selectedCountry.slug);
+      requestPlaceImageReset(state.selectedCountry);
+      return;
+    }
+    if (action === "reset-place-photo" && state.selectedCountry) {
+      const button = event.target.closest("[data-country-action='reset-place-photo']");
+      const place = button?.dataset.placeName ?? "";
+      requestPlaceImageReset(state.selectedCountry, { place });
       return;
     }
     if (action === "reset-metadata" && state.selectedCountry) {
+      state.countryDraftToolMenuOpen.delete(state.selectedCountry.slug);
       requestCountryDraft(state.selectedCountry, { force: true, preserveScroll: true });
+      return;
+    }
+    if (action === "toggle-starter-tools" && state.selectedCountry) {
+      const slug = state.selectedCountry.slug;
+      const scrollSnapshot = captureCountryShellScroll();
+      state.countryDraftToolMenuOpen.set(slug, !state.countryDraftToolMenuOpen.get(slug));
+      render();
+      restoreCountryShellScroll(scrollSnapshot);
       return;
     }
     if (action === "reset-open-country" && state.selectedCountry) {
@@ -589,13 +645,23 @@ function openDraftPhotoLightbox({ src, placeName }) {
       aria-label="Close enlarged photo"
     >×</button>
     <figure class="draft-photo-lightbox">
-      <img
-        class="draft-photo-lightbox-image"
-        src="${escapeHtml(src)}"
-        alt=""
-        decoding="async"
-        referrerpolicy="no-referrer"
-      />
+      <div class="draft-photo-lightbox-image-frame">
+        <img
+          class="draft-photo-lightbox-image"
+          src="${escapeHtml(src)}"
+          alt=""
+          decoding="async"
+          referrerpolicy="no-referrer"
+        />
+        ${placeName ? `
+          <button
+            type="button"
+            class="draft-photo-lightbox-reset"
+            data-reset-draft-photo
+            aria-label="Reset reference photo for ${escapeHtml(placeName)}"
+          >${renderResetIcon()}<span>Reset image</span></button>
+        ` : ""}
+      </div>
       <figcaption class="draft-photo-lightbox-caption">
         Reference photo from external search. Not verified travel data.
       </figcaption>
@@ -603,6 +669,23 @@ function openDraftPhotoLightbox({ src, placeName }) {
   `;
   backdrop.addEventListener("click", () => {
     closeDraftPhotoLightbox();
+  });
+  backdrop.querySelector(".draft-photo-lightbox")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+  backdrop.querySelector("[data-reset-draft-photo]")?.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!state.selectedCountry || !placeName) return;
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.querySelector("span").textContent = "Resetting image";
+    const didReset = await requestPlaceImageReset(state.selectedCountry, { place: placeName });
+    if (didReset) closeDraftPhotoLightbox();
+    else {
+      button.disabled = false;
+      button.querySelector("span").textContent = "Reset image";
+    }
   });
   document.addEventListener("keydown", handleDraftPhotoLightboxKeydown);
   document.body.appendChild(backdrop);
@@ -859,9 +942,9 @@ function renderCountryShell() {
           info: "Return to the full country list."
         })}
         ${renderCountryActionButton({
-          action: "reset-map-data",
-          label: isCacheFlushing ? "Resetting data" : "Reset generated data",
-          info: `Delete generated ${country.name} runtime data, including map images, click data, and stored starter-map artifacts.`,
+          action: "reset-generated-visuals",
+          label: isCacheFlushing ? "Resetting visuals" : "Reset Generated Visuals",
+          info: `Delete generated ${country.name} map illustrations, image jobs, and ambience cache. Starter-map builder information and reference photos stay.`,
           disabled: isCacheFlushing
         })}
         ${mapAction}
@@ -902,8 +985,8 @@ function renderCountryActionLegend(country, { canOpenMap }) {
           <dd>Return to the full country picker without changing this starter map.</dd>
         </div>
         <div>
-          <dt>Reset generated data</dt>
-          <dd>Clear generated runtime artifacts for ${escapeHtml(country.name)}, including cached map images and stored starter-map snapshots.</dd>
+          <dt>Reset Generated Visuals</dt>
+          <dd>Clear cached map illustrations, image jobs, and ambience cache for ${escapeHtml(country.name)}. Starter-map builder information and reference photos stay.</dd>
         </div>
         <div>
           <dt>${escapeHtml(mapLabel)}</dt>
@@ -930,13 +1013,16 @@ function renderCountryActionButton({ action, label, info, disabled = false }) {
 }
 
 function renderCountryCacheFlushNotice(flushState) {
-  if (!flushState || flushState.status === "idle") return "";
+  if (!flushState || !["loading", "failed"].includes(flushState.status)) return "";
+  const visualsOnly = flushState.scope === "visuals";
   const title = flushState.status === "ready"
-    ? "Generated data reset"
+    ? visualsOnly ? "Generated visuals reset" : "Runtime artifacts reset"
     : flushState.status === "failed"
-    ? "Reset failed"
-    : "Resetting generated data";
-  const message = flushState.message ?? "Clearing generated runtime data.";
+    ? visualsOnly ? "Visual reset failed" : "Runtime reset failed"
+    : visualsOnly ? "Resetting generated visuals" : "Resetting runtime artifacts";
+  const message = flushState.message ?? (visualsOnly
+    ? "Clearing generated images and visual cache."
+    : "Clearing generated runtime artifacts.");
   const className = flushState.status === "failed"
     ? "cache-flush-notice cache-flush-notice--failed"
     : "cache-flush-notice";
@@ -946,6 +1032,36 @@ function renderCountryCacheFlushNotice(flushState) {
       <span>${escapeHtml(message)}</span>
     </section>
   `;
+}
+
+function showAppToast({ title, message, tone = "success", durationMs = 5200 }) {
+  let region = document.body.querySelector(".app-toast-region");
+  if (!region) {
+    region = document.createElement("div");
+    region.className = "app-toast-region";
+    document.body.appendChild(region);
+  }
+
+  window.clearTimeout(appToastTimer);
+  const isError = tone === "error";
+  region.innerHTML = `
+    <section class="app-toast app-toast--${escapeHtml(tone)}" role="status" aria-live="polite" aria-atomic="true">
+      <span class="app-toast-icon" aria-hidden="true">${isError ? "!" : "✓"}</span>
+      <div>
+        <span class="app-toast-outcome">${isError ? "Failed" : "Success"}</span>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(message)}</p>
+      </div>
+      <button type="button" data-dismiss-app-toast aria-label="Dismiss notification">×</button>
+    </section>
+  `;
+  appToastTimer = window.setTimeout(dismissAppToast, durationMs);
+}
+
+function dismissAppToast() {
+  window.clearTimeout(appToastTimer);
+  appToastTimer = null;
+  document.body.querySelector(".app-toast-region")?.remove();
 }
 
 function renderCountryDraftPanel(country, draftState) {
@@ -996,6 +1112,7 @@ function renderCountryDraftPanel(country, draftState) {
   const activeSectionTab = state.countryDraftSectionTabs.get(country.slug) ?? "regions";
   const editModal = getDraftEditModalContext(draft, genAiContext.openTarget);
   const isDraftBusy = Boolean(draftState?.status === "loading" || draftState?.isSending);
+  const isStarterToolMenuOpen = Boolean(state.countryDraftToolMenuOpen.get(country.slug));
   const starterMapGenAiTooltip = "Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review.";
 
   return `
@@ -1030,7 +1147,7 @@ function renderCountryDraftPanel(country, draftState) {
           </div>
         </div>
         <div class="draft-section-actions" aria-label="Starter map tools">
-          ${renderDraftResetButton(country, { disabled: isDraftBusy })}
+          ${renderDraftResetButton(country, { disabled: isDraftBusy, isOpen: isStarterToolMenuOpen })}
           <button
             type="button"
             class="draft-genai-button ${genAiContext.openTarget === "starter-map" ? "is-active" : ""}"
@@ -1069,19 +1186,51 @@ function renderDraftSectionIntro(activeSectionTab) {
     </p>`;
 }
 
-function renderDraftResetButton(country, { disabled = false } = {}) {
-  const tooltip = `Rebuild ${country.name} starter regions, summary, and research themes. Manual draft edits may be replaced.`;
+function renderDraftResetButton(country, { disabled = false, isOpen = false } = {}) {
+  const rebuildSummary = `Refresh regions, summary, and themes.`;
+  const photoSummary = `Clear cached thumbnails and search again.`;
   return `
-    <button
-      type="button"
-      class="draft-reset-button"
-      data-country-action="reset-metadata"
-      data-tooltip-title="Rebuild starter info"
-      data-tooltip="${escapeHtml(tooltip)}"
-      title="${escapeHtml(tooltip)}"
-      aria-label="Rebuild ${escapeHtml(country.name)} starter info"
-      ${disabled ? "disabled" : ""}
-    >${renderResetIcon()}<strong>Rebuild starter info</strong>${renderDraftButtonTooltip("Rebuild starter info", tooltip)}</button>
+    <div class="draft-reset-menu">
+      <button
+        type="button"
+        class="draft-tool-menu-button ${isOpen ? "is-active" : ""}"
+        data-country-action="toggle-starter-tools"
+        aria-label="Open starter-map actions"
+        aria-haspopup="menu"
+        aria-expanded="${isOpen}"
+        ${disabled ? "disabled" : ""}
+      ><span class="draft-tool-menu-dots" aria-hidden="true"><span></span><span></span><span></span></span></button>
+      ${isOpen ? `
+        <div class="draft-tool-menu" role="menu" aria-label="Starter-map actions">
+          <button
+            type="button"
+            class="draft-tool-menu-item"
+            data-country-action="reset-metadata"
+            role="menuitem"
+            ${disabled ? "disabled" : ""}
+          >
+            ${renderResetIcon()}
+            <span>
+              <strong>Rebuild starter info</strong>
+              <small>${escapeHtml(rebuildSummary)}</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            class="draft-tool-menu-item"
+            data-country-action="reset-reference-photos"
+            role="menuitem"
+            ${disabled ? "disabled" : ""}
+          >
+            ${renderResetIcon()}
+            <span>
+              <strong>Reset photos</strong>
+              <small>${escapeHtml(photoSummary)}</small>
+            </span>
+          </button>
+        </div>
+      ` : ""}
+    </div>
   `;
 }
 
@@ -1363,7 +1512,15 @@ function buildPlaceImageUrl(countrySlug, placeName, { context = "", kind = "", t
   if (context) params.set("context", context);
   if (kind) params.set("kind", kind);
   if (tags.length) params.set("tags", tags.join(","));
+  const refresh = state.placeImageRefreshes.get(countrySlug);
+  if (refresh) params.set("refresh", String(refresh));
+  const placeRefresh = state.placeImageRefreshes.get(getPlaceImageRefreshKey(countrySlug, placeName));
+  if (placeRefresh) params.set("placeRefresh", String(placeRefresh));
   return apiPath(`/api/place-image?${params.toString()}`);
+}
+
+function getPlaceImageRefreshKey(countrySlug, placeName) {
+  return `${countrySlug}:${String(placeName ?? "").trim().toLowerCase()}`;
 }
 
 function getNodePlaceImageKind(node) {
@@ -1390,7 +1547,6 @@ function renderDraftPlacePhoto(placeName, children, genAiContext, kind = "region
       data-photo-state="queued"
       data-place-name="${escapeHtml(placeName)}"
       aria-label="View reference photo for ${escapeHtml(placeName)}"
-      title="Loading reference photo from external search. Not verified travel data."
     >
       <span class="draft-item-photo-frame">
         <img
@@ -1403,6 +1559,14 @@ function renderDraftPlacePhoto(placeName, children, genAiContext, kind = "region
         />
         <span class="draft-photo-progress" aria-hidden="true"><span></span></span>
         <span class="draft-photo-spinner" aria-hidden="true"></span>
+        <span class="draft-photo-fallback" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect>
+            <circle cx="9" cy="9.5" r="1.5"></circle>
+            <path d="m5.5 17 4.25-4.25 2.75 2.75 2-2 3.5 3.5"></path>
+            <path d="M4 3 20 21"></path>
+          </svg>
+        </span>
         <span class="draft-photo-status">Queued</span>
         <span class="draft-photo-ready" aria-hidden="true">${renderRegionRailCheck()}</span>
       </span>
@@ -1427,31 +1591,61 @@ function hydrateDraftPlacePhotos(root) {
       window.setTimeout(() => setDraftPhotoState(button, "selecting", "Selecting", 0.52), 650),
       window.setTimeout(() => setDraftPhotoState(button, "caching", "Caching", 0.78), 1500)
     ];
+    let settled = false;
     const clearTimers = () => timers.forEach((timer) => window.clearTimeout(timer));
+    const settle = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      callback();
+    };
+    timers.push(window.setTimeout(() => {
+      settle(() => {
+        retryDraftPlacePhoto(root, button, image, src, "Still searching");
+      });
+    }, 15_000));
 
     image.addEventListener("load", () => {
-      clearTimers();
-      const imageUrl = normalizeLoadedDraftPhotoUrl(image.currentSrc || image.src);
-      if (loadedUrls.has(imageUrl)) {
-        setDraftPhotoState(button, "duplicate", "Duplicate", 1);
-        image.removeAttribute("src");
-        return;
-      }
-      loadedUrls.add(imageUrl);
-      setDraftPhotoState(button, "ready", "Ready", 1);
-      button.title = "Reference photo from external search. Not verified travel data. Click to enlarge.";
+      settle(() => {
+        const imageUrl = normalizeLoadedDraftPhotoUrl(image.currentSrc || image.src);
+        if (loadedUrls.has(imageUrl)) {
+          setDraftPhotoState(button, "duplicate", "Duplicate", 1);
+          image.removeAttribute("src");
+          return;
+        }
+        loadedUrls.add(imageUrl);
+        setDraftPhotoState(button, "ready", "Ready", 1);
+      });
     }, { once: true });
 
     image.addEventListener("error", () => {
-      clearTimers();
-      setDraftPhotoState(button, "failed", "No photo", 1);
-      image.removeAttribute("src");
-      button.title = "No distinct reference photo found yet.";
+      settle(() => {
+        retryDraftPlacePhoto(root, button, image, src, "Retrying");
+      });
     }, { once: true });
 
     image.src = src;
     delete image.dataset.src;
   }
+}
+
+function retryDraftPlacePhoto(root, button, image, src, label) {
+  const retryCount = Number(button.dataset.photoRetryCount ?? "0");
+  if (retryCount >= 2) {
+    setDraftPhotoState(button, "failed", "No photo", 1);
+    image.removeAttribute("src");
+    return;
+  }
+
+  button.dataset.photoRetryCount = String(retryCount + 1);
+  setDraftPhotoState(button, "searching", label, 0.22);
+  image.removeAttribute("src");
+  window.setTimeout(() => {
+    if (!root.isConnected || !button.isConnected) return;
+    button.dataset.photoHydrated = "false";
+    image.dataset.src = src;
+    hydrateDraftPlacePhotos(root);
+  }, 900 * (retryCount + 1));
 }
 
 function setDraftPhotoState(button, stateName, label, progress) {
@@ -2001,19 +2195,25 @@ async function requestCountryDraftConfirmation(country) {
   render();
 }
 
-async function requestCountryRuntimeCacheFlush(country, { confirm = true } = {}) {
+async function requestCountryRuntimeCacheFlush(country, { confirm = true, scope = "all" } = {}) {
   const existing = state.countryCacheFlushes.get(country.slug);
   if (existing?.status === "loading") return false;
+  const visualsOnly = scope === "visuals";
   if (confirm) {
     const confirmed = window.confirm(
-      `Reset generated runtime data for ${country.name}? This clears generated images, click data, stored starter-map artifacts, and review artifacts. Source-controlled country pack data is not changed.`
+      visualsOnly
+        ? `Reset generated visuals for ${country.name}? This clears generated map illustrations, image jobs, and ambience. Starter-map builder information, reference photos, and review artifacts stay.`
+        : `Reset all runtime artifacts for ${country.name}? This clears generated images, click data, stored starter-map artifacts, and review artifacts. Source-controlled country pack data is not changed.`
     );
     if (!confirmed) return false;
   }
 
   state.countryCacheFlushes.set(country.slug, {
     status: "loading",
-    message: `Clearing generated ${country.name} runtime data.`
+    scope,
+    message: visualsOnly
+      ? `Clearing generated ${country.name} map visuals.`
+      : `Clearing generated ${country.name} runtime artifacts.`
   });
   render();
 
@@ -2021,7 +2221,7 @@ async function requestCountryRuntimeCacheFlush(country, { confirm = true } = {})
     const response = await fetch(apiPath("/api/runtime-cache/flush"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ countrySlug: country.slug })
+      body: JSON.stringify({ countrySlug: country.slug, scope })
     });
     if (!response.ok) {
       const body = await response.text().catch(() => "");
@@ -2030,20 +2230,89 @@ async function requestCountryRuntimeCacheFlush(country, { confirm = true } = {})
 
     const result = await response.json();
     clearCountryGeneratedState(country.slug);
-    state.countryDrafts.delete(country.slug);
-    state.checkedStoredDrafts.delete(country.slug);
+    if (visualsOnly) {
+      state.placeImageRefreshes.delete(country.slug);
+    }
+    if (!visualsOnly) {
+      state.countryDrafts.delete(country.slug);
+      state.checkedStoredDrafts.delete(country.slug);
+    }
     state.countryCacheFlushes.set(country.slug, {
       status: "ready",
-      message: "Generated runtime data was cleared. Open the map or rebuild starter info to create fresh data."
+      scope,
+      message: visualsOnly
+        ? "Generated map visuals were cleared. Starter-map builder information and reference photos were kept."
+        : "Generated runtime artifacts were cleared. Open the map or rebuild starter info to create fresh data."
     });
     render();
+    showAppToast({
+      title: visualsOnly ? "Generated visuals reset" : "Runtime artifacts reset",
+      message: visualsOnly
+        ? "Map illustrations and visual cache were cleared. Builder information and reference photos were kept."
+        : "Generated runtime artifacts were cleared."
+    });
     return true;
   } catch (error) {
+    const message = explainClickError(error);
     state.countryCacheFlushes.set(country.slug, {
       status: "failed",
-      message: explainClickError(error)
+      scope,
+      message
     });
     render();
+    showAppToast({
+      title: visualsOnly ? "Generated visuals were not reset" : "Runtime artifacts were not reset",
+      message: `No changes were completed. ${message}`,
+      tone: "error",
+      durationMs: 8000
+    });
+    return false;
+  }
+}
+
+async function requestPlaceImageReset(country, { place = "" } = {}) {
+  const normalizedPlace = String(place ?? "").trim();
+  const isSinglePlace = Boolean(normalizedPlace);
+  const scrollSnapshot = captureCountryShellScroll();
+
+  try {
+    const response = await fetch(apiPath("/api/place-image/reset"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        countrySlug: country.slug,
+        ...(isSinglePlace ? { place: normalizedPlace } : {})
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Reference photo reset failed: ${response.status}${body ? ` ${body.slice(0, 240)}` : ""}`);
+    }
+
+    await response.json();
+    const refresh = Date.now();
+    if (isSinglePlace) {
+      state.placeImageRefreshes.set(getPlaceImageRefreshKey(country.slug, normalizedPlace), refresh);
+    } else {
+      state.placeImageRefreshes.set(country.slug, refresh);
+    }
+    render();
+    restoreCountryShellScroll(scrollSnapshot);
+    showAppToast({
+      title: isSinglePlace ? "Reference photo reset" : "Reference photos reset",
+      message: isSinglePlace
+        ? `${normalizedPlace} photo cache was cleared. Searching again now.`
+        : `${country.name} starter-map photo cache was cleared. Searching again now.`
+    });
+    return true;
+  } catch (error) {
+    const message = explainClickError(error);
+    showAppToast({
+      title: isSinglePlace ? "Reference photo was not reset" : "Reference photos were not reset",
+      message: `No photo cache was cleared. ${message}`,
+      tone: "error",
+      durationMs: 8000
+    });
     return false;
   }
 }
@@ -2088,13 +2357,25 @@ async function resetCountry(country) {
 function clearCountryGeneratedState(countrySlug) {
   const pack = getCountryPack(countrySlug);
   clearPendingJob();
-  if (!pack) return;
-  for (const sceneId of Object.keys(pack.scenes)) {
-    const job = state.artworkJobs.get(sceneId);
-    if (job?.intervalId) window.clearInterval(job.intervalId);
-    state.artworkJobs.delete(sceneId);
-    state.artworkByScene.delete(sceneId);
+  cancelPendingNavigation();
+  for (const artworkJobKey of [...state.artworkJobs.keys()]) {
+    stopArtworkPoller(artworkJobKey);
   }
+  state.artworkJobs.clear();
+  state.artworkByScene.clear();
+  state.artworkByPage.clear();
+  state.artworkImageLoads.clear();
+  invalidatePrefetchState();
+  environmentPlanEpoch += 1;
+  if (state.currentPage?.countrySlug === countrySlug) {
+    state.currentPage = {
+      ...state.currentPage,
+      imageUrl: null,
+      environmentUrl: null,
+      artworkDecoded: false
+    };
+  }
+  if (!pack) return;
   const environmentPrefix = `/runtime-cache/${countrySlug}/environment/`;
   for (const environmentUrl of state.environmentPlans.keys()) {
     if (String(environmentUrl).includes(environmentPrefix)) {
@@ -2111,6 +2392,8 @@ function clearCountryGeneratedState(countrySlug) {
 function enterMappedCountry(pack, { updateUrl = true, shouldRender = true } = {}) {
   if (!pack) return;
   clearPendingJob();
+  cancelPendingNavigation();
+  invalidatePrefetchState();
   state.currentView = "explorer";
   state.activeCountrySlug = pack.countrySlug;
   state.activePack = pack;
@@ -2120,7 +2403,6 @@ function enterMappedCountry(pack, { updateUrl = true, shouldRender = true } = {}
   state.selectedNodeId = null;
   state.history = [];
   state.pendingJob = null;
-  state.isResolvingClick = false;
   state.routeNotice = null;
   if (updateUrl) setBrowserPath(`/${pack.countrySlug}`);
   if (shouldRender) render();
@@ -2128,12 +2410,13 @@ function enterMappedCountry(pack, { updateUrl = true, shouldRender = true } = {}
 
 function enterCountryShell(country, { updateUrl = true, shouldRender = true, replaceUrl = false } = {}) {
   clearPendingJob();
+  cancelPendingNavigation();
+  invalidatePrefetchState();
   state.currentView = "country";
   state.selectedCountry = country;
   state.selectedNodeId = null;
   state.history = [];
   state.pendingJob = null;
-  state.isResolvingClick = false;
   state.routeNotice = null;
   if (updateUrl) setBrowserPath(routeForCountryConfig(country), { replace: replaceUrl });
   if (shouldRender) render();
@@ -2141,6 +2424,8 @@ function enterCountryShell(country, { updateUrl = true, shouldRender = true, rep
 }
 
 function enterCuratedPlace({ countrySlug, nodeId, pack }, { updateUrl = true, shouldRender = true } = {}) {
+  cancelPendingNavigation();
+  invalidatePrefetchState();
   const node = pack?.nodes[nodeId];
   if (!node) {
     if (pack) enterMappedCountry(pack, { updateUrl: false, shouldRender: false });
@@ -2176,7 +2461,6 @@ function enterCuratedPlace({ countrySlug, nodeId, pack }, { updateUrl = true, sh
   state.selectedNodeId = nodeId === pack.rootNodeId ? null : nodeId;
   state.history = [];
   state.pendingJob = null;
-  state.isResolvingClick = false;
   state.routeNotice = null;
   if (updateUrl) setBrowserPath(canonicalRouteForNode(countrySlug, nodeId, pack));
   if (shouldRender) render();
@@ -2265,7 +2549,8 @@ function showBootstrapError(error) {
 
 function enterCountryLanding({ updateUrl = true, shouldRender = true } = {}) {
   clearPendingJob();
-  state.isResolvingClick = false;
+  cancelPendingNavigation();
+  invalidatePrefetchState();
   state.currentView = "countries";
   state.selectedCountry = null;
   state.selectedNodeId = null;
@@ -2281,26 +2566,32 @@ function renderScene() {
   const rootNode = nodes[scene.rootNodeId];
   const pageNode = nodes[state.currentPage.nodeId];
   const sceneArtwork = state.artworkByScene.get(scene.id);
+  const pageArtwork = state.artworkByPage.get(getPageArtworkCacheKey(state.currentPage));
   const pageTitle = state.currentPage.plan?.title ?? pageNode?.title ?? scene.title;
   const canUseSceneArtwork = canCurrentPageUseSceneArtwork(scene);
   elements.sceneTitle.textContent = pageTitle;
-  elements.breadcrumb.textContent = pageNode
-    ? `${pageNode.title} · ${state.currentPage.status}`
-    : rootNode
-    ? `${rootNode.title} · ${state.currentPage.status}`
-    : "Curated scene";
   const imageUrl =
     state.currentPage.sceneId === scene.id
-      ? state.currentPage.imageUrl ?? (canUseSceneArtwork ? sceneArtwork?.imageUrl : null)
+      ? state.currentPage.imageUrl ?? (canUseSceneArtwork ? sceneArtwork?.imageUrl : pageArtwork?.imageUrl) ?? null
       : sceneArtwork?.imageUrl;
+  const breadcrumbTitle = pageNode?.title ?? rootNode?.title;
+  elements.breadcrumb.textContent = breadcrumbTitle
+    ? `${breadcrumbTitle} · ${getPageReadinessLabel(state.currentPage.status, Boolean(imageUrl))}`
+    : "Curated scene";
   const environmentUrl = getSceneEnvironmentUrl(scene, imageUrl);
   const environmentPlan = environmentUrl ? state.environmentPlans.get(environmentUrl) : null;
   const artworkJobKey = canUseSceneArtwork ? scene.id : getPageArtworkJobKey(state.currentPage);
-  const isArtworkPending = !imageUrl && state.artworkJobs.has(artworkJobKey);
+  const artworkJob = state.artworkJobs.get(artworkJobKey);
+  const previewImageUrl = !imageUrl ? artworkJob?.decodedPartialImageUrl ?? null : null;
+  const displayImageUrl = imageUrl ?? previewImageUrl;
+  const isArtworkPending = !imageUrl && isArtworkJobPending(artworkJob);
+  const hasArtworkJob = state.artworkJobs.has(artworkJobKey);
   elements.stage.classList.toggle("has-local-art", Boolean(imageUrl));
+  elements.stage.classList.toggle("has-artwork-preview", Boolean(previewImageUrl));
   elements.stage.classList.toggle("is-artwork-pending", isArtworkPending);
   elements.stage.classList.toggle("scroll-stage--placeholder", !imageUrl);
-  applySceneLayout(scene, { hasArtwork: Boolean(imageUrl) });
+  elements.stage.setAttribute("aria-busy", isArtworkPending ? "true" : "false");
+  applySceneLayout(scene, { hasArtwork: Boolean(displayImageUrl) });
   const nextDestinations = listNextArtworkDestinations({
     scene,
     scenes: state.activePack.scenes,
@@ -2308,9 +2599,14 @@ function renderScene() {
     currentPage: state.currentPage,
     limit: state.experienceConfig.maxParallelImageJobs
   });
-  const canvas = renderSceneCanvas(scene, { hasArtwork: Boolean(imageUrl) });
+  const canvas = renderSceneCanvas(scene, {
+    hasArtwork: Boolean(displayImageUrl),
+    isArtworkPending
+  });
   canvas.replaceChildren(
-    ...(imageUrl ? [renderSceneImage(imageUrl, scene.title, elements.stage)] : []),
+    ...(displayImageUrl
+      ? [renderSceneImage(displayImageUrl, scene.title, elements.stage, { isPreview: Boolean(previewImageUrl) })]
+      : []),
     ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
     ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
     ...(imageUrl
@@ -2318,7 +2614,12 @@ function renderScene() {
           mode: "hidden",
           countrySlug: state.activeCountrySlug
         })
-      : [
+      : [])
+  );
+  elements.stage.replaceChildren(
+    canvas,
+    ...(!imageUrl
+      ? [
           renderLoadingSceneBoard({
             scene,
             nodes,
@@ -2327,10 +2628,8 @@ function renderScene() {
             artworkJobKey,
             isArtworkPending
           })
-        ])
-  );
-  elements.stage.replaceChildren(
-    canvas,
+        ]
+      : []),
     ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : [])
   );
   elements.viewport.querySelector(".region-rail")?.remove();
@@ -2341,11 +2640,9 @@ function renderScene() {
   if (environmentUrl && !environmentPlan) {
     requestEnvironmentPlan(environmentUrl);
   }
-  if (!imageUrl && !isArtworkPending) {
+  if (!imageUrl && !hasArtworkJob) {
     if (canUseSceneArtwork) {
-      requestSceneArtwork(scene.id, {
-        jobKind: state.currentPage.parentId ? "interactive" : "artwork"
-      });
+      requestSceneArtwork(scene.id, { jobKind: "interactive" });
     } else {
       requestCurrentPageArtwork({ jobKind: "interactive" });
     }
@@ -2360,16 +2657,18 @@ function applySceneLayout(scene, { hasArtwork = false } = {}) {
   elements.stage.style.setProperty("--scene-space-aspect", String(spaceAspect));
   elements.stage.style.setProperty("--scene-space-width", String(width));
   elements.stage.style.setProperty("--scene-space-height", String(height));
-  // Runtime artwork is generated at 1536x1024 (3:2). Match that for full-page display.
+  // Runtime artwork defaults to 1536x1024 (3:2). The image load handler
+  // replaces this with the exact decoded ratio when an asset is available.
   elements.stage.style.setProperty("--scene-display-aspect", String(hasArtwork ? 3 / 2 : spaceAspect));
 }
 
-function renderSceneCanvas(scene, { hasArtwork = false } = {}) {
+function renderSceneCanvas(scene, { hasArtwork = false, isArtworkPending = false } = {}) {
   const canvas = document.createElement("div");
   canvas.className = hasArtwork ? "scene-canvas scene-canvas--artwork" : "scene-canvas";
   canvas.dataset.sceneId = scene.id;
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", scene.title);
+  canvas.setAttribute("aria-busy", isArtworkPending ? "true" : "false");
   return canvas;
 }
 
@@ -2412,7 +2711,10 @@ function renderRegionRail(scene, nodes, targets) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `region-rail-item region-rail-item--${prefetchState.phase}`;
-    button.style.setProperty("--prefetch-progress", `${Math.round(prefetchState.progress * 100)}%`);
+    if (prefetchState.phase === "ready") {
+      button.style.setProperty("--prefetch-progress", "100%");
+    }
+    button.dataset.roamFocusKey = `region:${target.key}`;
     button.title = `${node.title} - ${prefetchState.label}`;
     button.setAttribute(
       "aria-label",
@@ -2449,7 +2751,17 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
     status: isArtworkPending ? "pending_codex_image_generation" : "starting",
     title: pageTitle
   };
-  const trail = buildLoadingStepTrail({ job, pageTitle });
+  const isFailed = isArtworkJobFailed(job);
+  const isPending = isArtworkJobPending(job);
+  const trail = buildLoadingStepTrail({
+    job: isFailed
+      ? { ...job, status: "failed" }
+      : job.status === "partial_ready"
+      ? { ...job, status: "processing_openai_image" }
+      : job,
+    pageTitle
+  });
+  board.setAttribute("aria-busy", isPending ? "true" : "false");
   const readyCount = targets.filter(isArtworkTargetReady).length;
 
   const header = document.createElement("div");
@@ -2458,15 +2770,23 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
     <div>
       <span class="loading-scene-eyebrow">Illustration layer</span>
       <strong>${escapeHtml(trail.current.message)}</strong>
-      <p>${escapeHtml(trail.current.detail)}</p>
+      <p aria-live="polite">${escapeHtml(isFailed ? getArtworkFailureMessage(job.error) : trail.current.detail)}</p>
     </div>
-    <span class="loading-scene-count">${readyCount}/${targets.length || 0} ready</span>
+    ${isFailed
+      ? `<button type="button" class="artwork-retry-button" data-artwork-retry>Retry illustration</button>`
+      : `<span class="loading-scene-count">${readyCount}/${targets.length || 0} ready</span>`}
   `;
 
+  const retryButton = header.querySelector("[data-artwork-retry]");
+  if (retryButton) {
+    retryButton.dataset.roamFocusKey = `artwork-retry:${artworkJobKey}`;
+    retryButton.addEventListener("click", () => retryArtwork(artworkJobKey));
+  }
+
   const progress = document.createElement("div");
-  progress.className = "loading-scene-progress";
+  progress.className = `loading-scene-progress${isPending ? " loading-scene-progress--indeterminate" : ""}${isFailed ? " loading-scene-progress--failed" : ""}`;
   progress.setAttribute("aria-hidden", "true");
-  progress.innerHTML = `<span style="width: ${Math.round(trail.current.progress * 100)}%"></span>`;
+  progress.innerHTML = "<span></span>";
 
   const grid = document.createElement("div");
   grid.className = "loading-destination-grid";
@@ -2491,12 +2811,19 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
       ? "Ready"
       : prefetchState.phase === "failed"
       ? "Retry later"
+      : prefetchState.phase === "queued"
+      ? "Queued"
+      : prefetchState.phase === "idle"
+      ? "Not queued"
       : "Drawing";
 
     const button = document.createElement("button");
     button.type = "button";
     button.className = `loading-destination-card loading-destination-card--${prefetchState.phase}`;
-    button.style.setProperty("--prefetch-progress", `${Math.round(prefetchState.progress * 100)}%`);
+    if (prefetchState.phase === "ready") {
+      button.style.setProperty("--prefetch-progress", "100%");
+    }
+    button.dataset.roamFocusKey = `loading-destination:${target.key}`;
     button.setAttribute("aria-label", `${node.title}, ${prefetchState.label}`);
     button.innerHTML = `
       <span class="loading-destination-progress" aria-hidden="true"></span>
@@ -2533,7 +2860,6 @@ function getPrefetchTargetState(target) {
   if (isArtworkTargetReady(target)) {
     return {
       phase: "ready",
-      progress: 1,
       label: "illustration ready"
     };
   }
@@ -2542,19 +2868,32 @@ function getPrefetchTargetState(target) {
   if (!job) {
     return {
       phase: "idle",
-      progress: 0,
       label: "not started yet"
     };
   }
 
+  if (isArtworkJobFailed(job)) {
+    return {
+      phase: "failed",
+      label: getArtworkFailureMessage(job.error)
+    };
+  }
+
   const current = buildLoadingStepTrail({
-    job,
+    job: job.status === "partial_ready"
+      ? { ...job, status: "processing_openai_image" }
+      : job,
     pageTitle: target.title
   }).current;
 
   return {
-    phase: current.phase === "failed" ? "failed" : "loading",
-    progress: current.progress,
+    phase: current.phase === "failed"
+      ? "failed"
+      : current.phase === "queued"
+      ? "queued"
+      : current.phase === "generating"
+      ? "loading"
+      : "starting",
     label: current.phase === "failed" ? "illustration failed" : current.detail
   };
 }
@@ -2596,19 +2935,64 @@ function canCurrentPageUseSceneArtwork(scene) {
 }
 
 function getPageArtworkJobKey(page) {
-  return `page:${page.id}`;
+  return `page:${page?.id ?? page?.nodeId ?? "unknown"}`;
+}
+
+function getPageArtworkCacheKey(page) {
+  return page?.nodeId ? `node:${page.nodeId}` : `page:${page?.id ?? "unknown"}`;
+}
+
+function isArtworkJobFailed(job) {
+  return ["failed", "cancelled", "timed_out", "error"].includes(job?.status);
+}
+
+function isArtworkJobPending(job) {
+  return Boolean(job) && job.status !== "ready" && !isArtworkJobFailed(job);
+}
+
+function getPageReadinessLabel(status, hasImage) {
+  if (hasImage) return "facts + illustration ready";
+  if (isArtworkJobFailed({ status }) || status === "artwork_failed") {
+    return "facts ready · illustration unavailable";
+  }
+  return "facts ready · illustration loading";
+}
+
+function getArtworkFailureMessage(error) {
+  const originalMessage = String(error ?? "");
+  const message = originalMessage.toLowerCase();
+  if (message.includes("the factual page remains available")) return originalMessage;
+  if (message.includes("401") || message.includes("api key") || message.includes("authentication")) {
+    return "The illustration service is not configured right now. The factual page remains available.";
+  }
+  if (message.includes("429") || message.includes("rate limit") || message.includes("capacity")) {
+    return "The illustration service is busy. The factual page remains available; retry shortly.";
+  }
+  if (message.includes("timeout") || message.includes("timed out") || message.includes("taking longer")) {
+    return "The illustration is taking longer than expected. The factual page remains available.";
+  }
+  return "We could not finish this illustration. The factual page remains available; retry when ready.";
 }
 
 function getSceneEnvironmentUrl(scene, imageUrl) {
   if (!imageUrl) return null;
   const sceneArtwork = state.artworkByScene.get(scene.id);
+  const pageArtwork = state.artworkByPage.get(getPageArtworkCacheKey(state.currentPage));
   if (state.currentPage.sceneId === scene.id && imageUrl === state.currentPage.imageUrl) {
-    return getPageEnvironmentUrl(state.currentPage) ?? getPageEnvironmentUrl(sceneArtwork?.page);
+    return getPageEnvironmentUrl(state.currentPage);
   }
-  return sceneArtwork?.environmentUrl ?? getPageEnvironmentUrl(sceneArtwork?.page);
+  if (imageUrl === pageArtwork?.imageUrl) {
+    return pageArtwork.environmentUrl ?? getPageEnvironmentUrl(pageArtwork.page);
+  }
+  if (imageUrl === sceneArtwork?.imageUrl) {
+    return sceneArtwork.environmentUrl ?? getPageEnvironmentUrl(sceneArtwork.page);
+  }
+  return null;
 }
 
 function getPageEnvironmentUrl(page) {
+  const status = page?.environmentStatus ?? page?.generated?.environmentStatus;
+  if (status === "deferred") return null;
   return page?.environmentUrl ?? page?.generated?.environmentUrl ?? null;
 }
 
@@ -2617,21 +3001,51 @@ async function requestEnvironmentPlan(environmentUrl) {
     return;
   }
 
-  const request = fetch(toApiUrl(environmentUrl), { cache: "no-store" })
-    .then(async (response) => {
-      if (!response.ok) throw new Error(`Environment plan failed: ${response.status}`);
-      const plan = await response.json();
-      state.environmentPlans.set(environmentUrl, normalizeEnvironmentPlan(plan));
+  const requestEpoch = environmentPlanEpoch;
+  let request;
+  request = fetchEnvironmentPlanWithRetry(environmentUrl)
+    .then((plan) => {
+      if (requestEpoch !== environmentPlanEpoch) return;
+      state.environmentPlans.set(
+        environmentUrl,
+        plan ? normalizeEnvironmentPlan(plan) : { version: "environment-plan-v1", layers: [] }
+      );
     })
     .catch(() => {
+      if (requestEpoch !== environmentPlanEpoch) return;
       state.environmentPlans.set(environmentUrl, { version: "environment-plan-v1", layers: [] });
     })
     .finally(() => {
-      state.environmentPlanRequests.delete(environmentUrl);
-      render();
+      if (state.environmentPlanRequests.get(environmentUrl) === request) {
+        state.environmentPlanRequests.delete(environmentUrl);
+      }
+      if (requestEpoch === environmentPlanEpoch && state.currentView === "explorer") render();
     });
 
   state.environmentPlanRequests.set(environmentUrl, request);
+}
+
+async function fetchEnvironmentPlanWithRetry(environmentUrl) {
+  for (let attempt = 0; attempt < ENVIRONMENT_PLAN_RETRY_DELAYS_MS.length; attempt += 1) {
+    const delayMs = ENVIRONMENT_PLAN_RETRY_DELAYS_MS[attempt];
+    if (delayMs > 0) {
+      await waitFor(delayMs);
+    }
+
+    const response = await fetch(toApiUrl(environmentUrl), { cache: "no-store" });
+    const canRetry = response.status === 202 || response.status === 404 || response.status === 409 || response.status === 425;
+    if (canRetry) continue;
+    if (!response.ok) throw new Error(`Environment plan failed: ${response.status}`);
+
+    const plan = await response.json();
+    if (["pending", "queued", "processing"].includes(plan?.status)) continue;
+    return plan;
+  }
+  return null;
+}
+
+function waitFor(delayMs) {
+  return new Promise((resolve) => window.setTimeout(resolve, delayMs));
 }
 
 function normalizeEnvironmentPlan(plan) {
@@ -2766,11 +3180,11 @@ function renderArtworkPending(title) {
   return el;
 }
 
-function renderSceneImage(imageUrl, title, stageElement) {
+function renderSceneImage(imageUrl, title, stageElement, { isPreview = false } = {}) {
   const image = document.createElement("img");
-  image.className = "scene-image";
+  image.className = `scene-image${isPreview ? " scene-image--preview" : ""}`;
   image.src = imageUrl;
-  image.alt = `${title} illustration`;
+  image.alt = isPreview ? `${title} illustration preview` : `${title} illustration`;
   image.decoding = "async";
   image.draggable = false;
   const syncDisplayAspect = () => {
@@ -2783,6 +3197,36 @@ function renderSceneImage(imageUrl, title, stageElement) {
   image.addEventListener("load", syncDisplayAspect, { once: true });
   if (image.complete) syncDisplayAspect();
   return image;
+}
+
+function preloadArtworkImage(imageUrl) {
+  if (!imageUrl) return Promise.reject(new Error("Artwork response did not include an image URL."));
+  if (state.artworkImageLoads.has(imageUrl)) {
+    return state.artworkImageLoads.get(imageUrl);
+  }
+
+  const load = new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = async () => {
+      try {
+        if (typeof image.decode === "function") {
+          await image.decode();
+        }
+        resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      } catch (error) {
+        reject(new Error(`Artwork could not be decoded: ${String(error?.message ?? error)}`));
+      }
+    };
+    image.onerror = () => reject(new Error("Artwork could not be loaded by the browser."));
+    image.src = imageUrl;
+  }).catch((error) => {
+    state.artworkImageLoads.delete(imageUrl);
+    throw error;
+  });
+
+  state.artworkImageLoads.set(imageUrl, load);
+  return load;
 }
 
 function renderEnvironmentLayerNodes(scene, environmentPlan) {
@@ -3180,9 +3624,31 @@ function getSceneCanvasRect() {
 function getSceneClickRect() {
   const image = elements.stage.querySelector(".scene-image");
   if (image?.naturalWidth && image.naturalHeight) {
-    return image.getBoundingClientRect();
+    return getContainedImageRect(image);
   }
   return getSceneCanvasRect();
+}
+
+function getContainedImageRect(image) {
+  const elementRect = image.getBoundingClientRect();
+  const scale = Math.min(
+    elementRect.width / image.naturalWidth,
+    elementRect.height / image.naturalHeight
+  );
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  const left = elementRect.left + (elementRect.width - width) / 2;
+  const top = elementRect.top + (elementRect.height - height) / 2;
+  return {
+    x: left,
+    y: top,
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height
+  };
 }
 
 async function resolveClickAt(event) {
@@ -3195,21 +3661,27 @@ async function resolveClickAt(event) {
     x: clamp01((event.clientX - stageRect.left) / stageRect.width),
     y: clamp01((event.clientY - stageRect.top) / stageRect.height)
   };
-  const imageClick = computeImageClick(event, getSceneCanvasRect());
+  const imageClick = computeImageClick(event);
   const immediatePage = buildImmediatePageFromClick(normalizedClick);
   if (immediatePage) {
     enterReadyPage(immediatePage);
     return;
   }
 
-  state.isResolvingClick = true;
+  const navigationRequest = beginNavigationRequest();
   beginNavigationFeedback();
   try {
-    const result = await requestFlipbookPage({ normalizedClick, imageClick });
+    const result = await requestFlipbookPage({
+      normalizedClick,
+      imageClick,
+      signal: navigationRequest.signal
+    });
+    if (!isNavigationRequestCurrent(navigationRequest.id)) return;
     runFlipbookResult(result);
+    finishNavigationRequest(navigationRequest.id);
   } catch (error) {
-    state.isResolvingClick = false;
-    endNavigationFeedback();
+    if (!isNavigationRequestCurrent(navigationRequest.id)) return;
+    cancelPendingNavigation();
     renderDetour({
       confidence: "unconfirmed",
       title: "Click failed",
@@ -3244,19 +3716,22 @@ async function resolveOverlayTarget(target) {
     return;
   }
 
-  state.isResolvingClick = true;
+  const navigationRequest = beginNavigationRequest();
   const node = target.nodeId ? state.activePack.nodes[target.nodeId] : null;
   beginNavigationFeedback(node?.title);
   try {
     const result = await requestFlipbookPage({
       normalizedClick: target.normalizedClick,
       targetNodeId: target.nodeId,
-      detourPhrase: target.detourPhrase
+      detourPhrase: target.detourPhrase,
+      signal: navigationRequest.signal
     });
+    if (!isNavigationRequestCurrent(navigationRequest.id)) return;
     runFlipbookResult(result);
+    finishNavigationRequest(navigationRequest.id);
   } catch (error) {
-    state.isResolvingClick = false;
-    endNavigationFeedback();
+    if (!isNavigationRequestCurrent(navigationRequest.id)) return;
+    cancelPendingNavigation();
     renderDetour({
       confidence: "unconfirmed",
       title: "Click failed",
@@ -3294,9 +3769,45 @@ function endNavigationFeedback() {
   clearLoadingPanel();
 }
 
-async function requestFlipbookPage({ normalizedClick, imageClick = null, targetNodeId = null, detourPhrase = null }) {
+function beginNavigationRequest() {
+  navigationAbortController?.abort();
+  navigationAbortController = new AbortController();
+  const id = ++navigationRequestSequence;
+  state.activeNavigationRequestId = id;
+  state.isResolvingClick = true;
+  return { id, signal: navigationAbortController.signal };
+}
+
+function isNavigationRequestCurrent(id) {
+  return state.activeNavigationRequestId === id;
+}
+
+function finishNavigationRequest(id) {
+  if (!isNavigationRequestCurrent(id)) return;
+  navigationAbortController = null;
+  state.activeNavigationRequestId = null;
+  state.isResolvingClick = false;
+  endNavigationFeedback();
+}
+
+function cancelPendingNavigation() {
+  navigationAbortController?.abort();
+  navigationAbortController = null;
+  state.activeNavigationRequestId = null;
+  state.isResolvingClick = false;
+  endNavigationFeedback();
+}
+
+async function requestFlipbookPage({
+  normalizedClick,
+  imageClick = null,
+  targetNodeId = null,
+  detourPhrase = null,
+  signal = undefined
+}) {
   const response = await fetch(apiPath("/api/flipbook/click"), {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       currentPage: getCurrentRequestPage(),
@@ -3317,22 +3828,37 @@ async function requestFlipbookPage({ normalizedClick, imageClick = null, targetN
 
 function getCurrentRequestPage() {
   const sceneArtwork = state.artworkByScene.get(state.currentSceneId);
-  const imageUrl = state.currentPage.imageUrl ?? sceneArtwork?.imageUrl ?? null;
+  const pageArtwork = state.artworkByPage.get(getPageArtworkCacheKey(state.currentPage));
+  const scene = state.activePack?.scenes?.[state.currentSceneId];
+  const cachedArtwork = scene && state.currentPage.nodeId === scene.rootNodeId
+    ? sceneArtwork
+    : pageArtwork;
+  const imageUrl = state.currentPage.imageUrl ?? cachedArtwork?.imageUrl ?? null;
   return imageUrl === state.currentPage.imageUrl
     ? state.currentPage
     : {
         ...state.currentPage,
         imageUrl,
+        environmentUrl: cachedArtwork?.environmentUrl,
+        artworkDecoded: Boolean(cachedArtwork?.decoded),
         status: imageUrl ? "ready" : state.currentPage.status
       };
 }
 
-async function requestSceneArtwork(sceneId, { jobKind = "artwork" } = {}) {
+async function requestSceneArtwork(sceneId, { jobKind = "interactive" } = {}) {
   if (state.artworkByScene.has(sceneId) || state.artworkJobs.has(sceneId)) {
     return;
   }
 
-  state.artworkJobs.set(sceneId, { status: "requesting", jobKind });
+  const attemptId = ++artworkAttemptSequence;
+  state.artworkJobs.set(sceneId, {
+    status: "requesting",
+    jobKind,
+    countrySlug: state.activeCountrySlug,
+    attemptId,
+    startedAt: Date.now(),
+    attempts: 0
+  });
   render();
   try {
     const params = new URLSearchParams({
@@ -3342,37 +3868,35 @@ async function requestSceneArtwork(sceneId, { jobKind = "artwork" } = {}) {
     if (jobKind === "interactive") {
       params.set("priority", "interactive");
     }
-    const response = await fetch(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" });
+    const response = await fetchArtworkResource(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" });
     if (!response.ok) throw new Error(`Artwork request failed: ${response.status}`);
     const { page } = await response.json();
+    if (!isCurrentArtworkAttempt(sceneId, attemptId)) return;
     if (page.status === "ready" && page.imageUrl) {
-      const environmentUrl = getPageEnvironmentUrl(page);
-      state.artworkByScene.set(sceneId, { imageUrl: page.imageUrl, environmentUrl, page });
-      state.artworkJobs.delete(sceneId);
-      if (state.currentSceneId === sceneId && !state.currentPage.imageUrl) {
-        state.currentPage = {
-          ...state.currentPage,
-          imageUrl: page.imageUrl,
-          environmentUrl,
-          status: "ready"
-        };
-      }
-      render();
+      await completeSceneArtwork(sceneId, page, page, attemptId);
       return;
     }
 
     const jobUrl = page.generated?.jobUrl;
+    if (!jobUrl) {
+      markArtworkJobFailed(sceneId, "The illustration job did not provide a status URL. Retry to start it again.");
+      return;
+    }
     state.artworkJobs.set(sceneId, {
+      ...state.artworkJobs.get(sceneId),
+      status: page.status ?? "pending_codex_image_generation",
       page,
       jobKind,
-      intervalId: jobUrl ? window.setInterval(() => pollArtworkJob(sceneId, jobUrl, page), 1600) : null
+      jobUrl
     });
-    if (jobUrl) {
-      pollArtworkJob(sceneId, jobUrl, page);
-    }
+    startArtworkPoller(
+      sceneId,
+      (currentAttemptId) => pollArtworkJob(sceneId, jobUrl, page, currentAttemptId),
+      attemptId
+    );
   } catch (error) {
-    state.artworkJobs.set(sceneId, { status: "failed", error: explainClickError(error) });
-    render();
+    if (!isCurrentArtworkAttempt(sceneId, attemptId)) return;
+    markArtworkJobFailed(sceneId, explainClickError(error));
   }
 }
 
@@ -3383,7 +3907,16 @@ async function requestCurrentPageArtwork({ jobKind = "interactive" } = {}) {
     return;
   }
 
-  state.artworkJobs.set(artworkJobKey, { status: "requesting", jobKind });
+  const attemptId = ++artworkAttemptSequence;
+  state.artworkJobs.set(artworkJobKey, {
+    status: "requesting",
+    jobKind,
+    countrySlug: state.activeCountrySlug,
+    page,
+    attemptId,
+    startedAt: Date.now(),
+    attempts: 0
+  });
   render();
   try {
     const params = new URLSearchParams({
@@ -3394,110 +3927,405 @@ async function requestCurrentPageArtwork({ jobKind = "interactive" } = {}) {
     if (jobKind === "interactive") {
       params.set("priority", "interactive");
     }
-    const response = await fetch(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" });
+    const response = await fetchArtworkResource(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" });
     if (!response.ok) throw new Error(`Artwork request failed: ${response.status}`);
     const { page: artworkPage } = await response.json();
+    if (!isCurrentArtworkAttempt(artworkJobKey, attemptId)) return;
     if (artworkPage.status === "ready" && artworkPage.imageUrl) {
-      const environmentUrl = getPageEnvironmentUrl(artworkPage);
-      state.artworkJobs.delete(artworkJobKey);
-      if (state.currentPage.id === page.id) {
-        state.currentPage = {
-          ...state.currentPage,
-          imageUrl: artworkPage.imageUrl,
-          environmentUrl,
-          status: "ready"
-        };
-      }
-      render();
+      await completeCurrentPageArtwork(artworkJobKey, page, artworkPage, attemptId);
       return;
     }
 
     const jobUrl = artworkPage.generated?.jobUrl;
+    if (!jobUrl) {
+      markArtworkJobFailed(artworkJobKey, "The illustration job did not provide a status URL. Retry to start it again.");
+      return;
+    }
     state.artworkJobs.set(artworkJobKey, {
+      ...state.artworkJobs.get(artworkJobKey),
+      status: artworkPage.status ?? "pending_codex_image_generation",
       page: artworkPage,
+      targetPage: page,
       jobKind,
-      intervalId: jobUrl ? window.setInterval(() => pollCurrentPageArtworkJob(artworkJobKey, jobUrl, artworkPage), 1600) : null
+      jobUrl
     });
-    if (jobUrl) {
-      pollCurrentPageArtworkJob(artworkJobKey, jobUrl, artworkPage);
-    }
+    startArtworkPoller(
+      artworkJobKey,
+      (currentAttemptId) => pollCurrentPageArtworkJob(
+        artworkJobKey,
+        jobUrl,
+        page,
+        artworkPage,
+        currentAttemptId
+      ),
+      attemptId
+    );
   } catch (error) {
-    state.artworkJobs.set(artworkJobKey, { status: "failed", error: explainClickError(error) });
-    render();
+    if (!isCurrentArtworkAttempt(artworkJobKey, attemptId)) return;
+    markArtworkJobFailed(artworkJobKey, explainClickError(error));
   }
 }
 
-async function pollArtworkJob(sceneId, jobUrl, page) {
+async function pollArtworkJob(sceneId, jobUrl, page, attemptId) {
+  if (shouldStopArtworkPolling(sceneId, attemptId)) return;
   try {
-    const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
-    if (!response.ok) return;
-    const job = await response.json();
-    if (job.status !== "ready" || !job.imageUrl) return;
-    const artworkJob = state.artworkJobs.get(sceneId);
-    if (artworkJob?.intervalId) {
-      window.clearInterval(artworkJob.intervalId);
+    const response = await fetchArtworkResource(toApiUrl(jobUrl), { cache: "no-store" });
+    if (!isCurrentArtworkAttempt(sceneId, attemptId, jobUrl)) return;
+    recordArtworkPollAttempt(sceneId, attemptId);
+    if (!response.ok) {
+      if (shouldStopArtworkPolling(sceneId, attemptId)) return;
+      return;
     }
-    state.artworkJobs.delete(sceneId);
-    const environmentUrl = job.environmentUrl ?? getPageEnvironmentUrl(page);
-    state.artworkByScene.set(sceneId, {
-      imageUrl: job.imageUrl,
+    const job = await response.json();
+    if (!isCurrentArtworkAttempt(sceneId, attemptId, jobUrl)) return;
+    const activeJob = state.artworkJobs.get(sceneId);
+    if (!activeJob || activeJob.status === "decoding_image" || activeJob.status === "ready") return;
+    const didChange = copyArtworkJobStatus(sceneId, job, page);
+    if (job.partialImageUrl && job.status !== "ready") {
+      preparePartialArtwork(sceneId, job.partialImageUrl, attemptId);
+    }
+    if (isArtworkJobFailed(job)) {
+      markArtworkJobFailed(sceneId, job.error ?? "Illustration generation failed.", { status: job.status });
+      return;
+    }
+    if (job.status === "ready" && !job.imageUrl) {
+      markArtworkJobFailed(sceneId, "Illustration completed without an image. Retry to generate it again.");
+      return;
+    }
+    if (job.status === "ready" && job.imageUrl) {
+      stopArtworkPoller(sceneId);
+      await completeSceneArtwork(sceneId, page, job, attemptId);
+      return;
+    }
+    if (didChange && isArtworkJobVisible(sceneId)) render();
+  } catch (error) {
+    if (!isCurrentArtworkAttempt(sceneId, attemptId, jobUrl)) return;
+    recordArtworkPollAttempt(sceneId, attemptId);
+    if (shouldStopArtworkPolling(sceneId, attemptId)) return;
+    copyArtworkJobStatus(sceneId, {
+      status: state.artworkJobs.get(sceneId)?.status ?? "waiting_for_job",
+      lastPollError: explainClickError(error)
+    }, page);
+  }
+}
+
+async function pollCurrentPageArtworkJob(
+  artworkJobKey,
+  jobUrl,
+  targetPage,
+  artworkPage = targetPage,
+  attemptId
+) {
+  if (shouldStopArtworkPolling(artworkJobKey, attemptId)) return;
+  try {
+    const response = await fetchArtworkResource(toApiUrl(jobUrl), { cache: "no-store" });
+    if (!isCurrentArtworkAttempt(artworkJobKey, attemptId, jobUrl)) return;
+    recordArtworkPollAttempt(artworkJobKey, attemptId);
+    if (!response.ok) {
+      if (shouldStopArtworkPolling(artworkJobKey, attemptId)) return;
+      return;
+    }
+    const job = await response.json();
+    if (!isCurrentArtworkAttempt(artworkJobKey, attemptId, jobUrl)) return;
+    const activeJob = state.artworkJobs.get(artworkJobKey);
+    if (!activeJob || activeJob.status === "decoding_image" || activeJob.status === "ready") return;
+    const didChange = copyArtworkJobStatus(artworkJobKey, job, artworkPage);
+    if (job.partialImageUrl && job.status !== "ready") {
+      preparePartialArtwork(artworkJobKey, job.partialImageUrl, attemptId);
+    }
+    if (isArtworkJobFailed(job)) {
+      markArtworkJobFailed(artworkJobKey, job.error ?? "Illustration generation failed.", { status: job.status });
+      return;
+    }
+    if (job.status === "ready" && !job.imageUrl) {
+      markArtworkJobFailed(artworkJobKey, "Illustration completed without an image. Retry to generate it again.");
+      return;
+    }
+    if (job.status === "ready" && job.imageUrl) {
+      stopArtworkPoller(artworkJobKey);
+      await completeCurrentPageArtwork(
+        artworkJobKey,
+        targetPage,
+        { ...artworkPage, ...job },
+        attemptId
+      );
+      return;
+    }
+    if (didChange && isArtworkJobVisible(artworkJobKey)) render();
+  } catch (error) {
+    if (!isCurrentArtworkAttempt(artworkJobKey, attemptId, jobUrl)) return;
+    recordArtworkPollAttempt(artworkJobKey, attemptId);
+    if (shouldStopArtworkPolling(artworkJobKey, attemptId)) return;
+    copyArtworkJobStatus(artworkJobKey, {
+      status: state.artworkJobs.get(artworkJobKey)?.status ?? "waiting_for_job",
+      lastPollError: explainClickError(error)
+    }, artworkPage);
+  }
+}
+
+function startArtworkPoller(artworkJobKey, tick, attemptId) {
+  stopArtworkPoller(artworkJobKey);
+  const current = state.artworkJobs.get(artworkJobKey) ?? {};
+  let pollInFlight = false;
+  const guardedTick = async () => {
+    if (pollInFlight) return;
+    pollInFlight = true;
+    try {
+      await tick(attemptId);
+    } finally {
+      pollInFlight = false;
+    }
+  };
+  const intervalId = window.setInterval(guardedTick, ARTWORK_POLL_INTERVAL_MS);
+  state.artworkJobs.set(artworkJobKey, {
+    ...current,
+    attemptId,
+    intervalId,
+    startedAt: current.startedAt ?? Date.now(),
+    attempts: current.attempts ?? 0
+  });
+  guardedTick();
+}
+
+function stopArtworkPoller(artworkJobKey) {
+  const current = state.artworkJobs.get(artworkJobKey);
+  if (current?.intervalId) {
+    window.clearInterval(current.intervalId);
+    state.artworkJobs.set(artworkJobKey, { ...current, intervalId: null });
+  }
+}
+
+function recordArtworkPollAttempt(artworkJobKey, attemptId) {
+  const current = state.artworkJobs.get(artworkJobKey);
+  if (!current || current.attemptId !== attemptId) return;
+  state.artworkJobs.set(artworkJobKey, {
+    ...current,
+    attempts: (current.attempts ?? 0) + 1
+  });
+}
+
+function shouldStopArtworkPolling(artworkJobKey, attemptId) {
+  const current = state.artworkJobs.get(artworkJobKey);
+  if (!current || current.attemptId !== attemptId || isArtworkJobFailed(current)) return true;
+  if (current.status === "ready") {
+    if (!current.imageUrl) {
+      markArtworkJobFailed(
+        artworkJobKey,
+        "Illustration completed without an image. Retry to generate it again."
+      );
+    } else {
+      stopArtworkPoller(artworkJobKey);
+    }
+    return true;
+  }
+  const elapsed = Date.now() - (current.startedAt ?? Date.now());
+  if (elapsed < ARTWORK_POLL_TIMEOUT_MS && (current.attempts ?? 0) < ARTWORK_POLL_MAX_ATTEMPTS) {
+    return false;
+  }
+  markArtworkJobFailed(
+    artworkJobKey,
+    "The illustration is taking longer than expected. The page remains usable; retry when you are ready.",
+    { status: "timed_out" }
+  );
+  return true;
+}
+
+function copyArtworkJobStatus(artworkJobKey, job, page) {
+  const current = state.artworkJobs.get(artworkJobKey);
+  if (!current) return false;
+  const didChange = ["status", "partialImageUrl", "imageUrl", "error", "environmentStatus"]
+    .some((field) => current[field] !== job[field]);
+  state.artworkJobs.set(artworkJobKey, {
+    ...current,
+    ...job,
+    page: current.page ?? page,
+    intervalId: current.intervalId,
+    startedAt: current.startedAt,
+    attempts: current.attempts
+  });
+  return didChange;
+}
+
+function isCurrentArtworkAttempt(artworkJobKey, attemptId, jobUrl = null) {
+  const current = state.artworkJobs.get(artworkJobKey);
+  return Boolean(
+    current &&
+    current.attemptId === attemptId &&
+    (!jobUrl || current.jobUrl === jobUrl)
+  );
+}
+
+function isArtworkJobVisible(artworkJobKey) {
+  return state.currentView === "explorer" &&
+    getArtworkJobKeyForPage(state.currentPage) === artworkJobKey;
+}
+
+function markArtworkJobFailed(artworkJobKey, error, { status = "failed" } = {}) {
+  stopArtworkPoller(artworkJobKey);
+  const current = state.artworkJobs.get(artworkJobKey) ?? {};
+  state.artworkJobs.set(artworkJobKey, {
+    ...current,
+    status,
+    error: getArtworkFailureMessage(error),
+    intervalId: null
+  });
+  if (getArtworkJobKeyForPage(state.currentPage) === artworkJobKey) {
+    state.currentPage = { ...state.currentPage, status: "artwork_failed" };
+  }
+  if (isArtworkJobVisible(artworkJobKey)) render();
+}
+
+async function completeSceneArtwork(sceneId, page, imageResult, attemptId = null) {
+  if (attemptId != null && !isCurrentArtworkAttempt(sceneId, attemptId)) return;
+  const imageUrl = imageResult.imageUrl ?? page.imageUrl;
+  const current = state.artworkJobs.get(sceneId) ?? {};
+  state.artworkJobs.set(sceneId, {
+    ...current,
+    status: "decoding_image",
+    serverStatus: imageResult.status ?? page.status,
+    imageUrl
+  });
+  if (isArtworkJobVisible(sceneId)) render();
+  try {
+    await preloadArtworkImage(imageUrl);
+  } catch (error) {
+    if (attemptId != null && !isCurrentArtworkAttempt(sceneId, attemptId)) return;
+    markArtworkJobFailed(sceneId, explainClickError(error));
+    return;
+  }
+  if (attemptId != null && !isCurrentArtworkAttempt(sceneId, attemptId)) return;
+
+  stopArtworkPoller(sceneId);
+  const environmentUrl = getPageEnvironmentUrl({ ...page, ...imageResult });
+  const readyPage = { ...page, imageUrl, environmentUrl, status: "ready", artworkDecoded: true };
+  state.artworkByScene.set(sceneId, {
+    imageUrl,
+    environmentUrl,
+    page: readyPage,
+    decoded: true
+  });
+  state.artworkJobs.delete(sceneId);
+  const scene = state.activePack?.scenes?.[sceneId];
+  if (
+    scene &&
+    state.currentSceneId === sceneId &&
+    state.currentPage.nodeId === scene.rootNodeId &&
+    !state.currentPage.imageUrl
+  ) {
+    state.currentPage = {
+      ...state.currentPage,
+      imageUrl,
       environmentUrl,
-      page: { ...page, imageUrl: job.imageUrl, environmentUrl, status: "ready" }
-    });
-    if (state.currentSceneId === sceneId && !state.currentPage.imageUrl) {
-      state.currentPage = {
-        ...state.currentPage,
-        imageUrl: job.imageUrl,
-        environmentUrl,
-        status: "ready"
-      };
-    }
-    render();
-  } catch {
-    // Keep polling; runtime artwork may still be generating.
+      status: "ready",
+      artworkDecoded: true
+    };
   }
+  if (isArtworkJobVisible(sceneId)) render();
 }
 
-async function pollCurrentPageArtworkJob(artworkJobKey, jobUrl, page) {
+async function completeCurrentPageArtwork(artworkJobKey, targetPage, imageResult, attemptId = null) {
+  if (attemptId != null && !isCurrentArtworkAttempt(artworkJobKey, attemptId)) return;
+  const imageUrl = imageResult.imageUrl;
+  const current = state.artworkJobs.get(artworkJobKey) ?? {};
+  state.artworkJobs.set(artworkJobKey, {
+    ...current,
+    status: "decoding_image",
+    serverStatus: imageResult.status,
+    imageUrl
+  });
+  if (isArtworkJobVisible(artworkJobKey)) render();
   try {
-    const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
-    if (!response.ok) return;
-    const job = await response.json();
-    if (job.status !== "ready" || !job.imageUrl) return;
-    const artworkJob = state.artworkJobs.get(artworkJobKey);
-    if (artworkJob?.intervalId) {
-      window.clearInterval(artworkJob.intervalId);
-    }
-    state.artworkJobs.delete(artworkJobKey);
-    const environmentUrl = job.environmentUrl ?? getPageEnvironmentUrl(page);
-    if (state.currentPage.id === page.id) {
-      state.currentPage = {
-        ...state.currentPage,
-        imageUrl: job.imageUrl,
-        environmentUrl,
-        status: "ready"
-      };
-      render();
-    }
+    await preloadArtworkImage(imageUrl);
+  } catch (error) {
+    if (attemptId != null && !isCurrentArtworkAttempt(artworkJobKey, attemptId)) return;
+    markArtworkJobFailed(artworkJobKey, explainClickError(error));
+    return;
+  }
+  if (attemptId != null && !isCurrentArtworkAttempt(artworkJobKey, attemptId)) return;
+
+  stopArtworkPoller(artworkJobKey);
+  const environmentUrl = getPageEnvironmentUrl({ ...targetPage, ...imageResult });
+  const readyPage = {
+    ...targetPage,
+    ...imageResult,
+    imageUrl,
+    environmentUrl,
+    status: "ready",
+    artworkDecoded: true
+  };
+  state.artworkByPage.set(getPageArtworkCacheKey(targetPage), {
+    imageUrl,
+    environmentUrl,
+    page: readyPage,
+    decoded: true
+  });
+  state.artworkJobs.delete(artworkJobKey);
+  if (
+    state.currentPage.nodeId === targetPage.nodeId &&
+    state.currentPage.sceneId === targetPage.sceneId &&
+    !state.currentPage.imageUrl
+  ) {
+    state.currentPage = {
+      ...state.currentPage,
+      imageUrl,
+      environmentUrl,
+      status: "ready",
+      artworkDecoded: true
+    };
+  }
+  if (isArtworkJobVisible(artworkJobKey)) render();
+}
+
+async function preparePartialArtwork(artworkJobKey, partialImageUrl, attemptId) {
+  const current = state.artworkJobs.get(artworkJobKey);
+  if (
+    !current ||
+    current.attemptId !== attemptId ||
+    current.decodedPartialImageUrl === partialImageUrl ||
+    current.loadingPartialImageUrl === partialImageUrl
+  ) {
+    return;
+  }
+  state.artworkJobs.set(artworkJobKey, {
+    ...current,
+    loadingPartialImageUrl: partialImageUrl
+  });
+  try {
+    await preloadArtworkImage(partialImageUrl);
+    const latest = state.artworkJobs.get(artworkJobKey);
+    if (
+      !latest ||
+      latest.attemptId !== attemptId ||
+      latest.status === "ready" ||
+      isArtworkJobFailed(latest)
+    ) return;
+    state.artworkJobs.set(artworkJobKey, {
+      ...latest,
+      decodedPartialImageUrl: partialImageUrl,
+      loadingPartialImageUrl: null
+    });
+    if (isArtworkJobVisible(artworkJobKey)) render();
   } catch {
-    // Keep polling; runtime artwork may still be generating.
+    const latest = state.artworkJobs.get(artworkJobKey);
+    if (!latest || latest.attemptId !== attemptId) return;
+    state.artworkJobs.set(artworkJobKey, {
+      ...latest,
+      loadingPartialImageUrl: null,
+      partialImageFailed: true
+    });
   }
 }
 
-function computeImageClick(event, stageRect) {
+function computeImageClick(event) {
   const image = elements.stage.querySelector(".scene-image");
   if (!image?.naturalWidth || !image?.naturalHeight) {
     return null;
   }
 
-  const imageRect = image.getBoundingClientRect();
-  const scale = Math.min(imageRect.width / image.naturalWidth, imageRect.height / image.naturalHeight);
-  const renderedWidth = image.naturalWidth * scale;
-  const renderedHeight = image.naturalHeight * scale;
-  const offsetX = imageRect.left + (imageRect.width - renderedWidth) / 2;
-  const offsetY = imageRect.top + (imageRect.height - renderedHeight) / 2;
-  const imageX = clamp(event.clientX - offsetX, 0, renderedWidth) / scale;
-  const imageY = clamp(event.clientY - offsetY, 0, renderedHeight) / scale;
+  const imageRect = getContainedImageRect(image);
+  const scale = imageRect.width / image.naturalWidth;
+  const imageX = clamp(event.clientX - imageRect.left, 0, imageRect.width) / scale;
+  const imageY = clamp(event.clientY - imageRect.top, 0, imageRect.height) / scale;
 
   return {
     normalizedImage: {
@@ -3517,7 +4345,6 @@ function computeImageClick(event, stageRect) {
 }
 
 function runFlipbookResult(result) {
-  state.isResolvingClick = false;
   if (result.click?.resolver === "vlm_guard") {
     endNavigationFeedback();
     renderDetour({
@@ -3531,7 +4358,11 @@ function runFlipbookResult(result) {
   if (page.nodeId) {
     setBrowserPath(canonicalRouteForNode(state.activeCountrySlug, page.nodeId, state.activePack));
   }
-  if (page.status === "generation_required" || page.status === "pending_codex_image_generation") {
+  if (
+    page.status === "generation_required" ||
+    page.status === "pending_codex_image_generation" ||
+    (page.imageUrl && !page.artworkDecoded)
+  ) {
     renderImageGenerationPending(page, result);
     return;
   }
@@ -3711,26 +4542,94 @@ function renderGenerationRequired(page) {
 }
 
 function renderImageGenerationPending(page, result) {
-  clearPendingJob();
-  const pageTitle = page.plan?.title ?? page.nodeId ?? "next page";
+  const artworkJobKey = getArtworkJobKeyForPage(page);
+  const attemptId = ++artworkAttemptSequence;
   const jobUrl = page.generated?.jobUrl;
-  state.pendingJob = {
+  const pendingPage = {
+    ...page,
+    imageUrl: null,
+    environmentUrl: null,
+    status: page.imageUrl ? "decoding_image" : page.status
+  };
+
+  state.artworkJobs.set(artworkJobKey, {
+    status: pendingPage.status ?? "pending_codex_image_generation",
+    serverStatus: page.status,
+    jobKind: "interactive",
+    countrySlug: state.activeCountrySlug,
     page,
     result,
-    pageTitle,
-    intervalId: jobUrl ? window.setInterval(() => pollImageJob(jobUrl, page, pageTitle), 1600) : null
-  };
-  state.selectedNodeId = null;
-  elements.detailSheet.classList.remove("is-open");
-  elements.nodeDetail.innerHTML = "";
-  elements.viewport.classList.add("is-busy");
-  renderLoadingPanel({
-    pageTitle,
-    fallbackMessage: `Opening ${pageTitle}…`
+    jobUrl,
+    attemptId,
+    startedAt: Date.now(),
+    attempts: 0
   });
-  if (jobUrl) {
-    pollImageJob(jobUrl, page, pageTitle);
+
+  enterReadyPage(pendingPage);
+
+  if (page.imageUrl) {
+    const scene = state.activePack.scenes[page.sceneId];
+    if (scene && page.nodeId === scene.rootNodeId) {
+      completeSceneArtwork(page.sceneId, page, page, attemptId);
+    } else {
+      completeCurrentPageArtwork(artworkJobKey, pendingPage, page, attemptId);
+    }
+    return;
   }
+
+  if (!jobUrl) {
+    state.artworkJobs.delete(artworkJobKey);
+    requestArtworkForCurrentPage();
+    return;
+  }
+
+  const scene = state.activePack.scenes[page.sceneId];
+  if (scene && page.nodeId === scene.rootNodeId) {
+    startArtworkPoller(
+      artworkJobKey,
+      (currentAttemptId) => pollArtworkJob(page.sceneId, jobUrl, page, currentAttemptId),
+      attemptId
+    );
+  } else {
+    startArtworkPoller(
+      artworkJobKey,
+      (currentAttemptId) => pollCurrentPageArtworkJob(
+        artworkJobKey,
+        jobUrl,
+        pendingPage,
+        page,
+        currentAttemptId
+      ),
+      attemptId
+    );
+  }
+}
+
+function getArtworkJobKeyForPage(page) {
+  const scene = state.activePack?.scenes?.[page?.sceneId];
+  return scene && page?.nodeId === scene.rootNodeId ? scene.id : getPageArtworkJobKey(page);
+}
+
+function requestArtworkForCurrentPage() {
+  const scene = state.activePack.scenes[state.currentPage.sceneId];
+  if (scene && state.currentPage.nodeId === scene.rootNodeId) {
+    requestSceneArtwork(scene.id, { jobKind: "interactive" });
+  } else {
+    requestCurrentPageArtwork({ jobKind: "interactive" });
+  }
+}
+
+function retryArtwork(artworkJobKey) {
+  if (getArtworkJobKeyForPage(state.currentPage) !== artworkJobKey) return;
+  stopArtworkPoller(artworkJobKey);
+  state.artworkJobs.delete(artworkJobKey);
+  state.currentPage = {
+    ...state.currentPage,
+    imageUrl: null,
+    environmentUrl: null,
+    status: "pending_codex_image_generation"
+  };
+  requestArtworkForCurrentPage();
 }
 
 async function loadExperienceConfig() {
@@ -3762,7 +4661,7 @@ function prefetchNextDestinations() {
     scenes: state.activePack.scenes,
     nodes: state.activePack.nodes,
     currentPage: state.currentPage,
-    limit: state.experienceConfig.maxParallelImageJobs
+    limit: getPrefetchDestinationLimit()
   });
 
   for (const target of targets) {
@@ -3770,9 +4669,28 @@ function prefetchNextDestinations() {
   }
 }
 
+function getPrefetchDestinationLimit() {
+  const preferred = Number(state.experienceConfig.prefetchDestinationLimit);
+  const fallback = Number(state.experienceConfig.maxParallelImageJobs);
+  const limit = Number.isFinite(preferred) ? preferred : fallback;
+  return Math.max(0, Math.floor(Number.isFinite(limit) ? limit : 0));
+}
+
 function resetPrefetchForSceneChange(sceneId) {
-  if (state.prefetchSceneId === sceneId) return;
-  state.prefetchSceneId = sceneId;
+  const sceneKey = [
+    state.activeCountrySlug,
+    sceneId,
+    state.currentPage?.id,
+    state.currentPage?.nodeId
+  ].join(":");
+  if (state.prefetchSceneId === sceneKey) return;
+  invalidatePrefetchState();
+  state.prefetchSceneId = sceneKey;
+}
+
+function invalidatePrefetchState() {
+  prefetchEpoch += 1;
+  state.prefetchSceneId = null;
   state.prefetchRequests.clear();
   state.prefetchJobs.clear();
   for (const key of [...prefetchPollers.keys()]) {
@@ -3798,7 +4716,7 @@ function getPrefetchReadinessLabel() {
     scenes: state.activePack.scenes,
     nodes: state.activePack.nodes,
     currentPage: state.currentPage,
-    limit: state.experienceConfig.maxParallelImageJobs
+    limit: getPrefetchDestinationLimit()
   });
   if (!targets.length) return null;
 
@@ -3808,11 +4726,17 @@ function getPrefetchReadinessLabel() {
 }
 
 function prefetchArtworkTarget(target) {
-  if (isArtworkTargetReady(target) || state.prefetchRequests.has(target.key)) {
+  if (
+    isArtworkTargetReady(target) ||
+    state.prefetchRequests.has(target.key) ||
+    state.prefetchJobs.has(target.key)
+  ) {
     return;
   }
 
   const scene = state.activePack.scenes[target.sceneId];
+  const requestEpoch = prefetchEpoch;
+  const requestSceneId = state.currentSceneId;
   const isSceneRootTarget = scene && target.nodeId === scene.rootNodeId;
   const trackKey = isSceneRootTarget ? target.sceneId : target.key;
   if (state.artworkJobs.has(trackKey)) return;
@@ -3821,7 +4745,10 @@ function prefetchArtworkTarget(target) {
   state.prefetchJobs.set(target.key, {
     status: "pending_codex_image_generation",
     jobKind: "prefetch",
-    title: target.title
+    title: target.title,
+    requestEpoch,
+    startedAt: Date.now(),
+    attempts: 0
   });
   schedulePrefetchRailRender();
 
@@ -3834,20 +4761,27 @@ function prefetchArtworkTarget(target) {
     params.set("nodeId", target.nodeId);
   }
 
-  fetch(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" })
+  fetchArtworkResource(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" })
     .then(async (response) => {
+      if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
       if (!response.ok) throw new Error(`Prefetch artwork failed: ${response.status}`);
       const { page } = await response.json();
+      if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
       if (page.status === "ready" && page.imageUrl) {
-        storeArtworkCache(target, page);
+        const stored = await storeArtworkCache(target, page, null, {
+          requestEpoch,
+          requestSceneId
+        });
+        if (!stored || !isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
         state.prefetchRequests.delete(target.key);
         state.prefetchJobs.set(target.key, {
           status: "ready",
           jobKind: "prefetch",
           title: target.title,
+          requestEpoch,
           imageUrl: page.imageUrl
         });
-        render();
+        schedulePrefetchRailRender();
         return;
       }
 
@@ -3859,29 +4793,45 @@ function prefetchArtworkTarget(target) {
         return;
       }
       state.prefetchJobs.set(target.key, {
+        ...state.prefetchJobs.get(target.key),
         status: page.status ?? "pending_codex_image_generation",
         jobKind: "prefetch",
         title: page.plan?.title ?? target.title,
+        requestEpoch,
         generated: page.generated
       });
       schedulePrefetchRailRender();
-      pollPrefetchJob(target, jobUrl, page);
+      pollPrefetchJob(target, jobUrl, page, requestEpoch, requestSceneId);
     })
     .catch(() => {
+      if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
       state.prefetchRequests.delete(target.key);
       state.prefetchJobs.set(target.key, {
         status: "failed",
         jobKind: "prefetch",
         title: target.title,
+        requestEpoch,
         error: "Could not start background illustration."
       });
       schedulePrefetchRailRender();
     });
 }
 
-function storeArtworkCache(target, page, job = null) {
+async function storeArtworkCache(
+  target,
+  page,
+  job = null,
+  { requestEpoch = null, requestSceneId = null } = {}
+) {
   const imageUrl = job?.imageUrl ?? page.imageUrl;
-  const environmentUrl = job?.environmentUrl ?? getPageEnvironmentUrl(page);
+  await preloadArtworkImage(imageUrl);
+  if (
+    requestEpoch != null &&
+    !isCurrentPrefetchRequest(requestEpoch, requestSceneId)
+  ) return false;
+  const environmentUrl = job?.environmentStatus === "deferred"
+    ? null
+    : job?.environmentUrl ?? getPageEnvironmentUrl(page);
   const payload = {
     imageUrl,
     environmentUrl,
@@ -3889,8 +4839,10 @@ function storeArtworkCache(target, page, job = null) {
       ...page,
       imageUrl,
       environmentUrl,
-      status: "ready"
-    }
+      status: "ready",
+      artworkDecoded: true
+    },
+    decoded: true
   };
   const scene = state.activePack.scenes[target.sceneId];
   if (scene && target.nodeId === scene.rootNodeId) {
@@ -3898,44 +4850,132 @@ function storeArtworkCache(target, page, job = null) {
   } else {
     state.artworkByPage.set(target.key, payload);
   }
+  return true;
 }
 
-function pollPrefetchJob(target, jobUrl, page) {
+function pollPrefetchJob(target, jobUrl, page, requestEpoch, requestSceneId) {
   stopPrefetchPoller(target.key);
 
   const tick = async () => {
+    if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) {
+      stopPrefetchPoller(target.key, requestEpoch);
+      return;
+    }
+    const existing = state.prefetchJobs.get(target.key);
+    const elapsed = Date.now() - (existing?.startedAt ?? Date.now());
+    if (
+      !existing ||
+      elapsed >= ARTWORK_POLL_TIMEOUT_MS ||
+      (existing.attempts ?? 0) >= ARTWORK_POLL_MAX_ATTEMPTS
+    ) {
+      stopPrefetchPoller(target.key, requestEpoch);
+      state.prefetchRequests.delete(target.key);
+      if (existing) {
+        state.prefetchJobs.set(target.key, {
+          ...existing,
+          status: "timed_out",
+          error: "Background illustration timed out."
+        });
+      }
+      schedulePrefetchRailRender();
+      return;
+    }
     try {
-      const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
+      const response = await fetchArtworkResource(toApiUrl(jobUrl), { cache: "no-store" });
+      if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
+      state.prefetchJobs.set(target.key, {
+        ...state.prefetchJobs.get(target.key),
+        attempts: (state.prefetchJobs.get(target.key)?.attempts ?? 0) + 1
+      });
       if (!response.ok) return;
       const job = await response.json();
+      if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
+      const previous = state.prefetchJobs.get(target.key) ?? {};
+      const didChange = ["status", "partialImageUrl", "imageUrl", "error"]
+        .some((field) => previous[field] !== job[field]);
       state.prefetchJobs.set(target.key, {
+        ...previous,
         ...job,
         jobKind: job.jobKind ?? "prefetch",
         title: job.title ?? page.plan?.title ?? target.title
       });
-      if (job.status === "failed") {
-        stopPrefetchPoller(target.key);
+      if (isArtworkJobFailed(job)) {
+        stopPrefetchPoller(target.key, requestEpoch);
         state.prefetchRequests.delete(target.key);
         schedulePrefetchRailRender();
         return;
       }
-      if (job.status !== "ready" || !job.imageUrl) {
+      if (job.status === "ready" && !job.imageUrl) {
+        stopPrefetchPoller(target.key, requestEpoch);
+        state.prefetchRequests.delete(target.key);
+        state.prefetchJobs.set(target.key, {
+          ...state.prefetchJobs.get(target.key),
+          status: "failed",
+          error: "Background illustration completed without an image."
+        });
         schedulePrefetchRailRender();
         return;
       }
-      stopPrefetchPoller(target.key);
-      state.prefetchRequests.delete(target.key);
-      storeArtworkCache(target, page, job);
-      if (state.currentView === "explorer") {
-        render();
+      if (job.status !== "ready" || !job.imageUrl) {
+        if (didChange) schedulePrefetchRailRender();
+        return;
       }
-    } catch {
-      // Keep polling until the prefetch job finishes.
+      stopPrefetchPoller(target.key, requestEpoch);
+      state.prefetchRequests.delete(target.key);
+      try {
+        const stored = await storeArtworkCache(target, page, job, {
+          requestEpoch,
+          requestSceneId
+        });
+        if (!stored || !isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
+      } catch (error) {
+        state.prefetchJobs.set(target.key, {
+          ...state.prefetchJobs.get(target.key),
+          status: "failed",
+          error: explainClickError(error)
+        });
+        schedulePrefetchRailRender();
+        return;
+      }
+      state.prefetchJobs.set(target.key, {
+        ...state.prefetchJobs.get(target.key),
+        status: "ready",
+        imageUrl: job.imageUrl
+      });
+      schedulePrefetchRailRender();
+    } catch (error) {
+      if (!isCurrentPrefetchRequest(requestEpoch, requestSceneId)) return;
+      const latest = state.prefetchJobs.get(target.key);
+      if (!latest) return;
+      state.prefetchJobs.set(target.key, {
+        ...latest,
+        lastPollError: explainClickError(error)
+      });
     }
   };
 
-  tick();
-  prefetchPollers.set(target.key, window.setInterval(tick, 1600));
+  let pollInFlight = false;
+  const guardedTick = async () => {
+    if (pollInFlight) return;
+    pollInFlight = true;
+    try {
+      await tick();
+    } finally {
+      pollInFlight = false;
+    }
+  };
+
+  guardedTick();
+  prefetchPollers.set(target.key, {
+    intervalId: window.setInterval(guardedTick, ARTWORK_POLL_INTERVAL_MS),
+    requestEpoch
+  });
+}
+
+function isCurrentPrefetchRequest(requestEpoch, requestSceneId) {
+  return prefetchEpoch === requestEpoch &&
+    state.currentView === "explorer" &&
+    state.currentSceneId === requestSceneId;
 }
 
 function schedulePrefetchRailRender() {
@@ -3948,10 +4988,11 @@ function schedulePrefetchRailRender() {
   });
 }
 
-function stopPrefetchPoller(key) {
-  const intervalId = prefetchPollers.get(key);
-  if (intervalId) {
-    window.clearInterval(intervalId);
+function stopPrefetchPoller(key, expectedEpoch = null) {
+  const poller = prefetchPollers.get(key);
+  if (!poller || (expectedEpoch != null && poller.requestEpoch !== expectedEpoch)) return;
+  if (poller.intervalId) {
+    window.clearInterval(poller.intervalId);
   }
   prefetchPollers.delete(key);
 }
@@ -3967,6 +5008,7 @@ function mergePrefetchedArtwork(page) {
         ...page,
         imageUrl: cached.imageUrl,
         environmentUrl: cached.environmentUrl,
+        artworkDecoded: true,
         status: "ready"
       };
     }
@@ -3979,6 +5021,7 @@ function mergePrefetchedArtwork(page) {
         ...page,
         imageUrl: cached.imageUrl,
         environmentUrl: cached.environmentUrl,
+        artworkDecoded: true,
         status: "ready"
       };
     }
@@ -3998,6 +5041,11 @@ function renderLoadingPanel({ job = null, pageTitle, fallbackMessage }) {
     job: job ?? { status: "pending_codex_image_generation" },
     pageTitle
   });
+  const progressState = trail.current.phase === "ready"
+    ? "loading-panel-progress--complete"
+    : trail.current.phase === "failed"
+    ? "loading-panel-progress--failed"
+    : "loading-panel-progress--indeterminate";
 
   let panel = elements.viewport.querySelector(".loading-panel");
   if (!panel) {
@@ -4014,8 +5062,8 @@ function renderLoadingPanel({ job = null, pageTitle, fallbackMessage }) {
       <strong>${escapeHtml(trail.current.message)}</strong>
     </div>
     <p class="loading-panel-detail">${escapeHtml(trail.current.detail)}</p>
-    <div class="loading-panel-progress" aria-hidden="true">
-      <span style="width: ${Math.round(trail.current.progress * 100)}%"></span>
+    <div class="loading-panel-progress ${progressState}" aria-hidden="true">
+      <span></span>
     </div>
     <ol class="loading-panel-steps">
       ${trail.steps
@@ -4058,36 +5106,25 @@ function clearScrollStatus() {
   elements.viewport.querySelector(".scroll-status")?.remove();
 }
 
-async function pollImageJob(jobUrl, page, pageTitle = page.plan?.title ?? page.nodeId) {
-  try {
-    const response = await fetch(toApiUrl(jobUrl), { cache: "no-store" });
-    if (!response.ok) return;
-    const job = await response.json();
-    renderLoadingPanel({ job, pageTitle, fallbackMessage: `Opening ${pageTitle}…` });
-    if (job.status !== "ready" || !job.imageUrl) return;
-    clearPendingJob();
-    const environmentUrl = job.environmentUrl ?? getPageEnvironmentUrl(page);
-    enterReadyPage({
-      ...page,
-      imageUrl: job.imageUrl,
-      environmentUrl,
-      status: "ready",
-      generated: {
-        source: job.source ?? "image-api",
-        jobUrl,
-        environmentUrl,
-        environmentStatus: job.environmentStatus,
-        reused: true
-      }
-    });
-  } catch {
-    // Keep polling; the job may not exist yet during development.
-  }
-}
-
 function toApiUrl(path) {
   if (String(path).startsWith("http")) return path;
   return apiPath(String(path).replace(/^\.\//, "/"));
+}
+
+function fetchArtworkResource(resource, options = {}) {
+  const timeoutSignal = typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(ARTWORK_REQUEST_TIMEOUT_MS)
+    : createTimeoutAbortSignal(ARTWORK_REQUEST_TIMEOUT_MS);
+  const signal = options.signal && typeof AbortSignal.any === "function"
+    ? AbortSignal.any([options.signal, timeoutSignal])
+    : options.signal ?? timeoutSignal;
+  return fetch(resource, { ...options, signal });
+}
+
+function createTimeoutAbortSignal(timeoutMs) {
+  const controller = new AbortController();
+  window.setTimeout(() => controller.abort(new Error("Artwork request timed out.")), timeoutMs);
+  return controller.signal;
 }
 
 function apiPath(path) {

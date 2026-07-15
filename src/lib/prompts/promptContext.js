@@ -1,5 +1,9 @@
-export function getPromptCountryName(input) {
-  return cleanPromptText(input?.countryName) || cleanPromptText(input?.nodeTitle) || "selected country";
+export function getPromptCountryName(input, { fallbackToNodeTitle = true } = {}) {
+  return (
+    cleanPromptText(input?.countryName) ||
+    (fallbackToNodeTitle ? cleanPromptText(input?.nodeTitle) : "") ||
+    "selected country"
+  );
 }
 
 export function getPromptWholeAreaPhrase(countryName) {

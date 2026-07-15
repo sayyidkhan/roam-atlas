@@ -832,7 +832,7 @@ test("tile cache key changes across fact, prompt, style, and model versions", ()
 
 test("image model aliases normalize for OpenAI provider", () => {
   assert.equal(normalizeImageModel("image2"), "gpt-image-2");
-  assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /central 16:9 safe area/);
+  assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /central 3:2 safe area/);
   assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
   assert.doesNotMatch(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /\bSingapore\b/);
 });
@@ -846,6 +846,9 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(defaults.image.model, "gpt-image-2");
   assert.equal(defaults.image.fallbackModel, null);
   assert.equal(defaults.image.size, "1536x1024");
+  assert.equal(defaults.image.quality, "medium");
+  assert.equal(defaults.image.outputFormat, "jpeg");
+  assert.equal(defaults.image.outputCompression, 82);
   assert.equal(defaults.ai.textModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.vlmModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.environmentModel, "gpt-5.5");
@@ -862,6 +865,8 @@ test("experience config stores prefetch and parallel job defaults", () => {
   });
 
   assert.equal(ROAMATLAS_EXPERIENCE_CONFIG.maxParallelImageJobs, 10);
+  assert.equal(ROAMATLAS_EXPERIENCE_CONFIG.providerConcurrency, 10);
+  assert.equal(ROAMATLAS_EXPERIENCE_CONFIG.prefetchDestinationLimit, 10);
   assert.equal(defaults.loadNextDestinationsEarly, true);
   assert.equal(defaults.maxParallelImageJobs, 10);
   assert.equal(defaults.loadCountryPackEarly, false);
@@ -1257,7 +1262,7 @@ test("image prompt builder enforces planning-board style and avoids dense atlas 
   });
 
   assert.match(prompt, /urban planning proposal board/);
-  assert.match(prompt, /medium|8 to 12 major visual elements/);
+  assert.match(prompt, /Density: minimal/);
   assert.match(prompt, /Readable image text is allowed|short readable labels/);
   assert.match(prompt, /crowded travel atlas/);
 });
@@ -1272,13 +1277,13 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "roamatlas-flipbook-v5-brandless");
+  assert.equal(output.promptVersion, "roamatlas-flipbook-v6-fast-focus");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
   assert.match(output.prompt, /Do not fully render all of Singapore/);
   assert.match(output.prompt, /Readable image text is allowed/);
-  assert.match(output.prompt, /central 16:9 safe area/);
+  assert.match(output.prompt, /central 3:2 safe area/);
   assert.match(output.prompt, /dense tourist map/);
   assert.match(output.prompt, /busy panoramic city poster/);
   assert.match(output.prompt, /Do not draw dense road networks/);
@@ -1333,7 +1338,7 @@ test("region prompt focuses one region and puts short labels in the generated im
   assert.match(output.prompt, /one region only/);
   assert.match(output.prompt, /not the whole city/);
   assert.match(output.prompt, /image itself should include short readable labels/);
-  assert.match(output.prompt, /central 16:9 safe area/);
+  assert.match(output.prompt, /central 3:2 safe area/);
   assert.match(output.prompt, /callout panels|short readable labels/);
   assert.match(output.prompt, /No prices|No hours|No route times/);
 });
@@ -1351,7 +1356,7 @@ test("encyclopedia prompt creates explanatory visual plates with constrained ima
   assert.match(output.prompt, /One main subject only/);
   assert.match(output.prompt, /cutaway, exploded view, sectional view/);
   assert.match(output.prompt, /Readable image text is allowed/);
-  assert.match(output.prompt, /central 16:9 safe area/);
+  assert.match(output.prompt, /central 3:2 safe area/);
   assert.match(output.prompt, /No prices|No hours|No route times/);
   assert.match(output.prompt, /blank callout panels|numbered anchor dots|leader lines/);
 });
@@ -1398,7 +1403,7 @@ test("page planner shifts verified nodes into deeper encyclopedia pages", () => 
   assert.equal(plan.nextNodeId, "gardens-by-the-bay");
   assert.equal(plan.pageType, "district_or_attraction");
   assert.equal(plan.zoomLevel, 2);
-  assert.match(plan.imagePrompt, /illustrated encyclopedia plate|architectural planning illustration/);
+  assert.match(plan.imagePrompt, /illustrated encyclopedia plate|architectural (?:visual )?encyclopedia/);
 });
 
 test("page planner keeps unmatched clicks as unverified detours", () => {
@@ -1483,13 +1488,18 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
 
 test("country shell uses starter map wording instead of generated draft wording", () => {
   const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 
   assert.match(appSource, /Back to countries/);
-  assert.match(appSource, /Reset generated data/);
+  assert.match(appSource, /Reset Generated Visuals/);
   assert.match(appSource, /Rebuild starter info/);
   assert.match(appSource, /renderDraftResetButton/);
   assert.match(appSource, /renderResetIcon/);
-  assert.match(appSource, /draft-reset-button/);
+  assert.match(appSource, /draft-tool-menu-button/);
+  assert.match(appSource, /draft-tool-menu-dots/);
+  assert.match(appSource, /toggle-starter-tools/);
+  assert.match(appSource, /countryDraftToolMenuOpen/);
+  assert.match(appSource, /if \(action === "toggle-starter-tools"[\s\S]*captureCountryShellScroll\(\)[\s\S]*restoreCountryShellScroll\(scrollSnapshot\)/);
   assert.match(appSource, /<strong>Rebuild starter info<\/strong>/);
   assert.match(appSource, /draft-button-tooltip-title/);
   assert.match(appSource, /Action guide/);
@@ -1498,13 +1508,21 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(appSource, /aria-expanded/);
   assert.match(appSource, /renderCountryActionGuide/);
   assert.match(appSource, /renderCountryActionLegend/);
-  assert.match(appSource, /Manual draft edits may be replaced/);
+  assert.match(appSource, /Refresh regions, summary, and themes/);
+  assert.match(appSource, /Clear cached thumbnails and search again/);
   assert.match(appSource, /preserveScroll: true/);
   assert.match(appSource, /data-country-draft-section-tab/);
   assert.match(appSource, /countryDraftSectionTabs\.set\(state\.selectedCountry\.slug, sectionTab\)/);
   assert.match(appSource, /restoreCountryShellScroll\(scrollSnapshot\)/);
-  assert.match(appSource, /reset-map-data/);
+  assert.match(appSource, /reset-generated-visuals/);
   assert.match(appSource, /reset-metadata/);
+  assert.match(appSource, /reset-reference-photos/);
+  assert.match(appSource, /Reset photos/);
+  assert.match(appSource, /requestPlaceImageReset/);
+  assert.match(appSource, /\/api\/place-image\/reset/);
+  assert.match(styleSource, /\.draft-tool-menu/);
+  assert.match(styleSource, /\.draft-tool-menu-dots/);
+  assert.match(styleSource, /\.draft-tool-menu-item/);
   assert.match(appSource, /AI starter map/);
   assert.match(appSource, /Edit starter map/);
   assert.match(appSource, /data-country-chat-form/);
@@ -1515,10 +1533,21 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.doesNotMatch(appSource, /Starter country pack/);
   assert.doesNotMatch(appSource, /This starter map comes from source-controlled starter data/);
   assert.match(appSource, /Source-reviewed country pack/);
-  assert.match(appSource, /requestCountryRuntimeCacheFlush\(country, \{ confirm: false \}\)/);
+  assert.match(appSource, /requestCountryRuntimeCacheFlush\(state\.selectedCountry, \{ confirm: false, scope: "visuals" \}\)/);
   assert.match(appSource, /\/api\/runtime-cache\/flush/);
   assert.match(appSource, /clearCountryGeneratedState/);
   assert.match(appSource, /loadStoredCountryDraft/);
+  assert.match(appSource, /showAppToast/);
+  assert.match(appSource, /Generated visuals reset/);
+  assert.match(appSource, /Generated visuals were not reset/);
+  assert.match(appSource, /reference photos were kept/);
+  assert.match(appSource, /Success/);
+  assert.match(appSource, /Failed/);
+  assert.match(styleSource, /\.app-toast-region/);
+  assert.match(styleSource, /\.app-toast/);
+  assert.match(styleSource, /\.app-toast-icon/);
+  assert.match(styleSource, /\.app-toast--success/);
+  assert.match(styleSource, /\.app-toast--error/);
 });
 
 test("starter-map approve tick promotes regions with guardrails", () => {
@@ -1596,7 +1625,7 @@ test("place image selection prefers capital skylines for states and scenes for t
   assert.ok(ranked[0].score > ranked[1].score);
   assert.match(ranked[0].imageUrl, /langkawi-beach-view/);
   assert.equal(isUsablePlaceImageUrl("https://cdn.example.com/langkawi-logo.png"), false);
-  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v4");
+  assert.equal(PLACE_IMAGE_SELECTION_VERSION, "v5");
 });
 
 test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
@@ -1614,20 +1643,32 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(appSource, /hydrateDraftPlacePhotos/);
   assert.match(appSource, /data-photo-state="queued"/);
   assert.match(appSource, /draft-photo-spinner/);
+  assert.match(appSource, /draft-photo-fallback[\s\S]*<svg viewBox="0 0 24 24"/);
   assert.match(appSource, /setDraftPhotoState/);
   assert.match(appSource, /normalizeLoadedDraftPhotoUrl/);
   assert.match(appSource, /PLACE_IMAGE_SELECTION_VERSION/);
   assert.match(appSource, /\/api\/place-image\?/);
+  assert.match(appSource, /data-reset-draft-photo/);
+  assert.match(appSource, /draft-photo-lightbox-reset/);
+  assert.match(appSource, /getPlaceImageRefreshKey/);
+  assert.match(appSource, /params\.set\("placeRefresh", String\(placeRefresh\)\)/);
   assert.match(appSource, /map-hotspot-chip-photo/);
   assert.match(appSource, /Not verified travel data/);
+  assert.doesNotMatch(appSource, /title="Loading reference photo/);
   assert.doesNotMatch(appSource, /api\.exa\.ai/);
   assert.match(styleSource, /\.draft-photo-spinner/);
+  assert.match(styleSource, /\.draft-photo-lightbox-reset/);
+  assert.match(styleSource, /\.draft-photo-fallback svg/);
+  assert.match(styleSource, /\.draft-item-photo-button[\s\S]*width: 42px/);
   assert.match(styleSource, /\[data-photo-state="ready"\]/);
   assert.match(styleSource, /draft-photo-spin/);
   assert.doesNotMatch(styleSource, /draft-photo-loading/);
 
   // Server resolves place images via Exa and caches them in the runtime cache.
   assert.match(serverSource, /handlePlaceImageRequest/);
+  assert.match(serverSource, /handlePlaceImageResetRequest/);
+  assert.match(serverSource, /resetStoredCountryPlaceImages/);
+  assert.match(serverSource, /resetStoredPlaceImage/);
   assert.match(serverSource, /searchExaPlaceImageCandidates/);
   assert.match(serverSource, /isPlaceImageClaimedByAnotherPlace/);
   assert.match(serverSource, /reservePlaceImageClaim/);
@@ -1725,11 +1766,51 @@ test("server exposes country-scoped generated cache flushing", () => {
 
   assert.match(serverSource, /pathname === "\/api\/runtime-cache\/flush"/);
   assert.match(serverSource, /handleRuntimeCacheFlushRequest/);
-  assert.match(serverSource, /flushCountryGeneratedRuntimeCache/);
-  assert.match(serverSource, /\["image-jobs", "flipbook", "understanding", "environment", "starter-map", "country-pack-draft", "place-images"\]/);
+  assert.match(serverSource, /flushCountryGeneratedVisualCache/);
+  assert.match(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment"\]/);
+  assert.doesNotMatch(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment", "place-images"\]/);
+  assert.match(serverSource, /preservedFolders: \["starter-map", "country-pack-draft", "understanding", "place-images"\]/);
   assert.match(serverSource, /Source-controlled country pack data was not changed/);
   assert.match(serverSource, /isPathInside/);
   assert.match(serverSource, /rm\(countryCacheRoot, \{ recursive: true, force: true \}\)/);
+});
+
+test("config thumbnails stream cached place images directly and cannot stay pending forever", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+
+  const placeImageHandler = serverSource.slice(
+    serverSource.indexOf("async function handlePlaceImageRequest"),
+    serverSource.indexOf("function respondPlaceImageNotFound")
+  );
+  assert.match(placeImageHandler, /const cachedImagePath = getImagePathFromUrl\(record\.imageUrl\)/);
+  assert.match(placeImageHandler, /"Content-Type": mimeTypeForImagePath\(cachedImagePath\)/);
+  assert.match(placeImageHandler, /response\.end\(image\)/);
+  assert.match(placeImageHandler, /"Cache-Control": "no-store"/);
+  assert.match(appSource, /retryDraftPlacePhoto/);
+  assert.match(appSource, /retryCount >= 2/);
+  assert.match(appSource, /15_000/);
+  assert.match(appSource, /placeImageRefreshes/);
+  assert.match(appSource, /params\.set\("refresh", String\(refresh\)\)/);
+  assert.match(styleSource, /\.draft-photo-fallback/);
+});
+
+test("place image selection rejects Creative Commons badges and invalidates older selections", () => {
+  const selectionSource = readFileSync(new URL("../src/domain/placeImageSelection.js", import.meta.url), "utf8");
+
+  assert.match(selectionSource, /PLACE_IMAGE_SELECTION_VERSION = "v5"/);
+  assert.match(selectionSource, /creative\[-_\.\]\?commons/);
+  assert.match(selectionSource, /POSTER_PENALTY_PATTERN\.test\(imageUrl\)/);
+});
+
+test("place image resolver rejects badge-sized files and has a reference-photo fallback", () => {
+  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+
+  assert.match(serverSource, /resolvePlaceWikipediaImage\(country, place, \{ context \}\)/);
+  assert.match(serverSource, /hasUsablePlaceImageDimensions\(imageBuffer, contentType\)/);
+  assert.match(serverSource, /width < 240 \|\| height < 160/);
+  assert.match(serverSource, /wikipedia article reference-photo fallback/);
 });
 
 test("server filters thin Exa grounding snippets and restricts search to official-leaning domains", () => {
@@ -2193,5 +2274,5 @@ test("runtime image job polling is not cached by the browser", () => {
   assert.match(serverSource, /\(\?:image-jobs\|codex-jobs\|understanding\|environment\|starter-map\|country-pack-draft\)/);
   assert.match(serverSource, /"Cache-Control": isMutableRuntimeJson/);
   assert.match(serverSource, /"no-store"/);
-  assert.match(appSource, /fetch\(toApiUrl\(jobUrl\), \{ cache: "no-store" \}\)/);
+  assert.match(appSource, /fetchArtworkResource\(toApiUrl\(jobUrl\), \{ cache: "no-store" \}\)/);
 });
