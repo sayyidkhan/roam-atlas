@@ -38,6 +38,7 @@ const state = {
   countryActionLegendOpen: new Map(),
   countryCacheFlushes: new Map(),
   placeImageRefreshes: new Map(),
+  placeImageFeedbacks: new Map(),
   checkedStoredDrafts: new Set(),
   currentPage: null,
   currentSceneId: null,
@@ -66,6 +67,14 @@ const ARTWORK_POLL_INTERVAL_MS = 1600;
 const ARTWORK_POLL_TIMEOUT_MS = 3 * 60 * 1000;
 const ARTWORK_REQUEST_TIMEOUT_MS = 15 * 1000;
 const ARTWORK_POLL_MAX_ATTEMPTS = Math.ceil(ARTWORK_POLL_TIMEOUT_MS / ARTWORK_POLL_INTERVAL_MS);
+// The config view is often kept alive by an embedded browser while a local
+// dev server restarts. Give every page instance a distinct image URL so an
+// old endpoint response cannot be painted into a newly rendered thumbnail.
+const PLACE_IMAGE_REQUEST_SESSION = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// A cold reference-photo lookup can include provider search, download, and
+// cache writes. Do not tear down the browser image request while that work is
+// still completing; cached follow-up loads are effectively immediate.
+const DRAFT_PLACE_PHOTO_TIMEOUT_MS = 90 * 1000;
 const ENVIRONMENT_PLAN_RETRY_DELAYS_MS = [0, 2000, 5000, 10000, 20000, 30000];
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
@@ -219,9 +228,6 @@ function bindCountryLanding() {
       }
       if (action === "open") {
         openCountryFromLanding(country);
-        return;
-      }
-      if (action === "menu") {
         return;
       }
     }
@@ -380,7 +386,9 @@ function bindCountryShell() {
     if (!photo?.src) return;
     openDraftPhotoLightbox({
       src: photo.currentSrc || photo.src,
-      placeName: trigger.dataset.placeName ?? ""
+      placeName: trigger.dataset.placeName ?? "",
+      context: trigger.dataset.placeContext ?? "",
+      kind: trigger.dataset.placeKind ?? "region"
     });
   });
 
@@ -627,7 +635,7 @@ function handleDraftPhotoLightboxKeydown(event) {
   }
 }
 
-function openDraftPhotoLightbox({ src, placeName }) {
+function openDraftPhotoLightbox({ src, placeName, context = "", kind = "region" }) {
   closeDraftPhotoLightbox();
   const backdrop = document.createElement("section");
   backdrop.className = "draft-photo-lightbox-backdrop";
@@ -644,6 +652,48 @@ function openDraftPhotoLightbox({ src, placeName }) {
       data-close-draft-photo
       aria-label="Close enlarged photo"
     >×</button>
+    ${placeName ? `
+      <section class="draft-photo-lightbox-controls" aria-label="Reference photo controls">
+        <div class="draft-photo-lightbox-actions">
+          <button
+            type="button"
+            class="draft-photo-lightbox-reset"
+            data-reset-draft-photo
+            aria-label="Reset reference photo for ${escapeHtml(placeName)}"
+          >${renderResetIcon()}<span>Reset image</span></button>
+          <button
+            type="button"
+            class="draft-photo-lightbox-refine"
+            data-open-draft-photo-feedback
+          >Find a better photo</button>
+        </div>
+        <nav class="draft-photo-lightbox-history" data-draft-photo-history hidden aria-label="Saved reference photos">
+          <button type="button" data-draft-photo-previous aria-label="Show previous saved photo">←</button>
+          <span data-draft-photo-history-label></span>
+          <button type="button" data-draft-photo-next aria-label="Show next saved photo">→</button>
+          <button type="button" data-draft-photo-keep>Keep this photo</button>
+        </nav>
+        <form class="draft-photo-lightbox-feedback" data-draft-photo-feedback hidden>
+          <div class="draft-photo-lightbox-feedback-heading">
+            <label for="draft-photo-feedback-input">Tell Exa what this photo should show</label>
+            <button type="button" data-suggest-draft-photo-prompts>Suggest prompts</button>
+          </div>
+          <textarea
+            id="draft-photo-feedback-input"
+            name="feedback"
+            rows="3"
+            maxlength="240"
+            placeholder="Example: Show NUS Kent Ridge campus or Jurong Lake Gardens, not Gardens by the Bay."
+          ></textarea>
+          <div class="draft-photo-prompt-suggestions" data-draft-photo-prompt-suggestions hidden></div>
+          <p>This only refines the external reference-photo search. It does not change travel facts.</p>
+          <div class="draft-photo-lightbox-feedback-actions">
+            <button type="button" data-close-draft-photo-feedback>Cancel</button>
+            <button type="submit" data-submit-draft-photo-feedback>Search Exa again</button>
+          </div>
+        </form>
+      </section>
+    ` : ""}
     <figure class="draft-photo-lightbox">
       <div class="draft-photo-lightbox-image-frame">
         <img
@@ -653,14 +703,6 @@ function openDraftPhotoLightbox({ src, placeName }) {
           decoding="async"
           referrerpolicy="no-referrer"
         />
-        ${placeName ? `
-          <button
-            type="button"
-            class="draft-photo-lightbox-reset"
-            data-reset-draft-photo
-            aria-label="Reset reference photo for ${escapeHtml(placeName)}"
-          >${renderResetIcon()}<span>Reset image</span></button>
-        ` : ""}
       </div>
       <figcaption class="draft-photo-lightbox-caption">
         Reference photo from external search. Not verified travel data.
@@ -671,6 +713,9 @@ function openDraftPhotoLightbox({ src, placeName }) {
     closeDraftPhotoLightbox();
   });
   backdrop.querySelector(".draft-photo-lightbox")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+  backdrop.querySelector(".draft-photo-lightbox-controls")?.addEventListener("click", (event) => {
     event.stopPropagation();
   });
   backdrop.querySelector("[data-reset-draft-photo]")?.addEventListener("click", async (event) => {
@@ -687,9 +732,61 @@ function openDraftPhotoLightbox({ src, placeName }) {
       button.querySelector("span").textContent = "Reset image";
     }
   });
+  const feedbackForm = backdrop.querySelector("[data-draft-photo-feedback]");
+  const feedbackInput = feedbackForm?.querySelector("textarea");
+  backdrop.querySelector("[data-open-draft-photo-feedback]")?.addEventListener("click", () => {
+    feedbackForm.hidden = false;
+    feedbackInput?.focus();
+  });
+  backdrop.querySelector("[data-suggest-draft-photo-prompts]")?.addEventListener("click", async (event) => {
+    if (!state.selectedCountry || !placeName) return;
+    const button = event.currentTarget;
+    const suggestions = feedbackForm.querySelector("[data-draft-photo-prompt-suggestions]");
+    button.disabled = true;
+    button.textContent = "Suggesting";
+    const prompts = await requestPlaceImagePromptSuggestions(state.selectedCountry, {
+      place: placeName,
+      context,
+      kind,
+      currentFeedback: feedbackInput?.value ?? ""
+    });
+    button.disabled = false;
+    button.textContent = "Suggest prompts";
+    if (!prompts.length) return;
+    suggestions.innerHTML = prompts.map((prompt, index) => `
+      <button type="button" data-draft-photo-prompt-index="${index}">${escapeHtml(prompt)}</button>
+    `).join("");
+    suggestions.hidden = false;
+    suggestions.querySelectorAll("[data-draft-photo-prompt-index]").forEach((suggestionButton) => {
+      suggestionButton.addEventListener("click", () => {
+        feedbackInput.value = prompts[Number(suggestionButton.dataset.draftPhotoPromptIndex)];
+        feedbackInput.focus();
+      });
+    });
+  });
+  backdrop.querySelector("[data-close-draft-photo-feedback]")?.addEventListener("click", () => {
+    feedbackForm.hidden = true;
+  });
+  feedbackForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const feedback = feedbackInput?.value.trim() ?? "";
+    if (!feedback || !state.selectedCountry || !placeName) return;
+    const submit = feedbackForm.querySelector("[data-submit-draft-photo-feedback]");
+    submit.disabled = true;
+    submit.textContent = "Searching Exa";
+    const didSubmit = await requestPlaceImageFeedback(state.selectedCountry, placeName, feedback);
+    if (didSubmit) closeDraftPhotoLightbox();
+    else {
+      submit.disabled = false;
+      submit.textContent = "Search Exa again";
+    }
+  });
   document.addEventListener("keydown", handleDraftPhotoLightboxKeydown);
   document.body.appendChild(backdrop);
   draftPhotoLightbox = backdrop;
+  if (placeName && state.selectedCountry) {
+    loadDraftPhotoHistory(backdrop, state.selectedCountry, placeName);
+  }
   backdrop.querySelector("[data-close-draft-photo]")?.focus();
 }
 
@@ -790,21 +887,16 @@ function renderCountryCard(country) {
   openButton.setAttribute("data-country-card-action", "open");
   openButton.textContent = "Open";
 
-  const menu = document.createElement("details");
+  const menu = document.createElement("button");
+  menu.type = "button";
   menu.className = "country-card-menu";
+  menu.setAttribute("data-country-card-action", "config");
+  menu.setAttribute("aria-label", `Configure ${country.name}`);
   menu.innerHTML = `
-    <summary
-      class="country-card-menu-trigger"
-      data-country-card-action="menu"
-      aria-label="Country actions for ${escapeHtml(country.name)}"
-    >...</summary>
-    <div class="country-card-menu-popover">
-      <button
-        type="button"
-        class="country-card-menu-item"
-        data-country-card-action="config"
-      >Config</button>
-    </div>
+    <svg class="country-card-menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2.05 2.05 0 0 1-2.9 2.9l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .52V20a2 2 0 0 1-4 0v-.08a1.7 1.7 0 0 0-1-.52 1.7 1.7 0 0 0-1.88.34l-.06.06a2.05 2.05 0 0 1-2.9-2.9l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.52-1H4a2 2 0 0 1 0-4h.08a1.7 1.7 0 0 0 .52-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2.05 2.05 0 0 1 2.9-2.9l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.52V4a2 2 0 0 1 4 0v.08a1.7 1.7 0 0 0 1 .52 1.7 1.7 0 0 0 1.88-.34l.06-.06a2.05 2.05 0 0 1 2.9 2.9l-.06.06A1.7 1.7 0 0 0 19.4 9c.16.36.35.7.52 1H20a2 2 0 0 1 0 4h-.08a1.7 1.7 0 0 0-.52 1Z"></path>
+    </svg>
   `;
 
   const footer = document.createElement("span");
@@ -1507,7 +1599,8 @@ function buildPlaceImageUrl(countrySlug, placeName, { context = "", kind = "", t
   const params = new URLSearchParams({
     countrySlug,
     place: placeName,
-    v: PLACE_IMAGE_SELECTION_VERSION
+    v: PLACE_IMAGE_SELECTION_VERSION,
+    request: PLACE_IMAGE_REQUEST_SESSION
   });
   if (context) params.set("context", context);
   if (kind) params.set("kind", kind);
@@ -1516,6 +1609,8 @@ function buildPlaceImageUrl(countrySlug, placeName, { context = "", kind = "", t
   if (refresh) params.set("refresh", String(refresh));
   const placeRefresh = state.placeImageRefreshes.get(getPlaceImageRefreshKey(countrySlug, placeName));
   if (placeRefresh) params.set("placeRefresh", String(placeRefresh));
+  const feedback = state.placeImageFeedbacks.get(getPlaceImageRefreshKey(countrySlug, placeName));
+  if (feedback) params.set("feedback", feedback);
   return apiPath(`/api/place-image?${params.toString()}`);
 }
 
@@ -1546,6 +1641,8 @@ function renderDraftPlacePhoto(placeName, children, genAiContext, kind = "region
       data-draft-place-photo
       data-photo-state="queued"
       data-place-name="${escapeHtml(placeName)}"
+      data-place-context="${escapeHtml(context)}"
+      data-place-kind="${escapeHtml(kind)}"
       aria-label="View reference photo for ${escapeHtml(placeName)}"
     >
       <span class="draft-item-photo-frame">
@@ -1600,10 +1697,13 @@ function hydrateDraftPlacePhotos(root) {
       callback();
     };
     timers.push(window.setTimeout(() => {
-      settle(() => {
-        retryDraftPlacePhoto(root, button, image, src, "Still searching");
-      });
+      if (!settled) setDraftPhotoState(button, "searching", "Still searching", 0.82);
     }, 15_000));
+    timers.push(window.setTimeout(() => {
+      settle(() => {
+        retryDraftPlacePhoto(root, button, image, src, "Retrying search");
+      });
+    }, DRAFT_PLACE_PHOTO_TIMEOUT_MS));
 
     image.addEventListener("load", () => {
       settle(() => {
@@ -1660,7 +1760,10 @@ function setDraftPhotoState(button, stateName, label, progress) {
 function normalizeLoadedDraftPhotoUrl(value) {
   try {
     const parsed = new URL(value, window.location.origin);
-    return `${parsed.origin}${parsed.pathname}`.toLowerCase();
+    // Reference photos are served through one endpoint. Keep its query string
+    // because it carries the country and place identity; dropping it makes
+    // every /api/place-image response look like the same photo.
+    return `${parsed.origin}${parsed.pathname}${parsed.search}`.toLowerCase();
   } catch {
     return String(value ?? "").trim().toLowerCase();
   }
@@ -2292,7 +2395,9 @@ async function requestPlaceImageReset(country, { place = "" } = {}) {
     await response.json();
     const refresh = Date.now();
     if (isSinglePlace) {
-      state.placeImageRefreshes.set(getPlaceImageRefreshKey(country.slug, normalizedPlace), refresh);
+      const placeKey = getPlaceImageRefreshKey(country.slug, normalizedPlace);
+      state.placeImageRefreshes.set(placeKey, refresh);
+      state.placeImageFeedbacks.delete(placeKey);
     } else {
       state.placeImageRefreshes.set(country.slug, refresh);
     }
@@ -2310,6 +2415,174 @@ async function requestPlaceImageReset(country, { place = "" } = {}) {
     showAppToast({
       title: isSinglePlace ? "Reference photo was not reset" : "Reference photos were not reset",
       message: `No photo cache was cleared. ${message}`,
+      tone: "error",
+      durationMs: 8000
+    });
+    return false;
+  }
+}
+
+async function requestPlaceImageFeedback(country, place, feedback) {
+  const normalizedPlace = String(place ?? "").trim();
+  const normalizedFeedback = String(feedback ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
+  if (!normalizedPlace || !normalizedFeedback) return false;
+  const scrollSnapshot = captureCountryShellScroll();
+
+  try {
+    const response = await fetch(apiPath("/api/place-image/feedback"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        countrySlug: country.slug,
+        place: normalizedPlace,
+        feedback: normalizedFeedback
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Reference photo feedback failed: ${response.status}${body ? ` ${body.slice(0, 240)}` : ""}`);
+    }
+
+    await response.json();
+    const placeKey = getPlaceImageRefreshKey(country.slug, normalizedPlace);
+    state.placeImageFeedbacks.set(placeKey, normalizedFeedback);
+    state.placeImageRefreshes.set(placeKey, Date.now());
+    render();
+    restoreCountryShellScroll(scrollSnapshot);
+    showAppToast({
+      title: "Searching for a better photo",
+      message: `Exa is searching again for ${normalizedPlace} using your feedback. Curated travel data was not changed.`
+    });
+    return true;
+  } catch (error) {
+    showAppToast({
+      title: "Photo feedback was not sent",
+      message: explainClickError(error),
+      tone: "error",
+      durationMs: 8000
+    });
+    return false;
+  }
+}
+
+async function requestPlaceImagePromptSuggestions(country, {
+  place,
+  context = "",
+  kind = "region",
+  currentFeedback = ""
+} = {}) {
+  try {
+    const response = await fetch(apiPath("/api/place-image/suggestions"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        countrySlug: country.slug,
+        place: String(place ?? "").trim(),
+        context: String(context ?? "").trim(),
+        kind: String(kind ?? "region").trim(),
+        currentFeedback: String(currentFeedback ?? "").trim()
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Prompt suggestions failed: ${response.status}${body ? ` ${body.slice(0, 240)}` : ""}`);
+    }
+    const payload = await response.json();
+    const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
+    return suggestions
+      .map((suggestion) => String(suggestion ?? "").replace(/\s+/g, " ").trim().slice(0, 240))
+      .filter(Boolean)
+      .slice(0, 3);
+  } catch (error) {
+    showAppToast({
+      title: "Prompt suggestions unavailable",
+      message: explainClickError(error),
+      tone: "error",
+      durationMs: 7000
+    });
+    return [];
+  }
+}
+
+async function loadDraftPhotoHistory(backdrop, country, place) {
+  const history = backdrop.querySelector("[data-draft-photo-history]");
+  const image = backdrop.querySelector(".draft-photo-lightbox-image");
+  if (!history || !image) return;
+
+  try {
+    const params = new URLSearchParams({ countrySlug: country.slug, place });
+    const response = await fetch(apiPath(`/api/place-image/history?${params.toString()}`));
+    if (!response.ok) return;
+    const payload = await response.json();
+    const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.id && item?.imageUrl) : [];
+    if (items.length < 2 || draftPhotoLightbox !== backdrop) return;
+
+    let index = Math.max(0, items.findIndex((item) => item.active));
+    const previous = history.querySelector("[data-draft-photo-previous]");
+    const next = history.querySelector("[data-draft-photo-next]");
+    const keep = history.querySelector("[data-draft-photo-keep]");
+    const label = history.querySelector("[data-draft-photo-history-label]");
+    const show = (nextIndex) => {
+      index = Math.max(0, Math.min(nextIndex, items.length - 1));
+      const item = items[index];
+      image.src = appendPlaceImageHistoryRequest(item.imageUrl, item.id);
+      label.textContent = `${item.active ? "Current" : "Saved"} ${index + 1} of ${items.length}`;
+      previous.disabled = index === 0;
+      next.disabled = index === items.length - 1;
+      keep.disabled = item.active;
+      keep.textContent = item.active ? "Current photo" : "Keep this photo";
+    };
+    previous.addEventListener("click", () => show(index - 1));
+    next.addEventListener("click", () => show(index + 1));
+    keep.addEventListener("click", async () => {
+      const item = items[index];
+      if (item.active) return;
+      keep.disabled = true;
+      keep.textContent = "Keeping photo";
+      const didKeep = await requestPlaceImageHistorySelection(country, place, item.id);
+      if (didKeep) closeDraftPhotoLightbox();
+      else show(index);
+    });
+    history.hidden = false;
+    show(index);
+  } catch {
+    // History is an optional review aid. The current reference photo remains usable.
+  }
+}
+
+function appendPlaceImageHistoryRequest(imageUrl, entryId) {
+  const separator = imageUrl.includes("?") ? "&" : "?";
+  return `${imageUrl}${separator}history=${encodeURIComponent(entryId)}&view=${PLACE_IMAGE_REQUEST_SESSION}`;
+}
+
+async function requestPlaceImageHistorySelection(country, place, entryId) {
+  const scrollSnapshot = captureCountryShellScroll();
+  try {
+    const response = await fetch(apiPath("/api/place-image/history/select"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ countrySlug: country.slug, place, entryId })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Saved reference photo selection failed: ${response.status}${body ? ` ${body.slice(0, 240)}` : ""}`);
+    }
+
+    await response.json();
+    const placeKey = getPlaceImageRefreshKey(country.slug, place);
+    state.placeImageFeedbacks.delete(placeKey);
+    state.placeImageRefreshes.set(placeKey, Date.now());
+    render();
+    restoreCountryShellScroll(scrollSnapshot);
+    showAppToast({
+      title: "Reference photo kept",
+      message: `${place} now uses the saved photo you selected. Curated travel data was not changed.`
+    });
+    return true;
+  } catch (error) {
+    showAppToast({
+      title: "Reference photo was not changed",
+      message: explainClickError(error),
       tone: "error",
       durationMs: 8000
     });

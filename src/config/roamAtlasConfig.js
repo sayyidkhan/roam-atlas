@@ -22,7 +22,7 @@ export const ROAMATLAS_CONFIG = {
     partialImages: 1
   },
   server: {
-    port: 4173
+    port: 4150
   }
 };
 

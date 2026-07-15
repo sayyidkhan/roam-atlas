@@ -88,6 +88,7 @@ import {
 import {
   RUNTIME_CACHE_URL_PREFIX,
   createCountryStarterMapCachePaths,
+  createPlaceImageCachePaths,
   createRuntimeCachePaths,
   resolveRuntimeCacheRoot
 } from "../src/domain/runtimeCache.js";
@@ -155,7 +156,7 @@ test("country landing cards request country-specific media images", () => {
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("palestinian-territories")), /Church_of_the_Nativity/);
   assert.match(appSource, /country-card-photo/);
-  assert.match(appSource, /data-country-card-action="config"/);
+  assert.match(appSource, /setAttribute\("data-country-card-action", "config"\)/);
   assert.match(appSource, /setAttribute\("data-country-card-action", "open"\)/);
   assert.match(appSource, /openCountryFromLanding/);
   assert.match(appSource, /enterCountryShell\(country\)/);
@@ -188,7 +189,8 @@ test("country landing cards request country-specific media images", () => {
   assert.doesNotMatch(serverSource, /flagcdn\.com\/w640/);
   assert.match(styleSource, /\.country-card-photo/);
   assert.match(styleSource, /\.country-card-menu/);
-  assert.match(styleSource, /\.country-card-menu-popover/);
+  assert.match(styleSource, /\.country-card-menu-icon/);
+  assert.doesNotMatch(styleSource, /\.country-card-menu-popover/);
   assert.doesNotMatch(styleSource, /country-card-atlas\.jpg/);
 });
 
@@ -849,6 +851,7 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(defaults.image.quality, "medium");
   assert.equal(defaults.image.outputFormat, "jpeg");
   assert.equal(defaults.image.outputCompression, 82);
+  assert.equal(defaults.server.port, 4150);
   assert.equal(defaults.ai.textModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.vlmModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.environmentModel, "gpt-5.5");
@@ -1606,6 +1609,15 @@ test("place image selection prefers capital skylines for states and scenes for t
   assert.match(langkawiProfile.queries[0], /Langkawi Sky Bridge Malaysia/);
   assert.match(formatExaPlaceImageQuery(langkawiProfile.queries[0]), /no banner no poster/);
 
+  const westCampusProfile = inferPlaceImageProfile({
+    place: "West Campus and Gardens",
+    countryName: "Singapore",
+    countrySlug: "singapore",
+    kind: "region"
+  });
+  assert.equal(westCampusProfile.strategy, "landmark");
+  assert.match(westCampusProfile.queries[0], /National University of Singapore Kent Ridge/);
+
   const ranked = rankPlaceImageCandidates(
     [
       {
@@ -1646,10 +1658,22 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(appSource, /draft-photo-fallback[\s\S]*<svg viewBox="0 0 24 24"/);
   assert.match(appSource, /setDraftPhotoState/);
   assert.match(appSource, /normalizeLoadedDraftPhotoUrl/);
+  assert.match(appSource, /\$\{parsed\.origin\}\$\{parsed\.pathname\}\$\{parsed\.search\}/);
   assert.match(appSource, /PLACE_IMAGE_SELECTION_VERSION/);
+  assert.match(appSource, /PLACE_IMAGE_REQUEST_SESSION/);
+  assert.match(appSource, /request: PLACE_IMAGE_REQUEST_SESSION/);
   assert.match(appSource, /\/api\/place-image\?/);
   assert.match(appSource, /data-reset-draft-photo/);
   assert.match(appSource, /draft-photo-lightbox-reset/);
+  assert.match(appSource, /data-draft-photo-feedback/);
+  assert.match(appSource, /Search Exa again/);
+  assert.match(appSource, /\/api\/place-image\/feedback/);
+  assert.match(appSource, /data-suggest-draft-photo-prompts/);
+  assert.match(appSource, /Suggest prompts/);
+  assert.match(appSource, /\/api\/place-image\/suggestions/);
+  assert.match(appSource, /data-draft-photo-history/);
+  assert.match(appSource, /Keep this photo/);
+  assert.match(appSource, /\/api\/place-image\/history/);
   assert.match(appSource, /getPlaceImageRefreshKey/);
   assert.match(appSource, /params\.set\("placeRefresh", String\(placeRefresh\)\)/);
   assert.match(appSource, /map-hotspot-chip-photo/);
@@ -1658,6 +1682,9 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.doesNotMatch(appSource, /api\.exa\.ai/);
   assert.match(styleSource, /\.draft-photo-spinner/);
   assert.match(styleSource, /\.draft-photo-lightbox-reset/);
+  assert.match(styleSource, /\.draft-photo-lightbox-feedback/);
+  assert.match(styleSource, /\.draft-photo-prompt-suggestions/);
+  assert.match(styleSource, /\.draft-photo-lightbox-history/);
   assert.match(styleSource, /\.draft-photo-fallback svg/);
   assert.match(styleSource, /\.draft-item-photo-button[\s\S]*width: 42px/);
   assert.match(styleSource, /\[data-photo-state="ready"\]/);
@@ -1667,6 +1694,17 @@ test("candidate region cards request Exa-backed reference photos through the pla
   // Server resolves place images via Exa and caches them in the runtime cache.
   assert.match(serverSource, /handlePlaceImageRequest/);
   assert.match(serverSource, /handlePlaceImageResetRequest/);
+  assert.match(serverSource, /handlePlaceImageFeedbackRequest/);
+  assert.match(serverSource, /\/api\/place-image\/feedback/);
+  assert.match(serverSource, /handlePlaceImageSuggestionsRequest/);
+  assert.match(serverSource, /suggestPlaceImagePrompts/);
+  assert.match(serverSource, /getMappedPlaceImageSuggestionContext/);
+  assert.match(serverSource, /Prompt suggestions only steer an external reference-image search/);
+  assert.match(serverSource, /normalizePlaceImageFeedback/);
+  assert.match(serverSource, /handlePlaceImageHistoryRequest/);
+  assert.match(serverSource, /selectPlaceImageHistoryEntry/);
+  assert.match(serverSource, /archiveStoredPlaceImage/);
+  assert.match(serverSource, /PLACE_IMAGE_HISTORY_LIMIT = 6/);
   assert.match(serverSource, /resetStoredCountryPlaceImages/);
   assert.match(serverSource, /resetStoredPlaceImage/);
   assert.match(serverSource, /searchExaPlaceImageCandidates/);
@@ -1684,6 +1722,9 @@ test("candidate region cards request Exa-backed reference photos through the pla
   // Cache paths keep place-image artifacts inside the per-country runtime cache.
   assert.match(runtimeCacheSource, /createPlaceImageCachePaths/);
   assert.match(runtimeCacheSource, /place-images/);
+  const placePaths = createPlaceImageCachePaths({ cacheRoot: "/tmp/cache", countrySlug: "singapore", place: "West Campus and Gardens" });
+  assert.match(placePaths.historyMetadataPath, /west-campus-and-gardens\.history\.json$/);
+  assert.match(placePaths.historyImageUrlForExtension("saved-photo", ".jpg"), /west-campus-and-gardens\.history\/saved-photo\.jpg$/);
 });
 
 test("draft tree exposes icon-only GenAI modal triggers", () => {
@@ -1790,7 +1831,8 @@ test("config thumbnails stream cached place images directly and cannot stay pend
   assert.match(placeImageHandler, /"Cache-Control": "no-store"/);
   assert.match(appSource, /retryDraftPlacePhoto/);
   assert.match(appSource, /retryCount >= 2/);
-  assert.match(appSource, /15_000/);
+  assert.match(appSource, /DRAFT_PLACE_PHOTO_TIMEOUT_MS = 90 \* 1000/);
+  assert.match(appSource, /setDraftPhotoState\(button, "searching", "Still searching", 0\.82\)/);
   assert.match(appSource, /placeImageRefreshes/);
   assert.match(appSource, /params\.set\("refresh", String\(refresh\)\)/);
   assert.match(styleSource, /\.draft-photo-fallback/);

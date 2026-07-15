@@ -14,6 +14,13 @@ const REGION_CAPITALS = {
 };
 
 const PLACE_LANDMARK_QUERIES = {
+  singapore: {
+    "west campus and gardens": [
+      "National University of Singapore Kent Ridge campus photograph",
+      "Nanyang Technological University Singapore campus photograph",
+      "Jurong Lake Gardens Singapore landscape photograph"
+    ]
+  },
   malaysia: {
     langkawi: [
       "Langkawi Sky Bridge Malaysia tourist landmark photograph",

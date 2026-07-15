@@ -107,10 +107,17 @@ export function createPlaceImageCachePaths({
     countryCacheRoot,
     metadataPath: path.join(countryCacheRoot, "place-images", `${placeSlug}.json`),
     metadataUrl: `${countryUrlPrefix}/place-images/${placeSlug}.json`,
+    historyRoot: path.join(countryCacheRoot, "place-images", `${placeSlug}.history`),
+    historyMetadataPath: path.join(countryCacheRoot, "place-images", `${placeSlug}.history.json`),
+    historyMetadataUrl: `${countryUrlPrefix}/place-images/${placeSlug}.history.json`,
     imagePathForExtension: (extension) =>
       path.join(countryCacheRoot, "place-images", `${placeSlug}${extension}`),
     imageUrlForExtension: (extension) =>
-      `${countryUrlPrefix}/place-images/${placeSlug}${extension}`
+      `${countryUrlPrefix}/place-images/${placeSlug}${extension}`,
+    historyImagePathForExtension: (entryId, extension) =>
+      path.join(countryCacheRoot, "place-images", `${placeSlug}.history`, `${sanitizeCacheSlug(entryId)}${extension}`),
+    historyImageUrlForExtension: (entryId, extension) =>
+      `${countryUrlPrefix}/place-images/${placeSlug}.history/${sanitizeCacheSlug(entryId)}${extension}`
   };
 }
 

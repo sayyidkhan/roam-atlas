@@ -282,6 +282,22 @@ createServer(async (request, response) => {
       await handlePlaceImageResetRequest(request, response);
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/place-image/feedback") {
+      await handlePlaceImageFeedbackRequest(request, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/place-image/suggestions") {
+      await handlePlaceImageSuggestionsRequest(request, response);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/place-image/history") {
+      await handlePlaceImageHistoryRequest(url, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/place-image/history/select") {
+      await handlePlaceImageHistorySelectionRequest(request, response);
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/country-packs") {
       await handleCountryPacksRequest(url, response);
       return;
@@ -1123,11 +1139,13 @@ function toSafeHeaderValue(value) {
 
 const PLACE_IMAGE_FACT_BOUNDARY =
   "Reference photo from an external search result. It is not evidence of current appearance, availability, or official status.";
+const PLACE_IMAGE_HISTORY_LIMIT = 6;
 
 async function handlePlaceImageRequest(url, response) {
   const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
   const place = String(url.searchParams.get("place") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const context = String(url.searchParams.get("context") ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
+  const feedback = normalizePlaceImageFeedback(url.searchParams.get("feedback"));
   const kind = String(url.searchParams.get("kind") ?? "").trim().toLowerCase();
   const tags = String(url.searchParams.get("tags") ?? "")
     .split(",")
@@ -1140,7 +1158,7 @@ async function handlePlaceImageRequest(url, response) {
     return;
   }
 
-  const record = await resolvePlaceImage(country, place, { context, kind, tags });
+  const record = await resolvePlaceImage(country, place, { context, kind, tags, feedback });
   if (!record?.imageUrl) {
     respondPlaceImageNotFound(response, record?.reason ?? "no-image-found");
     return;
@@ -1201,6 +1219,185 @@ async function handlePlaceImageResetRequest(request, response) {
   }));
 }
 
+async function handlePlaceImageFeedbackRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const feedback = normalizePlaceImageFeedback(body.feedback);
+  const country = getCountryBySlug(countrySlug);
+  if (!country || !place || !feedback) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "A country, place, and photo feedback are required." }));
+    return;
+  }
+
+  // Feedback only steers a new external reference-photo search. It never
+  // changes the curated place data or becomes a travel claim.
+  const result = await resetStoredPlaceImage(country, place, { preserveHistory: true });
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({
+    countrySlug: country.slug,
+    countryName: country.name,
+    place,
+    feedback,
+    ...result,
+    factBoundary: "Photo feedback is used only to refine the external reference-image search. Curated travel data was not changed."
+  }));
+}
+
+async function handlePlaceImageSuggestionsRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const kind = String(body.kind ?? "region").replace(/[^a-z-]/gi, "").trim().toLowerCase().slice(0, 32) || "region";
+  const currentFeedback = normalizePlaceImageFeedback(body.currentFeedback);
+  const country = getCountryBySlug(countrySlug);
+  const mappedLocation = getMappedPlaceImageSuggestionContext(country, place);
+  if (!country || !place || !mappedLocation) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "A country and a mapped place are required." }));
+    return;
+  }
+
+  const result = await suggestPlaceImagePrompts(country, {
+    place: mappedLocation.title,
+    context: mappedLocation.children,
+    kind: mappedLocation.kind ?? kind,
+    currentFeedback
+  });
+  response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+  response.end(JSON.stringify({
+    countrySlug: country.slug,
+    place,
+    suggestions: result.suggestions,
+    source: result.source,
+    factBoundary: "Prompt suggestions only steer an external reference-image search. They are not travel facts."
+  }));
+}
+
+async function handlePlaceImageHistoryRequest(url, response) {
+  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
+  const place = String(url.searchParams.get("place") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const country = getCountryBySlug(countrySlug);
+  if (!country || !place) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "A country and place are required." }));
+    return;
+  }
+
+  const history = await readPlaceImageHistory(country, place);
+  response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+  response.end(JSON.stringify({
+    countrySlug: country.slug,
+    place,
+    items: history.map(toPlaceImageHistoryItem),
+    factBoundary: PLACE_IMAGE_FACT_BOUNDARY
+  }));
+}
+
+async function handlePlaceImageHistorySelectionRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const entryId = String(body.entryId ?? "").trim();
+  const country = getCountryBySlug(countrySlug);
+  if (!country || !place || !entryId) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "A country, place, and saved photo are required." }));
+    return;
+  }
+
+  const result = await selectPlaceImageHistoryEntry(country, place, entryId);
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({ countrySlug: country.slug, place, ...result }));
+}
+
+function normalizePlaceImageFeedback(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+function getMappedPlaceImageSuggestionContext(country, place) {
+  const normalizedPlace = String(place ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+  const pack = country ? getCountryPack(country.slug) : null;
+  const node = Object.values(pack?.nodes ?? {}).find(
+    (candidate) => String(candidate?.title ?? "").replace(/\s+/g, " ").trim().toLowerCase() === normalizedPlace
+  );
+  if (!node) return null;
+  return {
+    title: node.title,
+    kind: node.type ?? node.tags?.[0] ?? "region",
+    children: (node.childIds ?? [])
+      .map((childId) => pack.nodes[childId]?.title)
+      .filter(Boolean)
+      .slice(0, 6)
+  };
+}
+
+async function suggestPlaceImagePrompts(country, { place, context = [], kind = "region", currentFeedback = "" }) {
+  const fallback = buildPlaceImagePromptSuggestionFallbacks(country, { place, context, currentFeedback });
+  if (!process.env.OPENAI_API_KEY) return { suggestions: fallback, source: "curated-fallback" };
+
+  const prompt = [
+    "You write short search prompts for selecting an unverified reference photo.",
+    "Return JSON only with this exact shape: {\"suggestions\":[\"...\",\"...\",\"...\"]}.",
+    "Use only the supplied mapped location title and mapped child names. Do not invent places, landmarks, facts, opening hours, routes, or claims.",
+    "Each suggestion must be a concise search instruction for a real photograph and should identify one supplied mapped location or the supplied region.",
+    "Avoid generic Singapore landmarks that are not in the supplied mapped context.",
+    "",
+    `Country: ${country.name}`,
+    `Mapped location: ${place}`,
+    `Location type: ${kind}`,
+    `Mapped child context: ${context.length ? context.join(" | ") : "None supplied"}`,
+    `Current user feedback: ${currentFeedback || "None"}`
+  ].join("\n");
+
+  try {
+    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: appConfig.ai.textModel,
+        input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+        temperature: 0.1
+      })
+    });
+    if (!openaiResponse.ok) return { suggestions: fallback, source: "curated-fallback" };
+    const parsed = parseJsonObject(extractOpenAIText(await openaiResponse.json()));
+    const suggestions = normalizePlaceImagePromptSuggestions(parsed?.suggestions, { place, context });
+    return { suggestions: suggestions.length ? suggestions : fallback, source: suggestions.length ? "llm" : "curated-fallback" };
+  } catch {
+    return { suggestions: fallback, source: "curated-fallback" };
+  }
+}
+
+function normalizePlaceImagePromptSuggestions(value, { place, context }) {
+  const allowedTerms = [place, ...(Array.isArray(context) ? context : [])]
+    .map((item) => String(item ?? "").trim().toLowerCase())
+    .filter((item) => item.length >= 3);
+  return [...new Set((Array.isArray(value) ? value : [])
+    .map((item) => normalizePlaceImageFeedback(item))
+    .filter((item) => item.length >= 12)
+    .filter((item) => allowedTerms.some((term) => item.toLowerCase().includes(term)))
+    .slice(0, 3))];
+}
+
+function buildPlaceImagePromptSuggestionFallbacks(country, { place, context, currentFeedback }) {
+  const mappedChildren = Array.isArray(context) ? context.filter(Boolean).slice(0, 3) : [];
+  const base = `${place} ${country.name}`.trim();
+  const suggestions = mappedChildren.length
+    ? mappedChildren.map((child) => `Show ${child} in ${country.name}; use a representative real photograph.`)
+    : [`Show ${base} as a representative real photograph.`];
+  suggestions.push(
+    currentFeedback
+      ? `${currentFeedback} Keep the search within ${place}, ${country.name}.`
+      : `Show a real photograph of ${base}; avoid generic Singapore landmarks outside this mapped area.`
+  );
+  return [...new Set(suggestions.map((suggestion) => normalizePlaceImageFeedback(suggestion)))].slice(0, 3);
+}
+
 function respondPlaceImageNotFound(response, reason) {
   response.writeHead(404, {
     "Content-Type": "application/json; charset=utf-8",
@@ -1228,7 +1425,7 @@ async function resetStoredCountryPlaceImages(country) {
   };
 }
 
-async function resetStoredPlaceImage(country, place) {
+async function resetStoredPlaceImage(country, place, { preserveHistory = false } = {}) {
   const paths = createPlaceImageCachePaths({
     cacheRoot: runtimeCacheRoot,
     countrySlug: country.slug,
@@ -1246,12 +1443,17 @@ async function resetStoredPlaceImage(country, place) {
     record = null;
   }
 
+  const archived = preserveHistory
+    ? await archiveStoredPlaceImage(paths, record)
+    : null;
+
   const imagePaths = [".jpg", ".jpeg", ".png", ".webp"]
     .map((extension) => paths.imagePathForExtension(extension))
     .filter((imagePath) => isPathInside(paths.countryCacheRoot, path.normalize(imagePath)));
   await Promise.all([
     rm(paths.metadataPath, { force: true }),
-    ...imagePaths.map((imagePath) => rm(imagePath, { force: true }))
+    ...imagePaths.map((imagePath) => rm(imagePath, { force: true })),
+    ...(preserveHistory ? [] : [rm(paths.historyMetadataPath, { force: true }), rm(paths.historyRoot, { recursive: true, force: true })])
   ]);
   clearPlaceImageRuntimeMemory(country.slug, {
     placeSlug: paths.placeSlug,
@@ -1263,8 +1465,152 @@ async function resetStoredPlaceImage(country, place) {
     scope: "single-place-image",
     place,
     removedFiles: [paths.metadataPath, ...imagePaths],
-    factBoundary: "One reference-photo cache entry was cleared. Starter-map builder data and generated map illustrations were not changed."
+    archived,
+    factBoundary: preserveHistory
+      ? "The current reference photo was saved to its local history before a fresh search. Starter-map builder data and generated map illustrations were not changed."
+      : "One reference-photo cache entry was cleared. Starter-map builder data and generated map illustrations were not changed."
   };
+}
+
+async function archiveStoredPlaceImage(paths, record) {
+  if (!record?.imageUrl) return null;
+  const currentImagePath = getImagePathFromUrl(record.imageUrl);
+  if (!currentImagePath || !isPathInside(paths.countryCacheRoot, currentImagePath)) return null;
+
+  let imageBytes;
+  try {
+    imageBytes = await readFile(currentImagePath);
+  } catch {
+    return null;
+  }
+
+  const extension = getPlaceImageExtension(record.imageUrl);
+  const id = randomUUID();
+  const historyImagePath = paths.historyImagePathForExtension(id, extension);
+  const historyImageUrl = paths.historyImageUrlForExtension(id, extension);
+  if (!isPathInside(paths.countryCacheRoot, historyImagePath)) return null;
+
+  const entry = {
+    ...record,
+    id,
+    imageUrl: historyImageUrl,
+    archivedAt: new Date().toISOString()
+  };
+  const manifest = await readPlaceImageHistoryManifest(paths);
+  const entries = [...manifest.entries, entry];
+  const prunedEntries = entries.slice(0, Math.max(0, entries.length - PLACE_IMAGE_HISTORY_LIMIT));
+  const retainedEntries = entries.slice(-PLACE_IMAGE_HISTORY_LIMIT);
+
+  await mkdir(paths.historyRoot, { recursive: true });
+  await writeFile(historyImagePath, imageBytes);
+  await writePlaceImageHistoryManifest(paths, { ...manifest, entries: retainedEntries });
+  await Promise.all(prunedEntries.map((item) => {
+    const stalePath = getImagePathFromUrl(item.imageUrl);
+    return stalePath && isPathInside(paths.countryCacheRoot, stalePath)
+      ? rm(stalePath, { force: true })
+      : Promise.resolve();
+  }));
+  return entry;
+}
+
+async function readPlaceImageHistory(country, place) {
+  const paths = createPlaceImageCachePaths({ cacheRoot: runtimeCacheRoot, countrySlug: country.slug, place });
+  const manifest = await readPlaceImageHistoryManifest(paths);
+  const saved = [];
+  for (const entry of manifest.entries) {
+    const imagePath = getImagePathFromUrl(entry?.imageUrl ?? "");
+    if (!imagePath || !isPathInside(paths.countryCacheRoot, imagePath)) continue;
+    try {
+      await stat(imagePath);
+      saved.push({ ...entry, active: false });
+    } catch {
+      // Ignore a history entry whose image was manually removed.
+    }
+  }
+
+  const active = await readStoredPlaceImageRecord(paths, { place });
+  if (active?.imageUrl) saved.push({ ...active, id: "current", active: true });
+  return saved;
+}
+
+function toPlaceImageHistoryItem(record) {
+  return {
+    id: record.id,
+    imageUrl: record.imageUrl,
+    active: Boolean(record.active),
+    feedback: record.feedback ?? null,
+    fetchedAt: record.fetchedAt ?? null,
+    archivedAt: record.archivedAt ?? null
+  };
+}
+
+async function selectPlaceImageHistoryEntry(country, place, entryId) {
+  const paths = createPlaceImageCachePaths({ cacheRoot: runtimeCacheRoot, countrySlug: country.slug, place });
+  await settlePlaceImageRequestsForPlace(paths);
+  const manifest = await readPlaceImageHistoryManifest(paths);
+  const target = manifest.entries.find((entry) => entry.id === entryId);
+  if (!target) throw new Error("That saved reference photo is no longer available.");
+
+  const targetImagePath = getImagePathFromUrl(target.imageUrl);
+  if (!targetImagePath || !isPathInside(paths.countryCacheRoot, targetImagePath)) {
+    throw new Error("That saved reference photo has an invalid cache path.");
+  }
+  const targetImage = await readFile(targetImagePath);
+  const targetExtension = getPlaceImageExtension(target.imageUrl);
+
+  let activeRecord = null;
+  try {
+    activeRecord = JSON.parse(await readFile(paths.metadataPath, "utf8"));
+  } catch {
+    activeRecord = null;
+  }
+  if (activeRecord?.imageUrl) await archiveStoredPlaceImage(paths, activeRecord);
+
+  const refreshedManifest = await readPlaceImageHistoryManifest(paths);
+  const nextEntries = refreshedManifest.entries.filter((entry) => entry.id !== entryId);
+  await Promise.all([
+    writeFile(paths.imagePathForExtension(targetExtension), targetImage),
+    rm(targetImagePath, { force: true }),
+    writePlaceImageHistoryManifest(paths, { ...refreshedManifest, entries: nextEntries })
+  ]);
+
+  const { id, active, archivedAt, imageUrl: _historyUrl, ...restored } = target;
+  const record = {
+    ...restored,
+    imageUrl: paths.imageUrlForExtension(targetExtension),
+    selectedAt: new Date().toISOString()
+  };
+  await writeStoredPlaceImageRecord(paths, record);
+  clearPlaceImageRuntimeMemory(country.slug, {
+    placeSlug: paths.placeSlug,
+    place,
+    claimKey: activeRecord ? getPlaceImageRecordClaimKey(activeRecord) : ""
+  });
+  reservePlaceImageClaim(paths.countrySlug, place, getPlaceImageRecordClaimKey(record));
+  return { selected: true, record: toPlaceImageHistoryItem({ ...record, id: "current", active: true }) };
+}
+
+async function readPlaceImageHistoryManifest(paths) {
+  try {
+    const manifest = JSON.parse(await readFile(paths.historyMetadataPath, "utf8"));
+    return {
+      place: manifest.place ?? paths.placeSlug,
+      countrySlug: manifest.countrySlug ?? paths.countrySlug,
+      entries: Array.isArray(manifest.entries) ? manifest.entries : []
+    };
+  } catch {
+    return { place: paths.placeSlug, countrySlug: paths.countrySlug, entries: [] };
+  }
+}
+
+async function writePlaceImageHistoryManifest(paths, manifest) {
+  await mkdir(path.dirname(paths.historyMetadataPath), { recursive: true });
+  await writeFile(paths.historyMetadataPath, JSON.stringify(manifest, null, 2));
+}
+
+function getPlaceImageExtension(imageUrl) {
+  const extension = path.extname(String(imageUrl ?? "").split("?")[0]).toLowerCase();
+  return [".jpg", ".jpeg", ".png", ".webp"].includes(extension) ? extension : ".jpg";
 }
 
 async function settlePlaceImageRequestsForCountry(countrySlug) {
@@ -1281,7 +1627,7 @@ async function settlePlaceImageRequestsForPlace(paths) {
   if (request) await Promise.allSettled([request]);
 }
 
-async function resolvePlaceImage(country, place, { context = "", kind = "", tags = [] } = {}) {
+async function resolvePlaceImage(country, place, { context = "", kind = "", tags = [], feedback = "" } = {}) {
   const paths = createPlaceImageCachePaths({
     cacheRoot: runtimeCacheRoot,
     countrySlug: country.slug,
@@ -1295,7 +1641,7 @@ async function resolvePlaceImage(country, place, { context = "", kind = "", tags
     return placeImageRequestsInFlight.get(cacheKey);
   }
 
-  const request = resolvePlaceImageUncached(country, place, { context, kind, tags }, paths)
+  const request = resolvePlaceImageUncached(country, place, { context, kind, tags, feedback }, paths)
     .then((record) => {
       placeImageCache.set(cacheKey, record);
       return record;
@@ -1307,7 +1653,7 @@ async function resolvePlaceImage(country, place, { context = "", kind = "", tags
   return request;
 }
 
-async function resolvePlaceImageUncached(country, place, { context = "", kind = "", tags = [] }, paths) {
+async function resolvePlaceImageUncached(country, place, { context = "", kind = "", tags = [], feedback = "" }, paths) {
   const storedRecord = await readStoredPlaceImageRecord(paths, { place });
   if (storedRecord) return storedRecord;
 
@@ -1324,6 +1670,14 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
     tags,
     context
   });
+  const normalizedFeedback = normalizePlaceImageFeedback(feedback);
+  if (normalizedFeedback) {
+    profile.queries.unshift(
+      `${place} ${context} ${country.name} ${normalizedFeedback} reference photograph`
+        .replace(/\s+/g, " ")
+        .trim()
+    );
+  }
   const candidates = await searchExaPlaceImageCandidates(country, place, { context, kind, tags }, profile);
   for (const candidate of candidates) {
     const claimKey = getPlaceImageCandidateClaimKey(candidate);
@@ -1335,7 +1689,8 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
       country,
       place,
       candidate,
-      profile
+      profile,
+      feedback: normalizedFeedback
     });
     if (record) return record;
     releasePlaceImageClaim(paths.countrySlug, place, claimKey);
@@ -1353,7 +1708,8 @@ async function resolvePlaceImageUncached(country, place, { context = "", kind = 
         country,
         place,
         candidate: wikipediaCandidate,
-        profile
+        profile,
+        feedback: normalizedFeedback
       });
       if (record) return record;
       releasePlaceImageClaim(paths.countrySlug, place, claimKey);
@@ -1542,7 +1898,7 @@ async function searchExaPlaceImageQuery(query) {
   return candidates;
 }
 
-async function persistPlaceImage(paths, { country, place, candidate, profile }) {
+async function persistPlaceImage(paths, { country, place, candidate, profile, feedback = "" }) {
   try {
     const imageResponse = await fetch(candidate.imageUrl, createCountryImageDownloadOptions());
     if (!imageResponse.ok) return null;
@@ -1565,6 +1921,7 @@ async function persistPlaceImage(paths, { country, place, candidate, profile }) 
       remoteImageUrl: candidate.imageUrl,
       sourceUrl: candidate.sourceUrl,
       query: candidate.query,
+      feedback: normalizePlaceImageFeedback(feedback) || null,
       selectionVersion: PLACE_IMAGE_SELECTION_VERSION,
       selectionStrategy: profile?.strategy ?? null,
       selectionScore: candidate.score ?? null,
