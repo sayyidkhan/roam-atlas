@@ -1527,11 +1527,27 @@ a {
   cursor: zoom-out;
 }
 
-.draft-photo-lightbox-close {
+.sheet-close.draft-photo-lightbox-close {
   position: absolute;
   top: 18px;
   right: 18px;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+
+.sheet-close.draft-photo-lightbox-close svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2.6;
 }
 
 .draft-photo-lightbox {
@@ -1577,7 +1593,7 @@ a {
 
 .draft-photo-lightbox-history {
   display: grid;
-  grid-template-columns: 34px minmax(92px, 1fr) 34px auto;
+  grid-template-columns: 34px minmax(92px, 1fr) 34px auto auto;
   align-items: center;
   gap: 7px;
   border: 1px solid rgba(255, 250, 240, 0.38);
@@ -1620,6 +1636,19 @@ a {
   border-color: #fffaf0;
   background: #fffaf0;
   color: #1f2c2a;
+}
+
+.draft-photo-lightbox-history [data-draft-photo-delete] {
+  padding: 0 9px;
+  border-color: rgba(255, 250, 240, 0.48);
+  background: rgba(255, 250, 240, 0.08);
+  color: #fffaf0;
+}
+
+.draft-photo-lightbox-history [data-draft-photo-delete]:hover:not(:disabled),
+.draft-photo-lightbox-history [data-draft-photo-delete]:focus-visible:not(:disabled) {
+  border-color: rgba(255, 250, 240, 0.82);
+  background: rgba(255, 250, 240, 0.16);
 }
 
 .draft-photo-lightbox-history button:hover:not(:disabled),
@@ -1769,6 +1798,25 @@ a {
   display: none;
 }
 
+.draft-photo-prompt-source {
+  justify-self: start;
+  border: 1px solid rgba(255, 250, 240, 0.38);
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: rgba(255, 250, 240, 0.82);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.draft-photo-prompt-source[data-prompt-source="llm"] {
+  border-color: rgba(128, 211, 184, 0.74);
+  background: rgba(83, 161, 137, 0.2);
+  color: #c9f4e5;
+}
+
 .draft-photo-prompt-suggestions button {
   border: 1px solid rgba(255, 250, 240, 0.32);
   border-radius: 8px;
@@ -1819,7 +1867,8 @@ a {
     grid-template-columns: 32px minmax(74px, 1fr) 32px;
   }
 
-  .draft-photo-lightbox-history [data-draft-photo-keep] {
+  .draft-photo-lightbox-history [data-draft-photo-keep],
+  .draft-photo-lightbox-history [data-draft-photo-delete] {
     grid-column: 1 / -1;
   }
 }

@@ -298,6 +298,10 @@ createServer(async (request, response) => {
       await handlePlaceImageHistorySelectionRequest(request, response);
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/place-image/history/delete") {
+      await handlePlaceImageHistoryDeleteRequest(request, response);
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/country-packs") {
       await handleCountryPacksRequest(url, response);
       return;
@@ -1312,6 +1316,23 @@ async function handlePlaceImageHistorySelectionRequest(request, response) {
   response.end(JSON.stringify({ countrySlug: country.slug, place, ...result }));
 }
 
+async function handlePlaceImageHistoryDeleteRequest(request, response) {
+  const body = await readJson(request);
+  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
+  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const entryId = String(body.entryId ?? "").trim();
+  const country = getCountryBySlug(countrySlug);
+  if (!country || !place || !entryId) {
+    response.writeHead(400, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ error: "A country, place, and saved photo are required." }));
+    return;
+  }
+
+  const result = await deletePlaceImageHistoryEntry(country, place, entryId);
+  response.writeHead(200, { "Content-Type": "application/json" });
+  response.end(JSON.stringify({ countrySlug: country.slug, place, ...result }));
+}
+
 function normalizePlaceImageFeedback(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
 }
@@ -1588,6 +1609,74 @@ async function selectPlaceImageHistoryEntry(country, place, entryId) {
   });
   reservePlaceImageClaim(paths.countrySlug, place, getPlaceImageRecordClaimKey(record));
   return { selected: true, record: toPlaceImageHistoryItem({ ...record, id: "current", active: true }) };
+}
+
+async function deletePlaceImageHistoryEntry(country, place, entryId) {
+  if (entryId === "current") {
+    return deleteStoredActivePlaceImage(country, place);
+  }
+
+  const paths = createPlaceImageCachePaths({ cacheRoot: runtimeCacheRoot, countrySlug: country.slug, place });
+  await settlePlaceImageRequestsForPlace(paths);
+  const manifest = await readPlaceImageHistoryManifest(paths);
+  const target = manifest.entries.find((entry) => entry.id === entryId);
+  if (!target) throw new Error("That saved reference photo is no longer available.");
+
+  const targetImagePath = getImagePathFromUrl(target.imageUrl);
+  if (targetImagePath && !isPathInside(paths.countryCacheRoot, targetImagePath)) {
+    throw new Error("That saved reference photo has an invalid cache path.");
+  }
+
+  const nextEntries = manifest.entries.filter((entry) => entry.id !== entryId);
+  await Promise.all([
+    targetImagePath ? rm(targetImagePath, { force: true }) : Promise.resolve(),
+    writePlaceImageHistoryManifest(paths, { ...manifest, entries: nextEntries })
+  ]);
+
+  const history = await readPlaceImageHistory(country, place);
+  return {
+    deleted: true,
+    entryId,
+    items: history.map(toPlaceImageHistoryItem),
+    factBoundary: "Only a saved reference-photo history entry was deleted. Curated travel data was not changed."
+  };
+}
+
+async function deleteStoredActivePlaceImage(country, place) {
+  const paths = createPlaceImageCachePaths({ cacheRoot: runtimeCacheRoot, countrySlug: country.slug, place });
+  await settlePlaceImageRequestsForPlace(paths);
+
+  let record = null;
+  try {
+    record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
+  } catch {
+    record = null;
+  }
+  if (!record?.imageUrl) {
+    throw new Error("The current reference photo is no longer available.");
+  }
+
+  const imagePaths = [".jpg", ".jpeg", ".png", ".webp"]
+    .map((extension) => paths.imagePathForExtension(extension))
+    .filter((imagePath) => isPathInside(paths.countryCacheRoot, path.normalize(imagePath)));
+  await Promise.all([
+    rm(paths.metadataPath, { force: true }),
+    ...imagePaths.map((imagePath) => rm(imagePath, { force: true }))
+  ]);
+  clearPlaceImageRuntimeMemory(country.slug, {
+    placeSlug: paths.placeSlug,
+    place,
+    claimKey: getPlaceImageRecordClaimKey(record)
+  });
+
+  const history = await readPlaceImageHistory(country, place);
+  return {
+    deleted: true,
+    activeDeleted: true,
+    entryId: "current",
+    items: history.map(toPlaceImageHistoryItem),
+    factBoundary: "Only the active reference photo was deleted. Saved photo history and curated travel data were not changed."
+  };
 }
 
 async function readPlaceImageHistoryManifest(paths) {

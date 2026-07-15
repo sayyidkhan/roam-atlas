@@ -651,7 +651,7 @@ function openDraftPhotoLightbox({ src, placeName, context = "", kind = "region" 
       class="sheet-close draft-photo-lightbox-close"
       data-close-draft-photo
       aria-label="Close enlarged photo"
-    >×</button>
+    ><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18"></path></svg></button>
     ${placeName ? `
       <section class="draft-photo-lightbox-controls" aria-label="Reference photo controls">
         <div class="draft-photo-lightbox-actions">
@@ -672,6 +672,7 @@ function openDraftPhotoLightbox({ src, placeName, context = "", kind = "region" 
           <span data-draft-photo-history-label></span>
           <button type="button" data-draft-photo-next aria-label="Show next saved photo">→</button>
           <button type="button" data-draft-photo-keep>Keep this photo</button>
+          <button type="button" data-draft-photo-delete>Delete photo</button>
         </nav>
         <form class="draft-photo-lightbox-feedback" data-draft-photo-feedback hidden>
           <div class="draft-photo-lightbox-feedback-heading">
@@ -744,18 +745,23 @@ function openDraftPhotoLightbox({ src, placeName, context = "", kind = "region" 
     const suggestions = feedbackForm.querySelector("[data-draft-photo-prompt-suggestions]");
     button.disabled = true;
     button.textContent = "Suggesting";
-    const prompts = await requestPlaceImagePromptSuggestions(state.selectedCountry, {
+    const promptResult = await requestPlaceImagePromptSuggestions(state.selectedCountry, {
       place: placeName,
       context,
       kind,
       currentFeedback: feedbackInput?.value ?? ""
     });
+    const prompts = promptResult.suggestions;
     button.disabled = false;
     button.textContent = "Suggest prompts";
     if (!prompts.length) return;
-    suggestions.innerHTML = prompts.map((prompt, index) => `
+    const sourceLabel = promptResult.source === "llm" ? "Gen AI" : "Fallback";
+    suggestions.innerHTML = `
+      <span class="draft-photo-prompt-source" data-prompt-source="${escapeHtml(promptResult.source)}">${sourceLabel}</span>
+      ${prompts.map((prompt, index) => `
       <button type="button" data-draft-photo-prompt-index="${index}">${escapeHtml(prompt)}</button>
-    `).join("");
+      `).join("")}
+    `;
     suggestions.hidden = false;
     suggestions.querySelectorAll("[data-draft-photo-prompt-index]").forEach((suggestionButton) => {
       suggestionButton.addEventListener("click", () => {
@@ -1650,7 +1656,8 @@ function renderDraftPlacePhoto(placeName, children, genAiContext, kind = "region
           class="draft-item-photo"
           data-src="${escapeHtml(src)}"
           alt=""
-          loading="lazy"
+          loading="eager"
+          fetchpriority="high"
           decoding="async"
           referrerpolicy="no-referrer"
         />
@@ -1682,6 +1689,11 @@ function hydrateDraftPlacePhotos(root) {
     if (!image || !src || button.dataset.photoHydrated === "true") continue;
 
     button.dataset.photoHydrated = "true";
+    // These thumbnails are part of the immediately visible config tree. Native
+    // lazy-loading can defer even local cached images in the embedded webview
+    // until the user scrolls or clicks, so always start their request now.
+    image.loading = "eager";
+    image.fetchPriority = "high";
     setDraftPhotoState(button, "searching", "Searching", 0.18);
 
     const timers = [
@@ -2489,10 +2501,13 @@ async function requestPlaceImagePromptSuggestions(country, {
     }
     const payload = await response.json();
     const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
-    return suggestions
+    return {
+      source: payload?.source === "llm" ? "llm" : "curated-fallback",
+      suggestions: suggestions
       .map((suggestion) => String(suggestion ?? "").replace(/\s+/g, " ").trim().slice(0, 240))
       .filter(Boolean)
-      .slice(0, 3);
+      .slice(0, 3)
+    };
   } catch (error) {
     showAppToast({
       title: "Prompt suggestions unavailable",
@@ -2500,7 +2515,7 @@ async function requestPlaceImagePromptSuggestions(country, {
       tone: "error",
       durationMs: 7000
     });
-    return [];
+    return { source: "curated-fallback", suggestions: [] };
   }
 }
 
@@ -2514,13 +2529,14 @@ async function loadDraftPhotoHistory(backdrop, country, place) {
     const response = await fetch(apiPath(`/api/place-image/history?${params.toString()}`));
     if (!response.ok) return;
     const payload = await response.json();
-    const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.id && item?.imageUrl) : [];
+    let items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.id && item?.imageUrl) : [];
     if (items.length < 2 || draftPhotoLightbox !== backdrop) return;
 
     let index = Math.max(0, items.findIndex((item) => item.active));
     const previous = history.querySelector("[data-draft-photo-previous]");
     const next = history.querySelector("[data-draft-photo-next]");
     const keep = history.querySelector("[data-draft-photo-keep]");
+    const deleteButton = history.querySelector("[data-draft-photo-delete]");
     const label = history.querySelector("[data-draft-photo-history-label]");
     const show = (nextIndex) => {
       index = Math.max(0, Math.min(nextIndex, items.length - 1));
@@ -2531,6 +2547,8 @@ async function loadDraftPhotoHistory(backdrop, country, place) {
       next.disabled = index === items.length - 1;
       keep.disabled = item.active;
       keep.textContent = item.active ? "Current photo" : "Keep this photo";
+      deleteButton.disabled = false;
+      deleteButton.textContent = "Delete photo";
     };
     previous.addEventListener("click", () => show(index - 1));
     next.addEventListener("click", () => show(index + 1));
@@ -2542,6 +2560,32 @@ async function loadDraftPhotoHistory(backdrop, country, place) {
       const didKeep = await requestPlaceImageHistorySelection(country, place, item.id);
       if (didKeep) closeDraftPhotoLightbox();
       else show(index);
+    });
+    deleteButton.addEventListener("click", async () => {
+      const item = items[index];
+      deleteButton.disabled = true;
+      deleteButton.textContent = "Deleting photo";
+      const result = await requestPlaceImageHistoryDelete(country, place, item.id);
+      if (!result) {
+        show(index);
+        return;
+      }
+
+      if (result.activeDeleted) {
+        const placeKey = getPlaceImageRefreshKey(country.slug, place);
+        state.placeImageFeedbacks.delete(placeKey);
+        state.placeImageRefreshes.set(placeKey, Date.now());
+        render();
+        closeDraftPhotoLightbox();
+        return;
+      }
+
+      items = Array.isArray(result.items) ? result.items.filter((entry) => entry?.id && entry?.imageUrl) : [];
+      if (items.length < 2) {
+        closeDraftPhotoLightbox();
+        return;
+      }
+      show(Math.min(index, items.length - 1));
     });
     history.hidden = false;
     show(index);
@@ -2587,6 +2631,37 @@ async function requestPlaceImageHistorySelection(country, place, entryId) {
       durationMs: 8000
     });
     return false;
+  }
+}
+
+async function requestPlaceImageHistoryDelete(country, place, entryId) {
+  try {
+    const response = await fetch(apiPath("/api/place-image/history/delete"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ countrySlug: country.slug, place, entryId })
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Saved reference photo deletion failed: ${response.status}${body ? ` ${body.slice(0, 240)}` : ""}`);
+    }
+
+    const payload = await response.json();
+    showAppToast({
+      title: payload.activeDeleted ? "Current photo deleted" : "Saved photo deleted",
+      message: payload.activeDeleted
+        ? `${place} will search for a fresh reference photo. Saved history and curated travel data were kept.`
+        : `${place} history was updated. Curated travel data was not changed.`
+    });
+    return payload;
+  } catch (error) {
+    showAppToast({
+      title: "Saved photo was not deleted",
+      message: explainClickError(error),
+      tone: "error",
+      durationMs: 8000
+    });
+    return null;
   }
 }
 

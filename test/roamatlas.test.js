@@ -1653,6 +1653,8 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(serverSource, /approveDraftItem/);
   assert.match(appSource, /buildPlaceImageUrl/);
   assert.match(appSource, /hydrateDraftPlacePhotos/);
+  assert.match(appSource, /loading="eager"/);
+  assert.match(appSource, /image\.loading = "eager"/);
   assert.match(appSource, /data-photo-state="queued"/);
   assert.match(appSource, /draft-photo-spinner/);
   assert.match(appSource, /draft-photo-fallback[\s\S]*<svg viewBox="0 0 24 24"/);
@@ -1671,8 +1673,13 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(appSource, /data-suggest-draft-photo-prompts/);
   assert.match(appSource, /Suggest prompts/);
   assert.match(appSource, /\/api\/place-image\/suggestions/);
+  assert.match(appSource, /draft-photo-prompt-source/);
+  assert.match(appSource, /Gen AI/);
+  assert.match(appSource, /Fallback/);
   assert.match(appSource, /data-draft-photo-history/);
   assert.match(appSource, /Keep this photo/);
+  assert.match(appSource, /Delete photo/);
+  assert.match(appSource, /result\.activeDeleted/);
   assert.match(appSource, /\/api\/place-image\/history/);
   assert.match(appSource, /getPlaceImageRefreshKey/);
   assert.match(appSource, /params\.set\("placeRefresh", String\(placeRefresh\)\)/);
@@ -1682,8 +1689,11 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.doesNotMatch(appSource, /api\.exa\.ai/);
   assert.match(styleSource, /\.draft-photo-spinner/);
   assert.match(styleSource, /\.draft-photo-lightbox-reset/);
+  assert.match(styleSource, /\.sheet-close\.draft-photo-lightbox-close/);
+  assert.match(styleSource, /draft-photo-lightbox-close svg/);
   assert.match(styleSource, /\.draft-photo-lightbox-feedback/);
   assert.match(styleSource, /\.draft-photo-prompt-suggestions/);
+  assert.match(styleSource, /\.draft-photo-prompt-source/);
   assert.match(styleSource, /\.draft-photo-lightbox-history/);
   assert.match(styleSource, /\.draft-photo-fallback svg/);
   assert.match(styleSource, /\.draft-item-photo-button[\s\S]*width: 42px/);
@@ -1703,6 +1713,7 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(serverSource, /normalizePlaceImageFeedback/);
   assert.match(serverSource, /handlePlaceImageHistoryRequest/);
   assert.match(serverSource, /selectPlaceImageHistoryEntry/);
+  assert.match(serverSource, /deleteStoredActivePlaceImage/);
   assert.match(serverSource, /archiveStoredPlaceImage/);
   assert.match(serverSource, /PLACE_IMAGE_HISTORY_LIMIT = 6/);
   assert.match(serverSource, /resetStoredCountryPlaceImages/);
@@ -1835,6 +1846,10 @@ test("config thumbnails stream cached place images directly and cannot stay pend
   assert.match(appSource, /setDraftPhotoState\(button, "searching", "Still searching", 0\.82\)/);
   assert.match(appSource, /placeImageRefreshes/);
   assert.match(appSource, /params\.set\("refresh", String\(refresh\)\)/);
+  assert.match(appSource, /data-draft-photo-delete/);
+  assert.match(appSource, /requestPlaceImageHistoryDelete/);
+  assert.match(serverSource, /\/api\/place-image\/history\/delete/);
+  assert.match(serverSource, /deletePlaceImageHistoryEntry/);
   assert.match(styleSource, /\.draft-photo-fallback/);
 });
 
