@@ -141,7 +141,7 @@ function truncatePromptText(value, fallback, maxLength) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1).trim()}...` : text;
 }
 
-export function buildCountryDraftInfluencePrompt({ country, instruction, currentDraft, groundingSnippets = [] }) {
+export function buildCountryDraftInfluencePrompt({ country, instruction, currentDraft, groundingSnippets = [], appendOnlyRegionName = null }) {
   const currentStarterMap = currentDraft
     ? JSON.stringify(
         {
@@ -184,6 +184,13 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
     "",
     "Rules:",
     "- Return JSON only.",
+    ...(appendOnlyRegionName
+      ? [
+          `- Append-only mode: return exactly one region named \"${appendOnlyRegionName}\".`,
+          "- Keep the existing region details unchanged and put only proposed new candidate places in that region's children array.",
+          "- Do not rename, remove, or edit any existing region, child, theme, summary, or confirmed fact."
+        ]
+      : []),
     "- Use the user instruction only to steer prioritization, scope, tone, or emphasis.",
     "- Do not treat the user instruction as evidence for factual claims.",
     snippets.length
@@ -202,9 +209,11 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
     "{",
     '  "summary": "one cautious sentence",',
     '  "regions": [',
-    snippets.length
-      ? '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
-      : '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "unconfirmed" }',
+    appendOnlyRegionName
+      ? `    { "name": "${appendOnlyRegionName}", "kind": "region", "children": [{ "name": "new candidate place", "kind": "attraction|area", "confidence": "unconfirmed" }] }`
+      : snippets.length
+        ? '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }'
+        : '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "unconfirmed" }',
     "  ],",
     '  "themes": [',
     snippets.length
@@ -383,8 +392,9 @@ export function normalizeCountryDraftPayload(payload, country, options = {}) {
     220
   );
   const allowedSourceUrls = buildAllowedSourceUrlSet(options.groundingSnippets);
-  const regions = normalizeRegions(payload?.regions, allowedSourceUrls);
-  const themes = normalizeThemes(payload?.themes, allowedSourceUrls, country.slug);
+  const preserveConfirmed = options.preserveConfirmed === true;
+  const regions = normalizeRegions(payload?.regions, allowedSourceUrls, preserveConfirmed);
+  const themes = normalizeThemes(payload?.themes, allowedSourceUrls, country.slug, preserveConfirmed);
   const isGrounded = allowedSourceUrls.size > 0;
   const hasGroundedFact =
     regions.some((region) => region.confidence === "likely") ||
@@ -394,7 +404,7 @@ export function normalizeCountryDraftPayload(payload, country, options = {}) {
     countryCode: country.code,
     countrySlug: country.slug,
     countryName: country.name,
-    mode: "ai_draft",
+    mode: options.mode ?? "ai_draft",
     generationStatus,
     confidence: "unconfirmed",
     sourceType: isGrounded ? "exa_grounded" : "ai_generated",
@@ -436,13 +446,13 @@ export function createCountryDraftFallback(country, reason, options = {}) {
   );
 }
 
-function normalizeRegions(regions, allowedSourceUrls = new Set()) {
+function normalizeRegions(regions, allowedSourceUrls = new Set(), preserveConfirmed = false) {
   return asArray(regions)
     .map((item) => {
       const name = safeText(item?.name, "", 80);
       if (!name) return null;
       const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
-      const isApproved = item?.reviewStatus === "human_approved";
+      const isApproved = item?.reviewStatus === "human_approved" || (preserveConfirmed && item?.confidence === "confirmed");
       const region = {
         name,
         kind: normalizeRegionKind(item?.kind),
@@ -454,7 +464,8 @@ function normalizeRegions(regions, allowedSourceUrls = new Set()) {
         // Approval is an explicit reviewer action. Preserve it whenever the
         // client submits the current draft for another inline update.
         confidence: isApproved ? "confirmed" : sourceUrl ? "likely" : "unconfirmed",
-        sourceUrl
+        sourceUrl,
+        children: normalizeDraftChildNodes(item?.children, allowedSourceUrls, preserveConfirmed)
       };
       if (isApproved) {
         region.reviewStatus = "human_approved";
@@ -472,13 +483,37 @@ function normalizeSourceUrl(value, allowedSourceUrls) {
   return allowedSourceUrls.has(candidate) ? candidate : null;
 }
 
-function normalizeThemes(themes, allowedSourceUrls = new Set(), countrySlug = "") {
+function normalizeDraftChildNodes(children, allowedSourceUrls = new Set(), preserveConfirmed = false) {
+  return asArray(children)
+    .map((item) => {
+      const name = safeText(item?.name, "", 80);
+      if (!name) return null;
+      const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
+      const isApproved = item?.reviewStatus === "human_approved" || (preserveConfirmed && item?.confidence === "confirmed");
+      const child = {
+        name,
+        kind: normalizeRegionKind(item?.kind),
+        confidence: isApproved ? "confirmed" : sourceUrl ? "likely" : "unconfirmed",
+        sourceUrl,
+        children: normalizeDraftChildNodes(item?.children, allowedSourceUrls, preserveConfirmed)
+      };
+      if (item?.reviewStatus === "human_approved") {
+        child.reviewStatus = "human_approved";
+        child.reviewedAt = safeText(item?.reviewedAt, "", 80) || undefined;
+      }
+      return child;
+    })
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function normalizeThemes(themes, allowedSourceUrls = new Set(), countrySlug = "", preserveConfirmed = false) {
   return asArray(themes)
     .map((item) => {
       const label = safeText(item?.label, "", 60);
       if (!label || isInternalThemeTag(label, countrySlug)) return null;
       const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
-      const isApproved = item?.reviewStatus === "human_approved";
+      const isApproved = item?.reviewStatus === "human_approved" || (preserveConfirmed && item?.confidence === "confirmed");
       const theme = {
         label,
         note: safeText(

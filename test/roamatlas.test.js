@@ -19,6 +19,7 @@ import {
 } from "../src/config/experienceConfig.js";
 import {
   approveDraftItem,
+  appendUnconfirmedRegionCandidates,
   isDraftItemApproved,
   unapproveDraftItem
 } from "../src/domain/countryDraftReview.js";
@@ -1599,6 +1600,97 @@ test("starter-map approve tick promotes regions with guardrails", () => {
   assert.equal(unapproved.item.reviewStatus, undefined);
 });
 
+test("nested starter-map nodes support individual and parent-level curation", () => {
+  const draft = {
+    regions: [
+      {
+        name: "Penang",
+        kind: "region",
+        confidence: "unconfirmed",
+        children: [
+          {
+            name: "George Town",
+            kind: "area",
+            confidence: "unconfirmed",
+            children: [{ name: "Armenian Street", kind: "area", confidence: "unconfirmed" }]
+          }
+        ]
+      },
+      {
+        name: "Langkawi",
+        kind: "region",
+        confidence: "confirmed",
+        children: [{ name: "Sky Bridge", kind: "attraction", confidence: "confirmed" }]
+      }
+    ],
+    themes: []
+  };
+
+  const individuallyApproved = approveDraftItem(draft, "node:1.1");
+  assert.equal(individuallyApproved.item.name, "George Town");
+  assert.equal(individuallyApproved.item.confidence, "confirmed");
+  assert.equal(draft.regions[0].children[0].children[0].confidence, "unconfirmed");
+
+  approveDraftItem(draft, "node:1", { recursive: true });
+  assert.equal(draft.regions[0].children[0].confidence, "confirmed");
+  assert.equal(draft.regions[0].children[0].children[0].confidence, "confirmed");
+
+  unapproveDraftItem(draft, "node:1", { recursive: true });
+  assert.equal(draft.regions[0].children[0].confidence, "unconfirmed");
+  assert.equal(draft.regions[0].children[0].children[0].confidence, "unconfirmed");
+  assert.equal(draft.regions[1].confidence, "confirmed");
+  assert.equal(draft.regions[1].children[0].confidence, "confirmed");
+});
+
+test("source-reviewed region suggestions append only unconfirmed new children", () => {
+  const draft = {
+    regions: [
+      {
+        name: "West Campus and Gardens",
+        kind: "region",
+        confidence: "confirmed",
+        children: [{ name: "NUS", kind: "attraction", confidence: "confirmed" }]
+      },
+      {
+        name: "Marina Bay and Civic District",
+        kind: "region",
+        confidence: "confirmed",
+        children: [{ name: "Merlion Park", kind: "attraction", confidence: "confirmed" }]
+      }
+    ]
+  };
+  const proposed = {
+    regions: [
+      {
+        name: "West Campus and Gardens",
+        kind: "region",
+        children: [{ name: "JEM", kind: "attraction", confidence: "likely" }]
+      }
+    ]
+  };
+
+  const result = appendUnconfirmedRegionCandidates(draft, "West Campus and Gardens", proposed);
+
+  assert.equal(result.changed, true);
+  assert.deepEqual(draft.regions[0].children.map((item) => [item.name, item.confidence]), [
+    ["NUS", "confirmed"],
+    ["JEM", "unconfirmed"]
+  ]);
+  assert.deepEqual(draft.regions[1].children.map((item) => item.name), ["Merlion Park"]);
+});
+
+test("draft tree reserves controls for nested curation without wrapping the delete button", () => {
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  assert.match(appSource, /approve-draft-descendants/);
+  assert.match(appSource, /data-draft-path/);
+  assert.match(appSource, /edit-draft-candidate/);
+  assert.match(appSource, /showAppToast\(\{\s*tone: "error",\s*title: "Curation update failed"/);
+  assert.match(styleSource, /grid-template-columns: auto auto auto minmax\(0, 1fr\) auto auto auto auto/);
+  assert.match(styleSource, /grid-template-columns: auto minmax\(0, 1fr\) auto auto auto/);
+  assert.match(styleSource, /\.draft-descendant-approval \{[\s\S]*height: 24px/);
+});
+
 test("starter-map normalization preserves earlier reviewer approvals", () => {
   const country = { code: "AL", slug: "albania", name: "Albania" };
   const draft = normalizeCountryDraftPayload(
@@ -1619,6 +1711,28 @@ test("starter-map normalization preserves earlier reviewer approvals", () => {
 
   assert.equal(draft.regions[0].reviewStatus, "human_approved");
   assert.equal(draft.regions[0].confidence, "confirmed");
+});
+
+test("starter-map normalization preserves nested curated nodes", () => {
+  const country = { code: "MY", slug: "malaysia", name: "Malaysia" };
+  const draft = normalizeCountryDraftPayload(
+    {
+      regions: [
+        {
+          name: "Penang",
+          kind: "region",
+          reviewStatus: "human_approved",
+          children: [{ name: "George Town", kind: "area", reviewStatus: "human_approved" }]
+        }
+      ],
+      themes: []
+    },
+    country
+  );
+
+  assert.equal(draft.regions[0].confidence, "confirmed");
+  assert.equal(draft.regions[0].children[0].name, "George Town");
+  assert.equal(draft.regions[0].children[0].confidence, "confirmed");
 });
 
 test("dev server treats missing static and runtime-cache files as normal 404s", () => {
@@ -1820,6 +1934,9 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
   assert.match(appSource, /Keep every other candidate unchanged/);
   assert.match(appSource, /generate=false/);
   assert.match(appSource, /force=true/);
+  assert.match(appSource, /createCountryPackStarterMap\(countryPack\)/);
+  assert.match(appSource, /isDraftItemApproved/);
+  assert.match(appSource, /Runtime data may add unconfirmed candidates/);
   assert.doesNotMatch(appSource, />Generate draft</);
   assert.doesNotMatch(appSource, /Draft only/);
   assert.doesNotMatch(appSource, /data-country-action="generate-draft"/);
@@ -1946,6 +2063,7 @@ test("server creates image-specific environment plans for generated artwork", ()
 
 test("server persists country starter maps in country-scoped runtime storage", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
 
   assert.match(serverSource, /createCountryStarterMapCachePaths/);
   assert.match(serverSource, /createCountryPackStarterMap/);
@@ -1954,13 +2072,18 @@ test("server persists country starter maps in country-scoped runtime storage", (
   assert.match(serverSource, /source: "country_pack"/);
   assert.match(serverSource, /readStoredCountryDraft/);
   assert.match(serverSource, /writeStoredCountryDraft/);
+  assert.match(serverSource, /Always reconstruct the curated tree from the repository/);
+  assert.match(serverSource, /appendUnconfirmedRegionCandidates\(packSnapshot, region\.name, storedPackSnapshot\)/);
+  assert.match(appSource, /label: `Build \$\{country\.name\} map`/);
+  assert.match(appSource, /No \$\{escapeHtml\(country\.name\)\} map data loaded/);
   assert.match(serverSource, /starter-map/);
   assert.match(serverSource, /url\.searchParams\.get\("force"\) === "true"/);
   assert.match(serverSource, /regenerated: forceGenerate/);
   assert.match(serverSource, /url\.searchParams\.get\("generate"\) !== "false"/);
   assert.match(serverSource, /isSourceReviewedCountryPack/);
   assert.match(serverSource, /countryPack\.confidence !== "unconfirmed"/);
-  assert.match(serverSource, /Update the country pack source files instead of AI-steering/);
+  assert.match(serverSource, /only supports append-only GenAI candidates within a selected region/);
+  assert.match(serverSource, /appendUnconfirmedRegionCandidates/);
   assert.match(serverSource, /handleCountryDraftConfirmRequest/);
   assert.match(serverSource, /confirmed_for_curation/);
   assert.match(serverSource, /resolveRoamAtlasConfig/);

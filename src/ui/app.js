@@ -15,6 +15,11 @@ import { buildLoadingStepTrail } from "../domain/loadingSteps.js";
 import { resolveFlipbookClick } from "../domain/flipbookPage.js";
 import { PLACE_IMAGE_SELECTION_VERSION } from "../domain/placeImageSelection.js";
 import { listNextArtworkDestinations } from "../domain/nextArtworkDestinations.js";
+import { createCountryPackStarterMap } from "../domain/countryDraft.js";
+import {
+  appendUnconfirmedRegionCandidates,
+  isDraftItemApproved
+} from "../domain/countryDraftReview.js";
 import {
   canonicalRouteForNode,
   findSceneIdForNode,
@@ -318,12 +323,31 @@ function bindCountryShell() {
       });
       return;
     }
+    if (action === "approve-draft-descendants" && state.selectedCountry) {
+      const button = event.target.closest("[data-country-action='approve-draft-descendants']");
+      const target = button?.dataset.approveTarget;
+      if (!target) return;
+      requestCountryDraftApproval(state.selectedCountry, {
+        target,
+        approved: button.dataset.approved !== "true",
+        recursive: true
+      });
+      return;
+    }
     if (action === "delete-draft-item" && state.selectedCountry) {
       const button = event.target.closest("[data-country-action='delete-draft-item']");
       const list = button?.dataset.draftList;
       const index = Number(button?.dataset.draftIndex);
+      const path = button?.dataset.draftPath;
       const label = button?.dataset.draftLabel ?? "this record";
-      deleteCurrentDraftItem(state.selectedCountry, { list, index, label });
+      deleteCurrentDraftItem(state.selectedCountry, { list, index, path, label });
+      return;
+    }
+    if (action === "edit-draft-candidate" && state.selectedCountry) {
+      const button = event.target.closest("[data-country-action='edit-draft-candidate']");
+      const path = button?.dataset.draftPath;
+      if (!path) return;
+      editUnconfirmedDraftCandidate(state.selectedCountry, path);
       return;
     }
     if (action === "toggle-action-guide" && state.selectedCountry) {
@@ -522,20 +546,20 @@ function reorderCurrentDraftItems(country, { list, fromIndex, targetIndex, inser
   persistCountryDraftReorder(country, draft);
 }
 
-function deleteCurrentDraftItem(country, { list, index, label }) {
+function deleteCurrentDraftItem(country, { list, index, path, label }) {
   const existing = state.countryDrafts.get(country.slug);
   const items = list === "regions" ? existing?.draft?.regions : list === "themes" ? existing?.draft?.themes : null;
-  if (!Array.isArray(items) || !Number.isInteger(index) || index < 0 || index >= items.length) return;
-  const itemLabel = label || items[index]?.name || items[index]?.label || "this record";
+  const item = path ? getDraftNodeAtPath(existing?.draft, path) : items?.[index];
+  if (!item || (!path && (!Array.isArray(items) || !Number.isInteger(index) || index < 0 || index >= items.length))) return;
+  const itemLabel = label || item.name || item.label || "this record";
   const confirmed = window.confirm(`Delete ${itemLabel} from this starter map? This only removes the draft record.`);
   if (!confirmed) return;
 
   const scrollSnapshot = captureCountryShellScroll();
-  const nextItems = items.filter((_, itemIndex) => itemIndex !== index);
-  const draft = {
-    ...existing.draft,
-    [list]: nextItems
-  };
+  const draft = path
+    ? removeDraftNodeAtPath(existing.draft, path)
+    : { ...existing.draft, [list]: items.filter((_, itemIndex) => itemIndex !== index) };
+  if (!draft) return;
   state.countryDrafts.set(country.slug, {
     ...existing,
     draft,
@@ -549,6 +573,55 @@ function deleteCurrentDraftItem(country, { list, index, label }) {
   render();
   restoreCountryShellScroll(scrollSnapshot);
   persistCountryDraftReorder(country, draft);
+}
+
+function editUnconfirmedDraftCandidate(country, path) {
+  const existing = state.countryDrafts.get(country.slug);
+  const item = getDraftNodeAtPath(existing?.draft, path);
+  if (!item || isDraftItemApproved(item)) {
+    showAppToast({
+      tone: "error",
+      title: "Candidate cannot be edited",
+      message: "Only unconfirmed appended candidates can be edited here. Curated source data stays protected."
+    });
+    return;
+  }
+  const nextName = window.prompt("Rename unconfirmed candidate", item.name)?.trim();
+  if (!nextName || nextName === item.name) return;
+
+  const draft = structuredClone(existing.draft);
+  const nextItem = getDraftNodeAtPath(draft, path);
+  if (!nextItem) return;
+  nextItem.name = nextName.slice(0, 80);
+  draft.changeNote = `Renamed unconfirmed candidate to ${nextItem.name}.`;
+  const scrollSnapshot = captureCountryShellScroll();
+  state.countryDrafts.set(country.slug, { ...existing, draft });
+  render();
+  restoreCountryShellScroll(scrollSnapshot);
+  persistCountryDraftReorder(country, draft);
+}
+
+function getDraftNodeAtPath(draft, value) {
+  const path = String(value ?? "").split(".").map(Number);
+  let node = draft?.regions?.[path[0] - 1] ?? null;
+  for (const index of path.slice(1)) node = node?.children?.[index - 1] ?? null;
+  return node;
+}
+
+function removeDraftNodeAtPath(draft, value) {
+  const path = String(value ?? "").split(".").map(Number);
+  if (!path.length || path.some((index) => !Number.isInteger(index) || index < 1)) return null;
+  const regions = [...(draft?.regions ?? [])];
+  if (path.length === 1) {
+    regions.splice(path[0] - 1, 1);
+    return { ...draft, regions };
+  }
+  let parent = regions[path[0] - 1];
+  for (const index of path.slice(1, -1)) parent = parent?.children?.[index - 1];
+  if (!Array.isArray(parent?.children)) return null;
+  parent.children = [...parent.children];
+  parent.children.splice(path[path.length - 1] - 1, 1);
+  return { ...draft, regions };
 }
 
 function captureCountryShellScroll() {
@@ -1003,7 +1076,6 @@ function getCountryPicturePosition(code) {
 }
 
 function canOpenCountryExplorer(country) {
-  if (isConfiguredCountryPack(country.slug)) return true;
   const draftState = state.countryDrafts.get(country.slug);
   return Boolean(draftState?.draft);
 }
@@ -1025,8 +1097,10 @@ function renderCountryShell() {
       })
     : renderCountryActionButton({
         action: "build-starter-map",
-        label: `Build ${country.name} starter map`,
-        info: `Create an unconfirmed starter map for ${country.name}.`
+        label: `Build ${country.name} map`,
+        info: isConfiguredCountryPack(country.slug)
+          ? `Load the original source-controlled ${country.name} map.`
+          : `Create an unconfirmed starter map for ${country.name}.`
       });
 
   elements.countryShell.innerHTML = `
@@ -1077,10 +1151,13 @@ function renderCountryActionGuide(country, { canOpenMap, isOpen }) {
 }
 
 function renderCountryActionLegend(country, { canOpenMap }) {
-  const mapLabel = canOpenMap ? `Open ${country.name} map` : `Build ${country.name} starter map`;
+  const isSourceControlled = isConfiguredCountryPack(country.slug);
+  const mapLabel = canOpenMap ? `Open ${country.name} map` : `Build ${country.name} map`;
   const mapDescription = canOpenMap
     ? `Enter the current ${country.name} explorer using the available starter or curated map data.`
-    : `Create an unconfirmed starter map for ${country.name} before opening the explorer.`;
+    : isSourceControlled
+      ? `Load the original source-controlled ${country.name} map before opening the explorer.`
+      : `Create an unconfirmed starter map for ${country.name} before opening the explorer.`;
   return `
     <section class="country-action-legend" id="country-action-legend" aria-label="Country action legend">
       <p class="eyebrow">Action guide</p>
@@ -1171,11 +1248,14 @@ function dismissAppToast() {
 
 function renderCountryDraftPanel(country, draftState) {
   if (!draftState) {
+    const isSourceControlled = isConfiguredCountryPack(country.slug);
     return `
       <section class="country-draft country-draft--empty" aria-label="AI starter map">
-        <p class="eyebrow">Starter map</p>
-        <h2>No starter map yet</h2>
-        <p>Build an unconfirmed outline for ${escapeHtml(country.name)}. It will not be treated as a verified country pack.</p>
+        <p class="eyebrow">${isSourceControlled ? "Country map" : "Starter map"}</p>
+        <h2>No ${escapeHtml(country.name)} map data loaded</h2>
+        <p>${isSourceControlled
+          ? `Build ${escapeHtml(country.name)} map from its original source-controlled country pack.`
+          : `Build an unconfirmed outline for ${escapeHtml(country.name)}. It will not be treated as a verified country pack.`}</p>
       </section>
     `;
   }
@@ -1588,6 +1668,7 @@ function renderDraftRegion(region, indexPath, genAiContext) {
           approveTarget: `region:${region.name}`,
           item: region
         })}
+        ${renderDraftDescendantApprovalButton(region, indexPath)}
         ${renderDraftGenAiButton(`region:${region.name}`, region.name, genAiContext)}
         ${renderDraftDeleteButton("regions", index, region.name)}
       </div>
@@ -1795,12 +1876,18 @@ function renderDraftChildNodes(children, parentIndexPath) {
       ${children
         .map((child, index) => {
           const indexPath = [...parentIndexPath, index + 1];
+          const target = `node:${indexPath.join(".")}`;
           return `
             <li class="draft-child-item">
               <div class="draft-item-heading">
                 ${renderDraftItemCounter(indexPath)}
                 <strong>${escapeHtml(child.name)}</strong>
-                ${renderDraftMetadata(child.kind, child.confidence)}
+                ${renderDraftMetadata(child.kind, child.confidence, {
+                  approveTarget: target,
+                  item: child
+                })}
+                ${renderDraftCandidateEditButton(child, indexPath)}
+                ${renderDraftDeleteButton("node", null, child.name, indexPath.join("."))}
               </div>
               ${renderDraftChildNodes(child.children, indexPath)}
             </li>
@@ -1808,6 +1895,20 @@ function renderDraftChildNodes(children, parentIndexPath) {
         })
         .join("")}
     </ul>
+  `;
+}
+
+function renderDraftCandidateEditButton(item, indexPath) {
+  if (isDraftItemApproved(item)) return "";
+  return `
+    <button
+      type="button"
+      class="draft-candidate-edit-button"
+      data-country-action="edit-draft-candidate"
+      data-draft-path="${escapeHtml(indexPath.join("."))}"
+      aria-label="Edit unconfirmed candidate ${escapeHtml(item.name)}"
+      title="Edit unconfirmed candidate"
+    >Edit</button>
   `;
 }
 
@@ -1859,14 +1960,46 @@ function renderDraftSortHandle(list, index, label) {
   `;
 }
 
-function renderDraftDeleteButton(list, index, label) {
+function renderDraftDescendantApprovalButton(item) {
+  if (!Array.isArray(item?.children) || item.children.length === 0) return "";
+  const allApproved = areDraftDescendantsApproved(item);
+  const label = allApproved ? "Clear all" : "Curate all";
+  return `
+    <button
+      type="button"
+      class="draft-descendant-approval"
+      data-country-action="approve-draft-descendants"
+      data-approve-target="region:${escapeHtml(item.name)}"
+      data-approved="${allApproved ? "true" : "false"}"
+      aria-pressed="${allApproved}"
+      aria-label="${allApproved ? "Return all nested nodes to needs review" : "Mark all nested nodes as curated"}"
+      title="${allApproved ? "Return all nested nodes to needs review" : "Mark all nested nodes as curated"}"
+    >${label}</button>
+  `;
+}
+
+function areDraftDescendantsApproved(item) {
+  const children = item?.children ?? [];
+  return children.length > 0 && children.every((child) =>
+    (child.confidence === "confirmed" || child.reviewStatus === "human_approved") && areChildTreeApproved(child)
+  );
+}
+
+function areChildTreeApproved(item) {
+  return (item.children ?? []).every((child) =>
+    (child.confidence === "confirmed" || child.reviewStatus === "human_approved") && areChildTreeApproved(child)
+  );
+}
+
+function renderDraftDeleteButton(list, index, label, path = null) {
   return `
     <button
       type="button"
       class="draft-delete-button"
       data-country-action="delete-draft-item"
       data-draft-list="${escapeHtml(list)}"
-      data-draft-index="${index}"
+      ${Number.isInteger(index) ? `data-draft-index="${index}"` : ""}
+      ${path ? `data-draft-path="${escapeHtml(path)}"` : ""}
       data-draft-label="${escapeHtml(label)}"
       aria-label="Delete ${escapeHtml(label)} from starter map"
       title="Delete from starter map"
@@ -2120,6 +2253,40 @@ async function loadStoredCountryDraft(country) {
 
   state.checkedStoredDrafts.add(country.slug);
   try {
+    if (isConfiguredCountryPack(country.slug)) {
+      // Source-controlled config screens are reconstructed from the checked-in
+      // country pack first. Runtime data may add unconfirmed candidates, but it
+      // can never replace or erase the original curated tree.
+      const countryPack = await ensureCountryPack(country.slug);
+      if (!countryPack || state.selectedCountry?.slug !== country.slug) return;
+      const sourceDraft = createCountryPackStarterMap(countryPack);
+      state.countryDrafts.set(country.slug, {
+        status: "ready",
+        draft: sourceDraft,
+        messages: []
+      });
+      render();
+
+      const response = await fetch(
+        apiPath(`/api/country-draft?countrySlug=${encodeURIComponent(country.slug)}&generate=false`),
+        { cache: "no-store" }
+      );
+      if (!response.ok) return;
+      const { draft: storedDraft } = await response.json();
+      if (!storedDraft || state.selectedCountry?.slug !== country.slug) return;
+      for (const region of sourceDraft.regions ?? []) {
+        appendUnconfirmedRegionCandidates(sourceDraft, region.name, storedDraft);
+      }
+      sourceDraft.changeNote = "";
+      state.countryDrafts.set(country.slug, {
+        status: "ready",
+        draft: sourceDraft,
+        messages: state.countryDrafts.get(country.slug)?.messages ?? []
+      });
+      render();
+      return;
+    }
+
     const response = await fetch(
       apiPath(`/api/country-draft?countrySlug=${encodeURIComponent(country.slug)}&generate=false`),
       { cache: "no-store" }
@@ -2172,6 +2339,7 @@ async function requestCountryDraftInfluence(country, rawInstruction, { target = 
       body: JSON.stringify({
         countrySlug: country.slug,
         instruction,
+        target,
         currentDraft: existing?.draft ?? null
       })
     });
@@ -2222,7 +2390,7 @@ function replaceLatestProcessingMessage(messages, replacement, target) {
   return [...nextMessages, replacement];
 }
 
-async function requestCountryDraftApproval(country, { target, approved }) {
+async function requestCountryDraftApproval(country, { target, approved, recursive = false }) {
   const existing = state.countryDrafts.get(country.slug);
   if (!existing?.draft || existing.isSending || existing.status === "loading" || existing.isApproving) return;
   const scrollSnapshot = captureCountryShellScroll();
@@ -2243,7 +2411,8 @@ async function requestCountryDraftApproval(country, { target, approved }) {
         countrySlug: country.slug,
         currentDraft: existing.draft,
         target,
-        approved
+        approved,
+        recursive
       })
     });
     if (!response.ok) {
@@ -2261,10 +2430,16 @@ async function requestCountryDraftApproval(country, { target, approved }) {
         : existing.messages ?? []
     });
   } catch (error) {
+    const message = explainClickError(error);
     state.countryDrafts.set(country.slug, {
       ...existing,
       isApproving: false,
-      approvalError: explainClickError(error)
+      approvalError: message
+    });
+    showAppToast({
+      tone: "error",
+      title: "Curation update failed",
+      message
     });
   }
   render();

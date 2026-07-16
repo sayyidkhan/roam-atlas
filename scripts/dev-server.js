@@ -46,6 +46,8 @@ import {
 } from "../src/domain/countryDraft.js";
 import {
   approveDraftItem,
+  appendUnconfirmedRegionCandidates,
+  parseDraftReviewTarget,
   unapproveDraftItem
 } from "../src/domain/countryDraftReview.js";
 import { resolveFlipbookClick } from "../src/domain/flipbookPage.js";
@@ -2518,14 +2520,17 @@ async function handleCountryDraftRequest(url, response) {
   if (isSourceControlledCountryPack(countryPack)) {
     const packSnapshot = createCountryPackStarterMap(countryPack);
 
+    // A runtime starter-map file is never the source of truth for a checked-in
+    // country pack. Always reconstruct the curated tree from the repository,
+    // then carry over only extra append-only candidates from the runtime copy.
+    // This prevents a cleared or malformed runtime file from blanking Singapore.
     if (!forceGenerate) {
       const storedPackSnapshot = await readStoredCountryDraft(country);
       if (storedPackSnapshot?.mode === "curated_pack_snapshot") {
-        const draft = withFreshPackThemes(storedPackSnapshot, country);
-        countryDraftCache.set(country.slug, draft);
-        response.writeHead(200, { "Content-Type": "application/json" });
-        response.end(JSON.stringify({ draft, cached: true, persisted: true, source: "country_pack" }));
-        return;
+        for (const region of packSnapshot.regions ?? []) {
+          appendUnconfirmedRegionCandidates(packSnapshot, region.name, storedPackSnapshot);
+        }
+        packSnapshot.changeNote = "";
       }
     }
 
@@ -2588,10 +2593,43 @@ async function handleCountryDraftInfluenceRequest(request, response) {
   }
 
   const countryPack = getCountryPack(country.slug);
+  const target = String(body.target ?? "starter-map").trim();
   if (isSourceReviewedCountryPack(countryPack)) {
-    response.writeHead(409, { "Content-Type": "application/json" });
+    const parsedTarget = parseDraftReviewTarget(target);
+    if (parsedTarget?.kind !== "region") {
+      response.writeHead(409, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({
+        error: `${country.name} only supports append-only GenAI candidates within a selected region. Source-reviewed facts cannot be edited here.`
+      }));
+      return;
+    }
+
+    const currentDraft =
+      normalizeCurrentCountryDraft(body.currentDraft, country) ??
+      countryDraftCache.get(country.slug) ??
+      (await readStoredCountryDraft(country)) ??
+      createCountryPackStarterMap(countryPack);
+    const proposedDraft = await generateCountryDraft(country, {
+      instruction: normalizeCountryDraftInstruction(body.instruction),
+      currentDraft,
+      appendOnlyRegionName: parsedTarget.name
+    });
+    const appended = appendUnconfirmedRegionCandidates(currentDraft, parsedTarget.name, proposedDraft);
+    if (!appended.changed) {
+      response.writeHead(422, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: appended.error }));
+      return;
+    }
+
+    countryDraftCache.set(country.slug, currentDraft);
+    await writeStoredCountryDraft(country, currentDraft);
+    response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({
-      error: `${country.name} is a source-reviewed country pack. Update the country pack source files instead of AI-steering a starter map.`
+      draft: currentDraft,
+      message: {
+        role: "assistant",
+        text: `${appended.additions.length} unconfirmed candidate${appended.additions.length === 1 ? "" : "s"} added to ${parsedTarget.name}.`
+      }
     }));
     return;
   }
@@ -2634,6 +2672,7 @@ async function handleCountryDraftApproveRequest(request, response) {
   const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
   const target = String(body.target ?? "").trim();
   const approved = body.approved !== false;
+  const recursive = body.recursive === true;
   const sourceUrl = String(body.sourceUrl ?? "").trim() || null;
   const country = getCountryBySlug(countrySlug);
   if (!country) {
@@ -2655,8 +2694,8 @@ async function handleCountryDraftApproveRequest(request, response) {
   }
 
   const result = approved
-    ? approveDraftItem(currentDraft, target, { sourceUrl })
-    : unapproveDraftItem(currentDraft, target);
+    ? approveDraftItem(currentDraft, target, { sourceUrl, recursive })
+    : unapproveDraftItem(currentDraft, target, { recursive });
   if (!result.changed) {
     response.writeHead(400, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ error: result.error ?? "Approval update failed." }));
@@ -3099,7 +3138,7 @@ async function searchExaGroundingSnippets(country) {
     .filter((snippet) => snippet.url && snippet.text.length >= EXA_MIN_SNIPPET_TEXT_LENGTH);
 }
 
-async function generateCountryDraft(country, { instruction = null, currentDraft = null } = {}) {
+async function generateCountryDraft(country, { instruction = null, currentDraft = null, appendOnlyRegionName = null } = {}) {
   if (!process.env.OPENAI_API_KEY) {
     return createCountryDraftFallbackFromCurrent(
       country,
@@ -3112,7 +3151,7 @@ async function generateCountryDraft(country, { instruction = null, currentDraft 
   const model = appConfig.ai.textModel;
   const groundingSnippets = await searchExaGroundingSnippets(country);
   const prompt = instruction
-    ? buildCountryDraftInfluencePrompt({ country, instruction, currentDraft, groundingSnippets })
+    ? buildCountryDraftInfluencePrompt({ country, instruction, currentDraft, groundingSnippets, appendOnlyRegionName })
     : buildCountryDraftPrompt(country, { groundingSnippets });
   let openaiResponse;
   try {
@@ -3186,7 +3225,12 @@ function normalizeCurrentCountryDraft(currentDraft, country) {
   const normalized = normalizeCountryDraftPayload(currentDraft, country, {
     generatedAt: currentDraft.generatedAt,
     model: currentDraft.model,
-    generationStatus: currentDraft.generationStatus ?? "ready"
+    generationStatus: currentDraft.generationStatus ?? "ready",
+    mode: currentDraft.mode,
+    // This is an inline edit of an existing draft. Preserve every other
+    // explicitly-confirmed node; the review action has already changed only
+    // the requested branch before this normalization runs.
+    preserveConfirmed: true
   });
   return withFreshPackThemes(normalized, country);
 }
