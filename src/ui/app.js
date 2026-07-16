@@ -328,12 +328,15 @@ function bindCountryShell() {
     }
     if (action === "toggle-action-guide" && state.selectedCountry) {
       const slug = state.selectedCountry.slug;
+      const scrollSnapshot = captureCountryShellScroll();
       state.countryActionLegendOpen.set(slug, !state.countryActionLegendOpen.get(slug));
       render();
+      restoreCountryShellScroll(scrollSnapshot);
       return;
     }
     if (action === "toggle-genai-prompt" && state.selectedCountry) {
       const slug = state.selectedCountry.slug;
+      const scrollSnapshot = captureCountryShellScroll();
       const target = event.target.closest("[data-country-action]")?.dataset.genaiTarget ?? null;
       let shouldFocusPrompt = false;
       if (state.countryDraftGenAiOpen.get(slug) === target) {
@@ -343,6 +346,7 @@ function bindCountryShell() {
         shouldFocusPrompt = true;
       }
       render();
+      restoreCountryShellScroll(scrollSnapshot);
       if (shouldFocusPrompt) {
         focusOpenDraftGenAiTextarea(target);
       }
@@ -451,7 +455,7 @@ function focusOpenDraftGenAiTextarea(target) {
     const selector = target
       ? `.draft-genai-form[data-genai-target="${CSS.escape(target)}"] textarea[name="instruction"]`
       : `.draft-genai-form textarea[name="instruction"]`;
-    elements.countryShell.querySelector(selector)?.focus();
+    elements.countryShell.querySelector(selector)?.focus({ preventScroll: true });
   });
 }
 
@@ -550,6 +554,8 @@ function deleteCurrentDraftItem(country, { list, index, label }) {
 function captureCountryShellScroll() {
   const panel = elements.countryShell.querySelector(".country-shell-panel");
   return {
+    windowTop: window.scrollY,
+    windowLeft: window.scrollX,
     shellTop: elements.countryShell.scrollTop,
     shellLeft: elements.countryShell.scrollLeft,
     panelTop: panel?.scrollTop ?? 0,
@@ -559,6 +565,7 @@ function captureCountryShellScroll() {
 
 function restoreCountryShellScroll(snapshot) {
   window.requestAnimationFrame(() => {
+    window.scrollTo(snapshot.windowLeft, snapshot.windowTop);
     elements.countryShell.scrollTop = snapshot.shellTop;
     elements.countryShell.scrollLeft = snapshot.shellLeft;
     const panel = elements.countryShell.querySelector(".country-shell-panel");
@@ -1887,9 +1894,7 @@ function renderDraftMetadata(kind, confidence, options = null) {
   const confidenceDescription = describeDraftConfidence(confidence);
   const trustTitle = approved
     ? `Approved. Click to return ${approveLabel} to needs-review.`
-    : item?.sourceUrl
-    ? `Click to approve ${approveLabel} as curated using its source link.`
-    : `Click to approve ${approveLabel} for map preview. Add a source URL later to mark it curated.`;
+    : `Click to mark ${approveLabel} as curated.`;
 
   const trustChip = approveTarget
     ? `
@@ -2220,6 +2225,7 @@ function replaceLatestProcessingMessage(messages, replacement, target) {
 async function requestCountryDraftApproval(country, { target, approved }) {
   const existing = state.countryDrafts.get(country.slug);
   if (!existing?.draft || existing.isSending || existing.status === "loading" || existing.isApproving) return;
+  const scrollSnapshot = captureCountryShellScroll();
 
   state.countryDrafts.set(country.slug, {
     ...existing,
@@ -2227,6 +2233,7 @@ async function requestCountryDraftApproval(country, { target, approved }) {
     approvalError: null
   });
   render();
+  restoreCountryShellScroll(scrollSnapshot);
 
   try {
     const response = await fetch(apiPath("/api/country-draft/approve-item"), {
@@ -2261,6 +2268,7 @@ async function requestCountryDraftApproval(country, { target, approved }) {
     });
   }
   render();
+  restoreCountryShellScroll(scrollSnapshot);
 }
 
 async function requestCountryDraftConfirmation(country) {
@@ -3039,14 +3047,60 @@ function renderRegionRail(scene, nodes, targets) {
 
   const list = document.createElement("div");
   list.className = "region-rail-list";
+  list.setAttribute("role", "list");
+
+  // Hotspot declaration order follows the artwork layout. The rail is a
+  // chapter index, so order numbered destinations by their map anchors.
+  const orderedTargets = [...targets].sort((left, right) => {
+    const leftNumber = Number(getHotspotMapNumber(findHotspotForTarget(scene, left.nodeId)));
+    const rightNumber = Number(getHotspotMapNumber(findHotspotForTarget(scene, right.nodeId)));
+    const leftHasNumber = Number.isFinite(leftNumber);
+    const rightHasNumber = Number.isFinite(rightNumber);
+    if (leftHasNumber && rightHasNumber) return leftNumber - rightNumber;
+    if (leftHasNumber) return -1;
+    if (rightHasNumber) return 1;
+    return 0;
+  });
+
+  const controls = document.createElement("div");
+  controls.className = "region-rail-controls";
+
+  const previous = document.createElement("button");
+  previous.type = "button";
+  previous.className = "region-rail-scroll-button";
+  previous.setAttribute("aria-label", "Show previous destinations");
+  previous.innerHTML = "&#8592;";
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "region-rail-scroll-button";
+  next.setAttribute("aria-label", "Show more destinations");
+  next.innerHTML = "&#8594;";
+
+  const syncScrollControls = () => {
+    const maxScrollLeft = Math.max(0, list.scrollWidth - list.clientWidth);
+    previous.disabled = list.scrollLeft <= 2;
+    next.disabled = list.scrollLeft >= maxScrollLeft - 2;
+  };
+
+  previous.addEventListener("click", () => {
+    list.scrollBy({ left: -Math.max(240, list.clientWidth * 0.65), behavior: "smooth" });
+  });
+  next.addEventListener("click", () => {
+    list.scrollBy({ left: Math.max(240, list.clientWidth * 0.65), behavior: "smooth" });
+  });
+  list.addEventListener("scroll", syncScrollControls, { passive: true });
 
   const space = scene.coordinateSpace;
-  for (const target of targets) {
+  for (const target of orderedTargets) {
     const node = nodes[target.nodeId];
     if (!node) continue;
 
     const hotspot = findHotspotForTarget(scene, target.nodeId);
-    const label = hotspot?.label ?? node.title;
+    // The rail is navigation, not an illustration caption. Keep its text in
+    // sync with the curated node title; CSS may truncate it, but never replace
+    // it with a different name such as "NTU / NUS".
+    const label = node.title;
     const mapNumber = getHotspotMapNumber(hotspot);
     const centerX = hotspot
       ? hotspot.shape.x + hotspot.shape.width / 2
@@ -3086,7 +3140,9 @@ function renderRegionRail(scene, nodes, targets) {
     list.appendChild(button);
   }
 
-  rail.appendChild(list);
+  controls.append(previous, list, next);
+  rail.appendChild(controls);
+  requestAnimationFrame(syncScrollControls);
   return rail;
 }
 
@@ -3101,6 +3157,10 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
   };
   const isFailed = isArtworkJobFailed(job);
   const isPending = isArtworkJobPending(job);
+  const isUnmappedStarterCountry =
+    state.activePack?.confidence !== "confirmed" &&
+    scene.pageType === "homepage_overview" &&
+    targets.length === 0;
   const trail = buildLoadingStepTrail({
     job: isFailed
       ? { ...job, status: "failed" }
@@ -3117,11 +3177,19 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
   header.innerHTML = `
     <div>
       <span class="loading-scene-eyebrow">Illustration layer</span>
-      <strong>${escapeHtml(trail.current.message)}</strong>
-      <p aria-live="polite">${escapeHtml(isFailed ? getArtworkFailureMessage(job.error) : trail.current.detail)}</p>
+      <strong>${escapeHtml(isUnmappedStarterCountry ? `No mapped regions for ${pageTitle} yet` : trail.current.message)}</strong>
+      <p aria-live="polite">${escapeHtml(
+        isUnmappedStarterCountry
+          ? "This country has an unconfirmed explorer shell but no reviewed location chapters yet."
+          : isFailed
+          ? getArtworkFailureMessage(job.error)
+          : trail.current.detail
+      )}</p>
     </div>
     ${isFailed
       ? `<button type="button" class="artwork-retry-button" data-artwork-retry>Retry illustration</button>`
+      : isUnmappedStarterCountry
+      ? `<button type="button" class="artwork-retry-button" data-open-country-setup>Set up locations</button>`
       : `<span class="loading-scene-count">${readyCount}/${targets.length || 0} ready</span>`}
   `;
 
@@ -3129,6 +3197,14 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
   if (retryButton) {
     retryButton.dataset.roamFocusKey = `artwork-retry:${artworkJobKey}`;
     retryButton.addEventListener("click", () => retryArtwork(artworkJobKey));
+  }
+
+  const setupButton = header.querySelector("[data-open-country-setup]");
+  if (setupButton) {
+    setupButton.addEventListener("click", () => {
+      const country = worldCountries.find((item) => item.slug === state.activeCountrySlug);
+      if (country) enterCountryShell(country);
+    });
   }
 
   const progress = document.createElement("div");
@@ -3139,6 +3215,19 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
   const grid = document.createElement("div");
   grid.className = "loading-destination-grid";
   grid.setAttribute("aria-label", "Available destinations");
+
+  if (isUnmappedStarterCountry) {
+    grid.classList.add("loading-destination-grid--empty");
+    grid.innerHTML = `
+      <section class="loading-destination-empty" aria-label="Locations pending review">
+        <span class="loading-destination-empty-icon" aria-hidden="true">+</span>
+        <div>
+          <strong>Locations pending review</strong>
+          <p>Build an AI starter map in setup to create clearly labelled, unconfirmed candidate regions. Review sources before they become verified travel locations.</p>
+        </div>
+      </section>
+    `;
+  }
 
   const space = scene.coordinateSpace;
   targets.forEach((target, index) => {

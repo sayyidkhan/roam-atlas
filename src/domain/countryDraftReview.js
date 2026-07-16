@@ -28,7 +28,9 @@ export function approveDraftItem(draft, target, { sourceUrl = null } = {}) {
   const resolvedSourceUrl = String(sourceUrl ?? item.sourceUrl ?? "").trim() || null;
   item.reviewStatus = "human_approved";
   item.reviewedAt = new Date().toISOString();
-  item.confidence = resolvedSourceUrl ? "confirmed" : "likely";
+  // This is an explicit curator decision. The UI must reflect that decision as
+  // Curated even when a source URL is added later.
+  item.confidence = "confirmed";
   if (resolvedSourceUrl) {
     item.sourceUrl = resolvedSourceUrl;
   }
@@ -44,7 +46,7 @@ export function approveDraftItem(draft, target, { sourceUrl = null } = {}) {
     }
   }
 
-  draft.changeNote = `Approved ${parsed.name} for curation review.`;
+  draft.changeNote = `Marked ${parsed.name} as curated.`;
   return { draft, changed: true, item, confidence: item.confidence };
 }
 

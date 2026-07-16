@@ -442,7 +442,8 @@ function normalizeRegions(regions, allowedSourceUrls = new Set()) {
       const name = safeText(item?.name, "", 80);
       if (!name) return null;
       const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
-      return {
+      const isApproved = item?.reviewStatus === "human_approved";
+      const region = {
         name,
         kind: normalizeRegionKind(item?.kind),
         why: safeText(
@@ -450,9 +451,16 @@ function normalizeRegions(regions, allowedSourceUrls = new Set()) {
           "Review this candidate against official sources before adding it to RoamAtlas.",
           180
         ),
-        confidence: sourceUrl ? "likely" : "unconfirmed",
+        // Approval is an explicit reviewer action. Preserve it whenever the
+        // client submits the current draft for another inline update.
+        confidence: isApproved ? "confirmed" : sourceUrl ? "likely" : "unconfirmed",
         sourceUrl
       };
+      if (isApproved) {
+        region.reviewStatus = "human_approved";
+        region.reviewedAt = safeText(item?.reviewedAt, "", 80) || undefined;
+      }
+      return region;
     })
     .filter(Boolean)
     .slice(0, 10);
@@ -470,16 +478,22 @@ function normalizeThemes(themes, allowedSourceUrls = new Set(), countrySlug = ""
       const label = safeText(item?.label, "", 60);
       if (!label || isInternalThemeTag(label, countrySlug)) return null;
       const sourceUrl = normalizeSourceUrl(item?.sourceUrl, allowedSourceUrls);
-      return {
+      const isApproved = item?.reviewStatus === "human_approved";
+      const theme = {
         label,
         note: safeText(
           item?.note,
           "Use this theme only as a research lead.",
           160
         ),
-        confidence: sourceUrl ? "likely" : "unconfirmed",
+        confidence: isApproved ? "confirmed" : sourceUrl ? "likely" : "unconfirmed",
         sourceUrl
       };
+      if (isApproved) {
+        theme.reviewStatus = "human_approved";
+        theme.reviewedAt = safeText(item?.reviewedAt, "", 80) || undefined;
+      }
+      return theme;
     })
     .filter(Boolean)
     .slice(0, 8);

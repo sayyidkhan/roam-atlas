@@ -894,7 +894,8 @@ test("next artwork destinations stay one level deep from the current screen", ()
 
   assert.ok(targets.some((target) => target.sceneId === "marina-bay-scroll"));
   assert.ok(targets.some((target) => target.sceneId === "heritage-belt-scroll"));
-  assert.equal(targets.length, 7);
+  assert.equal(targets.length, 6);
+  assert.ok(!targets.some((target) => target.nodeId === "singapore-zoo"));
 
   const marinaScene = pack.scenes["marina-bay-scroll"];
   const marinaTargets = listNextArtworkDestinations({
@@ -1070,6 +1071,18 @@ test("overlapping hotspots resolve by highest zIndex", () => {
   assert.equal(findTopmostHotspot(hotspots, { x: 400, y: 400 }), null);
 });
 
+test("Singapore overview Heritage Belt hit area resolves only to Heritage Belt", () => {
+  const scene = scrollScenes["singapore-overview"];
+  const heritage = scene.hotspots.find((item) => item.nodeId === "heritage-belt-scroll");
+  assert.ok(heritage);
+
+  const point = {
+    x: heritage.shape.x + heritage.shape.width / 2,
+    y: heritage.shape.y + heritage.shape.height / 2
+  };
+  assert.equal(findTopmostHotspot(scene.hotspots, point).nodeId, "heritage-belt-scroll");
+});
+
 test("scene transitions preserve the selected known node", () => {
   const hotspot = scrollScenes["singapore-overview"].hotspots.find(
     (item) => item.nodeId === "nature-wildlife-scroll"
@@ -1168,12 +1181,12 @@ test("scene images can render image-specific ambient environment overlays", () =
 test("image click resolver matches clicks through the curated scene graph", () => {
   const result = resolveImageClick({
     scene: scrollScenes["singapore-overview"],
-    point: { x: 1260, y: 220 },
+    point: { x: 1400, y: 130 },
     nodes: atlasNodes
   });
 
   assert.equal(result.status, "matched");
-  assert.equal(result.nodeId, "nature-wildlife-scroll");
+  assert.equal(result.nodeId, "heritage-belt-scroll");
   assert.equal(result.action.type, "enter_scene");
 });
 
@@ -1198,7 +1211,7 @@ test("overview hotspot geometry matches Changi and Wildlife positions in the dem
   });
   const wildlife = resolveImageClick({
     scene: overview,
-    point: { x: 1120, y: 205 },
+    point: { x: 250, y: 330 },
     nodes: atlasNodes
   });
 
@@ -1574,7 +1587,7 @@ test("starter-map approve tick promotes regions with guardrails", () => {
   };
 
   const approvedWithoutSource = approveDraftItem(draft, "region:Johor");
-  assert.equal(approvedWithoutSource.item.confidence, "likely");
+  assert.equal(approvedWithoutSource.item.confidence, "confirmed");
   assert.equal(approvedWithoutSource.item.reviewStatus, "human_approved");
   assert.equal(isDraftItemApproved(approvedWithoutSource.item), true);
 
@@ -1584,6 +1597,34 @@ test("starter-map approve tick promotes regions with guardrails", () => {
   const unapproved = unapproveDraftItem(draft, "region:Johor");
   assert.equal(unapproved.item.confidence, "unconfirmed");
   assert.equal(unapproved.item.reviewStatus, undefined);
+});
+
+test("starter-map normalization preserves earlier reviewer approvals", () => {
+  const country = { code: "AL", slug: "albania", name: "Albania" };
+  const draft = normalizeCountryDraftPayload(
+    {
+      regions: [
+        {
+          name: "Northern Albania",
+          kind: "region",
+          why: "A mountain chapter.",
+          reviewStatus: "human_approved",
+          reviewedAt: "2026-07-15T00:00:00.000Z"
+        }
+      ],
+      themes: []
+    },
+    country
+  );
+
+  assert.equal(draft.regions[0].reviewStatus, "human_approved");
+  assert.equal(draft.regions[0].confidence, "confirmed");
+});
+
+test("dev server treats missing static and runtime-cache files as normal 404s", () => {
+  const serverSource = readFileSync("scripts/dev-server.js", "utf8");
+  assert.match(serverSource, /error\?\.code === "ENOENT" \? 404/);
+  assert.match(serverSource, /\.listen\(port, "127\.0\.0\.1"/);
 });
 
 test("place image selection prefers capital skylines for states and scenes for tourist islands", () => {
@@ -2052,7 +2093,7 @@ test("overview wildlife hotspot is not stolen by synthetic child regions", () =>
       nodeId: "singapore",
       imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.png"
     },
-    normalizedClick: { x: 0.67, y: 0.39 },
+    normalizedClick: { x: 0.15, y: 0.62 },
     scenes: scrollScenes,
     nodes: atlasNodes,
     sceneArtwork

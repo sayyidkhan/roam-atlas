@@ -337,12 +337,14 @@ createServer(async (request, response) => {
 
     await serveStatic(url.pathname, response);
   } catch (error) {
-    const statusCode = Number(error?.statusCode) || 500;
+    // Browsers and stale runtime-cache references routinely request files that
+    // no longer exist. Treat those as normal 404s rather than server failures.
+    const statusCode = error?.code === "ENOENT" ? 404 : Number(error?.statusCode) || 500;
     if (statusCode >= 500) console.error("RoamAtlas dev server request failed:", error);
     response.writeHead(statusCode, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ error: String(error?.message ?? error) }));
   }
-}).listen(port, () => {
+}).listen(port, "127.0.0.1", () => {
   console.log(`RoamAtlas dev server listening on http://127.0.0.1:${port}`);
   console.log(`RoamAtlas runtime cache: ${runtimeCacheRoot}`);
   console.log("RoamAtlas live reload enabled for src/, public/, and index.html");

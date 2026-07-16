@@ -13,10 +13,20 @@ export function listNextArtworkDestinations({
   const seen = new Set();
   const pageNodeId = currentPage.nodeId;
   const isSceneRoot = pageNodeId === scene.rootNodeId;
+  // The country overview can contain deeper visual hotspots (for example,
+  // Singapore Zoo inside Nature & Wildlife). The bottom rail is its chapter
+  // navigation, so keep it aligned to the country's direct children rather
+  // than flattening those deeper shortcuts into peer destinations.
+  const overviewChapterIds = new Set(
+    scene.pageType === "homepage_overview"
+      ? nodes[scene.rootNodeId]?.childIds ?? []
+      : []
+  );
 
   if (isSceneRoot) {
     for (const hotspot of scene.hotspots ?? []) {
       if (!hotspot.nodeId) continue;
+      if (overviewChapterIds.size && !overviewChapterIds.has(hotspot.nodeId)) continue;
       if (hotspot.action?.type === "enter_scene") {
         const targetScene = scenes[hotspot.action.sceneId];
         if (!targetScene) continue;

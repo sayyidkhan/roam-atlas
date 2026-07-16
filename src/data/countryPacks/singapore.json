@@ -1167,10 +1167,10 @@
           "nodeId": "west-campus-scroll",
           "kind": "region",
           "shape": {
-            "x": 155,
-            "y": 185,
-            "width": 365,
-            "height": 160
+            "x": 60,
+            "y": 85,
+            "width": 470,
+            "height": 165
           },
           "zIndex": 2,
           "label": "NTU / NUS",
@@ -1186,10 +1186,10 @@
           "nodeId": "marina-bay-scroll",
           "kind": "region",
           "shape": {
-            "x": 500,
-            "y": 175,
-            "width": 380,
-            "height": 190
+            "x": 555,
+            "y": 80,
+            "width": 535,
+            "height": 180
           },
           "zIndex": 2,
           "label": "Marina Bay",
@@ -1205,10 +1205,10 @@
           "nodeId": "heritage-belt-scroll",
           "kind": "region",
           "shape": {
-            "x": 720,
-            "y": 95,
-            "width": 250,
-            "height": 120
+            "x": 1160,
+            "y": 55,
+            "width": 470,
+            "height": 165
           },
           "zIndex": 2,
           "label": "Heritage Belt",
@@ -1224,10 +1224,10 @@
           "nodeId": "nature-wildlife-scroll",
           "kind": "region",
           "shape": {
-            "x": 980,
-            "y": 130,
-            "width": 320,
-            "height": 155
+            "x": 45,
+            "y": 245,
+            "width": 500,
+            "height": 165
           },
           "zIndex": 2,
           "label": "Nature",
@@ -1243,10 +1243,10 @@
           "nodeId": "changi-east-scroll",
           "kind": "region",
           "shape": {
-            "x": 1285,
-            "y": 165,
-            "width": 330,
-            "height": 185
+            "x": 1165,
+            "y": 245,
+            "width": 485,
+            "height": 155
           },
           "zIndex": 2,
           "label": "Changi",
@@ -1262,10 +1262,10 @@
           "nodeId": "sentosa-south-scroll",
           "kind": "region",
           "shape": {
-            "x": 900,
-            "y": 345,
-            "width": 500,
-            "height": 130
+            "x": 560,
+            "y": 335,
+            "width": 555,
+            "height": 165
           },
           "zIndex": 2,
           "label": "Sentosa",
