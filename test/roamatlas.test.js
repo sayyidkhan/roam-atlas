@@ -1475,6 +1475,13 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(appSource, /getPrefetchTargetState/);
   assert.match(appSource, /region-rail-progress/);
   assert.match(appSource, /getHotspotMapNumber/);
+  assert.match(appSource, /orderArtworkTargetsByMapNumber/);
+  assert.match(appSource, /const orderedTargets = orderArtworkTargetsByMapNumber\(scene, targets\);/);
+  assert.match(appSource, /const immediatePage = imageClick \? null : buildImmediatePageFromClick\(normalizedClick\)/);
+  assert.match(appSource, /if \(imageClick && isRuntimeArtworkPage\(requestPage\)\)/);
+  assert.match(appSource, /environmentPlan\.status === "request_failed"/);
+  assert.match(appSource, /ENVIRONMENT_PLAN_REQUEST_RETRY_MS/);
+  assert.match(appSource, /Preparing accurate location targets/);
   assert.match(appSource, /region-rail-number/);
   assert.match(styleSource, /\.region-rail-number/);
   assert.match(appSource, /renderRegionRailCheck/);
@@ -2055,11 +2062,20 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /if \(body\.targetNodeId \|\| body\.detourPhrase\)/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
-  assert.match(promptSource, /environment-plan-v1/);
+  assert.match(promptSource, /environment-plan-v2/);
+  assert.match(promptSource, /Curated destination candidates/);
+  assert.match(promptSource, /Use only the exact supplied nodeId values/);
+  assert.match(serverSource, /normalizeEnvironmentTarget/);
+  assert.match(serverSource, /allowedNodeIds\.has\(nodeId\)/);
+  assert.match(appSourceForEnvironmentTargets(), /renderImageTargetHotspots/);
   assert.match(promptSource, /marine_life may only go on clear open water/);
   assert.match(promptSource, /Never place them over land, islands, buildings, bridges, boats, labels/);
   assert.match(serverSource, /Environment overlays are decorative code-rendered ambience only and are not fact sources/);
 });
+
+function appSourceForEnvironmentTargets() {
+  return readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+}
 
 test("server persists country starter maps in country-scoped runtime storage", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
@@ -2342,6 +2358,29 @@ test("flipbook overlay target can drill directly into a curated child node", () 
   assert.equal(result.page.status, "generation_required");
 });
 
+test("generated overview target sends Heritage Belt only to Heritage Belt", () => {
+  const result = resolveFlipbookClick({
+    currentPage: {
+      id: "artwork-singapore-overview",
+      sceneId: "singapore-overview",
+      nodeId: "singapore",
+      imageUrl: "/runtime-cache/singapore/flipbook/artwork-singapore-overview.gpt-image-2.jpg"
+    },
+    normalizedClick: { x: 0.78, y: 0.29 },
+    targetNodeId: "heritage-belt-scroll",
+    scenes: scrollScenes,
+    nodes: atlasNodes,
+    sceneArtwork
+  });
+
+  assert.equal(result.click.resolver, "overlay");
+  assert.equal(result.click.nodeId, "heritage-belt-scroll");
+  assert.equal(result.page.sceneId, "heritage-belt-scroll");
+  assert.equal(result.page.nodeId, "heritage-belt-scroll");
+  assert.notEqual(result.page.sceneId, "changi-east-scroll");
+  assert.notEqual(result.page.sceneId, "sentosa-south-scroll");
+});
+
 test("flipbook leaf pages can still create an unverified drill-down job", () => {
   const result = resolveFlipbookClick({
     currentPage: {
@@ -2455,15 +2494,17 @@ test("server keeps deterministic fallback for non-runtime flipbook click handlin
   assert.match(serverSource, /resolveSemanticRegionHit/);
   assert.match(serverSource, /resolveClickPhraseWithOpenAI/);
   assert.match(serverSource, /shouldUseLocalFallback/);
-  assert.match(serverSource, /!isRuntimePage/);
+  assert.match(serverSource, /!body\.currentPage\?\.imageUrl/);
   assert.doesNotMatch(serverSource, /canUseStaticHomepageFallback/);
   assert.doesNotMatch(serverSource, /isHomepagePage/);
   assert.doesNotMatch(serverSource, /resolvedPhrase:/);
 });
 
-test("server does not let semantic cache override explicit detour targets", () => {
+test("server does not let stale semantic coordinates override a generated overview or explicit target", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  assert.match(serverSource, /const semanticHit = !body\.targetNodeId && !body\.detourPhrase/);
+  assert.match(serverSource, /const isGeneratedOverview/);
+  assert.match(serverSource, /currentScene\?\.pageType === "homepage_overview" && hasRuntimeGeneratedPage/);
+  assert.match(serverSource, /const semanticHit = !isGeneratedOverview && !body\.targetNodeId && !body\.detourPhrase/);
 });
 
 test("server VLM resolver tolerates missing generated artwork", () => {

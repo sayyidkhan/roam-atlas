@@ -384,6 +384,9 @@ async function handleFlipbookClick(request, response) {
   const body = await readJson(request);
   const pack = getCountryPackForPage(body.currentPage);
   const normalizedClick = body.imageClick?.normalizedImage ?? body.normalizedClick;
+  const currentScene = pack.scenes[body.currentPage?.sceneId];
+  const isGeneratedOverview =
+    currentScene?.pageType === "homepage_overview" && hasRuntimeGeneratedPage(body.currentPage);
   const localResult = !body.targetNodeId && !body.detourPhrase
     ? resolveDeterministicClick({
         currentPage: body.currentPage,
@@ -391,7 +394,7 @@ async function handleFlipbookClick(request, response) {
       })
     : null;
 
-  const semanticHit = !body.targetNodeId && !body.detourPhrase
+  const semanticHit = !isGeneratedOverview && !body.targetNodeId && !body.detourPhrase
     ? await resolveSemanticRegionHit({
         currentPage: body.currentPage,
         normalizedClick
@@ -469,7 +472,7 @@ async function handleFlipbookClick(request, response) {
   const shouldUseLocalFallback =
     !body.targetNodeId &&
     !body.detourPhrase &&
-    !isRuntimePage &&
+    !body.currentPage?.imageUrl &&
     localResult?.click?.status === "matched" &&
     (!hasReliableVlm || vlmMatch?.nodeId !== localResult.click.nodeId);
   const result = body.targetNodeId || body.detourPhrase
@@ -511,12 +514,18 @@ async function handleFlipbookClick(request, response) {
         vlm
       });
 
-  await appendSemanticRegionFromResult({
-    currentPage: body.currentPage,
-    normalizedClick,
-    result,
-    vlm
-  });
+  // Overview art is regenerated and can move every illustrated region. Do not
+  // persist a coordinate cache for it: each click must be resolved against the
+  // artwork currently on screen. Deeper scene artwork may reuse a successful
+  // semantic region because it remains tied to that specific image artifact.
+  if (!isGeneratedOverview) {
+    await appendSemanticRegionFromResult({
+      currentPage: body.currentPage,
+      normalizedClick,
+      result,
+      vlm
+    });
+  }
 
   result.vlm = {
     status: vlm.status,
@@ -3773,10 +3782,10 @@ async function createEnvironmentPlanWithOpenAI(page, { signal = null } = {}) {
       source: "openai-vlm",
       model
     });
-    if (plan.layers.length > 0) {
+    if (plan.layers.length > 0 || plan.targets.length > 0) {
       return plan;
     }
-    lastError = `${model}: environment planner returned no usable safe layers.`;
+    lastError = `${model}: environment planner returned no usable targets or safe layers.`;
   }
 
   return createEnvironmentFallbackPlan(page, lastError ?? "No environment planner model is configured.");
@@ -3812,14 +3821,38 @@ function getEnvironmentPromptContext(page) {
   const pack = getCountryPackForPage(page);
   const title = page.plan?.title ?? page.title ?? page.nodeId ?? page.sceneId ?? "current atlas page";
   const pageType = page.plan?.pageType ?? page.pageType ?? "atlas_page";
+  const currentNode = pack.nodes?.[page.nodeId] ?? pack.nodes?.[pack.scenes?.[page.sceneId]?.rootNodeId];
+  const scene = pack.scenes?.[page.sceneId];
+  const mapNumberByNodeId = new Map(
+    (scene?.hotspots ?? [])
+      .filter((hotspot) => hotspot?.nodeId)
+      .map((hotspot) => [hotspot.nodeId, hotspot.mapNumber ?? null])
+  );
+  const targetCandidates = (currentNode?.childIds ?? [])
+    .map((nodeId) => pack.nodes?.[nodeId])
+    .filter(Boolean)
+    .map((node) => ({
+      nodeId: node.id,
+      title: node.title,
+      mapNumber: mapNumberByNodeId.get(node.id) ?? null
+    }));
   return {
     countryName: pack.title,
     title,
-    pageType
+    pageType,
+    targetCandidates
   };
 }
 
 function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
+  const targetCandidates = getEnvironmentPromptContext(page).targetCandidates;
+  const allowedNodeIds = new Set(targetCandidates.map((candidate) => candidate.nodeId));
+  const targets = Array.isArray(rawPlan?.targets)
+    ? rawPlan.targets
+        .map((target, index) => normalizeEnvironmentTarget(target, index, allowedNodeIds))
+        .filter(Boolean)
+        .slice(0, targetCandidates.length)
+    : [];
   const layers = Array.isArray(rawPlan?.layers)
     ? rawPlan.layers
         .map((layer, index) => normalizeEnvironmentLayer(layer, index))
@@ -3829,10 +3862,27 @@ function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
   return createEnvironmentPlanEnvelope(page, {
     source,
     model,
-    status: layers.length ? "ready" : "fallback",
+    status: layers.length || targets.length ? "ready" : "fallback",
+    targets,
     layers,
     warnings: normalizeEnvironmentWarnings(rawPlan?.warnings)
   });
+}
+
+function normalizeEnvironmentTarget(target, index, allowedNodeIds) {
+  const nodeId = String(target?.nodeId ?? "").trim();
+  const bounds = normalizeEnvironmentBounds(target?.bounds);
+  if (!allowedNodeIds.has(nodeId) || !bounds) return null;
+  return {
+    id: `target-${slugify(nodeId || index + 1)}`,
+    nodeId,
+    bounds,
+    coordinateSpace: "normalized",
+    confidence: ["high", "medium", "low"].includes(target?.confidence)
+      ? target.confidence
+      : "low",
+    reason: String(target?.reason ?? "").slice(0, 180)
+  };
 }
 
 function normalizeEnvironmentLayer(layer, index) {
@@ -3906,6 +3956,7 @@ function createEnvironmentFallbackPlan(page, warning) {
     source: "fallback",
     model: null,
     status: "fallback",
+    targets: [],
     layers: [
       {
         id: "safe-light-wash",
@@ -3922,7 +3973,7 @@ function createEnvironmentFallbackPlan(page, warning) {
   });
 }
 
-function createEnvironmentPlanEnvelope(page, { source, model, status, layers, warnings }) {
+function createEnvironmentPlanEnvelope(page, { source, model, status, targets = [], layers, warnings }) {
   const timestamp = new Date().toISOString();
   return {
     version: ENVIRONMENT_PLAN_SCHEMA_VERSION,
@@ -3937,6 +3988,7 @@ function createEnvironmentPlanEnvelope(page, { source, model, status, layers, wa
     promptVersion: ENVIRONMENT_PLAN_PROMPT_VERSION,
     generatedAt: timestamp,
     factBoundary: "Environment overlays are decorative code-rendered ambience only and are not fact sources.",
+    targets,
     layers,
     warnings
   };

@@ -1,21 +1,35 @@
-export const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v1";
-export const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v2";
+export const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v2";
+export const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v3";
 
 export function buildEnvironmentPlanPrompt({
   countryName = "selected country",
   title = "current atlas page",
-  pageType = "atlas_page"
+  pageType = "atlas_page",
+  targetCandidates = []
 } = {}) {
+  const candidateJson = JSON.stringify(
+    targetCandidates.map(({ nodeId, title: candidateTitle, mapNumber }) => ({
+      nodeId,
+      title: candidateTitle,
+      mapNumber: mapNumber ?? null
+    }))
+  );
   return [
     "You are RoamAtlas' environment planner for a generated travel-atlas illustration.",
-    "Inspect the actual image and choose small safe regions for code-rendered ambience overlays.",
+    "Inspect the actual image, locate the supplied curated destinations, and choose small safe regions for code-rendered ambience overlays.",
     "The overlays are decorative only. They must not imply verified travel facts, wildlife sightings, routes, prices, opening hours, or official claims.",
     `Country: ${countryName}.`,
     `Page title: ${title}.`,
     `Page type: ${pageType}.`,
+    `Curated destination candidates: ${candidateJson}`,
     "Return JSON only with this exact shape:",
-    `{"version":"${ENVIRONMENT_PLAN_SCHEMA_VERSION}","layers":[{"id":"short-id","kind":"cloud|water|foliage|light|marine_life|birds","bounds":{"x":0,"y":0,"width":0.2,"height":0.1},"intensity":"subtle|medium","safePlacement":"sky|open_air|open_water|foliage|open_light","avoid":["land","islands","buildings","labels","callouts","leader lines","people","animals"],"reason":"short visual reason"}],"warnings":["short warning"]}`,
+    `{"version":"${ENVIRONMENT_PLAN_SCHEMA_VERSION}","targets":[{"nodeId":"exact supplied node id","bounds":{"x":0,"y":0,"width":0.2,"height":0.1},"confidence":"high|medium|low","reason":"short visual reason"}],"layers":[{"id":"short-id","kind":"cloud|water|foliage|light|marine_life|birds","bounds":{"x":0,"y":0,"width":0.2,"height":0.1},"intensity":"subtle|medium","safePlacement":"sky|open_air|open_water|foliage|open_light","avoid":["land","islands","buildings","labels","callouts","leader lines","people","animals"],"reason":"short visual reason"}],"warnings":["short warning"]}`,
     "Bounds are normalized to the original image: x, y, width, and height must be between 0 and 1.",
+    "For each visibly identifiable destination candidate, return one target covering its illustrated landmark cluster and nearby numbered/name label.",
+    "Use only the exact supplied nodeId values. Never invent, rename, merge, or substitute a destination.",
+    "Keep target bounds tight and non-overlapping. Do not let a target cover a neighboring destination.",
+    "The nearby printed map number and title are strong evidence. Prefer those over a visual guess based on landmark appearance.",
+    "Omit a candidate when it cannot be identified reliably in the image.",
     "Use at most 6 layers.",
     "Prefer small, sparse regions with empty visual space.",
     "Clouds and birds may only go in clear sky or open air.",

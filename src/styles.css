@@ -3350,6 +3350,23 @@ button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
   pointer-events: none;
 }
 
+.image-target-hotspot {
+  position: absolute;
+  z-index: 4;
+  border: 0;
+  border-radius: 18px;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.image-target-hotspot:hover,
+.image-target-hotspot:focus-visible {
+  background: rgba(36, 95, 82, 0.07);
+  outline: 2px solid rgba(36, 95, 82, 0.3);
+  outline-offset: -2px;
+}
+
 .environment-layer {
   position: absolute;
   overflow: visible;

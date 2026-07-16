@@ -81,6 +81,7 @@ const PLACE_IMAGE_REQUEST_SESSION = `${Date.now()}-${Math.random().toString(36).
 // still completing; cached follow-up loads are effectively immediate.
 const DRAFT_PLACE_PHOTO_TIMEOUT_MS = 90 * 1000;
 const ENVIRONMENT_PLAN_RETRY_DELAYS_MS = [0, 2000, 5000, 10000, 20000, 30000];
+const ENVIRONMENT_PLAN_REQUEST_RETRY_MS = 3000;
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
 let countryPhotoQueue = [];
@@ -3140,12 +3141,7 @@ function renderScene() {
       : []),
     ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
     ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
-    ...(imageUrl
-      ? renderMapHotspotLabels(scene, nodes, {
-          mode: "hidden",
-          countrySlug: state.activeCountrySlug
-        })
-      : [])
+    ...(imageUrl ? renderImageTargetHotspots(environmentPlan, nodes) : [])
   );
   elements.stage.replaceChildren(
     canvas,
@@ -3224,18 +3220,7 @@ function renderRegionRail(scene, nodes, targets) {
   list.className = "region-rail-list";
   list.setAttribute("role", "list");
 
-  // Hotspot declaration order follows the artwork layout. The rail is a
-  // chapter index, so order numbered destinations by their map anchors.
-  const orderedTargets = [...targets].sort((left, right) => {
-    const leftNumber = Number(getHotspotMapNumber(findHotspotForTarget(scene, left.nodeId)));
-    const rightNumber = Number(getHotspotMapNumber(findHotspotForTarget(scene, right.nodeId)));
-    const leftHasNumber = Number.isFinite(leftNumber);
-    const rightHasNumber = Number.isFinite(rightNumber);
-    if (leftHasNumber && rightHasNumber) return leftNumber - rightNumber;
-    if (leftHasNumber) return -1;
-    if (rightHasNumber) return 1;
-    return 0;
-  });
+  const orderedTargets = orderArtworkTargetsByMapNumber(scene, targets);
 
   const controls = document.createElement("div");
   controls.className = "region-rail-controls";
@@ -3405,7 +3390,8 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
   }
 
   const space = scene.coordinateSpace;
-  targets.forEach((target, index) => {
+  const orderedTargets = orderArtworkTargetsByMapNumber(scene, targets);
+  orderedTargets.forEach((target, index) => {
     const node = nodes[target.nodeId];
     if (!node) return;
 
@@ -3460,6 +3446,22 @@ function renderLoadingSceneBoard({ scene, nodes, targets, pageTitle, artworkJobK
 
   board.append(header, progress, grid);
   return board;
+}
+
+function orderArtworkTargetsByMapNumber(scene, targets) {
+  // The prefetch queue is deliberately prioritized by likely navigation, but
+  // the loading board is a numbered chapter index. Keep its visual order
+  // stable and aligned with the map numbers regardless of queue timing.
+  return [...targets].sort((left, right) => {
+    const leftNumber = Number(getHotspotMapNumber(findHotspotForTarget(scene, left.nodeId)));
+    const rightNumber = Number(getHotspotMapNumber(findHotspotForTarget(scene, right.nodeId)));
+    const leftHasNumber = Number.isFinite(leftNumber);
+    const rightHasNumber = Number.isFinite(rightNumber);
+    if (leftHasNumber && rightHasNumber) return leftNumber - rightNumber;
+    if (leftHasNumber) return -1;
+    if (rightHasNumber) return 1;
+    return 0;
+  });
 }
 
 function getHotspotMapNumber(hotspot) {
@@ -3609,8 +3611,19 @@ function getPageEnvironmentUrl(page) {
 }
 
 async function requestEnvironmentPlan(environmentUrl) {
-  if (!environmentUrl || state.environmentPlans.has(environmentUrl) || state.environmentPlanRequests.has(environmentUrl)) {
+  const cachedPlan = state.environmentPlans.get(environmentUrl);
+  const retryAt = Number(cachedPlan?.retryAt ?? 0);
+  if (
+    !environmentUrl
+    || state.environmentPlanRequests.has(environmentUrl)
+    || (cachedPlan && cachedPlan.status !== "request_failed")
+    || (cachedPlan?.status === "request_failed" && Date.now() < retryAt)
+  ) {
     return;
+  }
+
+  if (cachedPlan?.status === "request_failed") {
+    state.environmentPlans.delete(environmentUrl);
   }
 
   const requestEpoch = environmentPlanEpoch;
@@ -3618,14 +3631,26 @@ async function requestEnvironmentPlan(environmentUrl) {
   request = fetchEnvironmentPlanWithRetry(environmentUrl)
     .then((plan) => {
       if (requestEpoch !== environmentPlanEpoch) return;
-      state.environmentPlans.set(
-        environmentUrl,
-        plan ? normalizeEnvironmentPlan(plan) : { version: "environment-plan-v1", layers: [] }
-      );
+      if (!plan) throw new Error("Environment plan is not ready");
+      state.environmentPlans.set(environmentUrl, normalizeEnvironmentPlan(plan));
     })
     .catch(() => {
       if (requestEpoch !== environmentPlanEpoch) return;
-      state.environmentPlans.set(environmentUrl, { version: "environment-plan-v1", layers: [] });
+      const retryAt = Date.now() + ENVIRONMENT_PLAN_REQUEST_RETRY_MS;
+      state.environmentPlans.set(environmentUrl, {
+        version: "environment-plan-v2",
+        status: "request_failed",
+        retryAt,
+        targets: [],
+        layers: []
+      });
+      window.setTimeout(() => {
+        if (requestEpoch !== environmentPlanEpoch) return;
+        const failedPlan = state.environmentPlans.get(environmentUrl);
+        if (failedPlan?.status !== "request_failed" || Number(failedPlan.retryAt ?? 0) > Date.now()) return;
+        state.environmentPlans.delete(environmentUrl);
+        requestEnvironmentPlan(environmentUrl);
+      }, ENVIRONMENT_PLAN_REQUEST_RETRY_MS);
     })
     .finally(() => {
       if (state.environmentPlanRequests.get(environmentUrl) === request) {
@@ -3661,6 +3686,16 @@ function waitFor(delayMs) {
 }
 
 function normalizeEnvironmentPlan(plan) {
+  const targets = Array.isArray(plan?.targets)
+    ? plan.targets
+        .map((target) => ({
+          ...target,
+          nodeId: String(target?.nodeId ?? ""),
+          coordinateSpace: "normalized",
+          bounds: normalizeEnvironmentPlanBounds(target.bounds)
+        }))
+        .filter((target) => target.nodeId && target.bounds)
+    : [];
   const layers = Array.isArray(plan?.layers)
     ? plan.layers
         .map((layer) => ({
@@ -3673,9 +3708,39 @@ function normalizeEnvironmentPlan(plan) {
     : [];
   return {
     ...plan,
-    version: "environment-plan-v1",
+    version: "environment-plan-v2",
+    targets,
     layers
   };
+}
+
+function renderImageTargetHotspots(environmentPlan, nodes) {
+  const targets = Array.isArray(environmentPlan?.targets) ? environmentPlan.targets : [];
+  return targets
+    .filter((target) => target?.nodeId && nodes[target.nodeId] && target.bounds)
+    .map((target) => {
+      const node = nodes[target.nodeId];
+      const { x, y, width, height } = target.bounds;
+      const hit = document.createElement("button");
+      hit.type = "button";
+      hit.className = "image-target-hotspot";
+      hit.setAttribute("aria-label", `Explore ${node.title}`);
+      hit.style.left = `${x * 100}%`;
+      hit.style.top = `${y * 100}%`;
+      hit.style.width = `${width * 100}%`;
+      hit.style.height = `${height * 100}%`;
+      hit.addEventListener("click", (event) => {
+        event.stopPropagation();
+        resolveOverlayTarget({
+          normalizedClick: {
+            x: clamp01(x + width / 2),
+            y: clamp01(y + height / 2)
+          },
+          nodeId: target.nodeId
+        });
+      });
+      return hit;
+    });
 }
 
 function normalizeEnvironmentPlanBounds(bounds) {
@@ -3699,11 +3764,6 @@ function renderMapHotspotLabels(scene, nodes, { mode = "hidden", countrySlug }) 
       const node = nodes[hotspot.nodeId];
       const centerX = hotspot.shape.x + hotspot.shape.width / 2;
       const centerY = hotspot.shape.y + hotspot.shape.height / 2;
-      const photoUrl = buildPlaceImageUrl(countrySlug, node.title, {
-        context: getNodePlaceImageContext(node, nodes),
-        kind: getNodePlaceImageKind(node),
-        tags: node.tags ?? []
-      });
       const wrapper = document.createElement("div");
       wrapper.className = "map-hotspot";
       wrapper.style.zIndex = String((hotspot.zIndex ?? 2) + 10);
@@ -3725,6 +3785,12 @@ function renderMapHotspotLabels(scene, nodes, { mode = "hidden", countrySlug }) 
           },
           nodeId: hotspot.nodeId
         });
+      });
+
+      const photoUrl = buildPlaceImageUrl(countrySlug, node.title, {
+        context: getNodePlaceImageContext(node, nodes),
+        kind: getNodePlaceImageKind(node),
+        tags: node.tags ?? []
       });
 
       const chip = document.createElement("article");
@@ -4222,7 +4288,7 @@ function seededPercent(seed, index, salt) {
 
 function bindPageClick() {
   elements.viewport.addEventListener("click", (event) => {
-    if (event.target.closest("button, a, .detail-sheet, .scene-hud, .map-hotspot-hit")) {
+    if (event.target.closest("button, a, .detail-sheet, .scene-hud, .map-hotspot-hit, .image-target-hotspot")) {
       return;
     }
     resolveClickAt(event);
@@ -4274,7 +4340,30 @@ async function resolveClickAt(event) {
     y: clamp01((event.clientY - stageRect.top) / stageRect.height)
   };
   const imageClick = computeImageClick(event);
-  const immediatePage = buildImmediatePageFromClick(normalizedClick);
+  const requestPage = getCurrentRequestPage();
+  const environmentUrl = imageClick ? getPageEnvironmentUrl(requestPage) : null;
+  const environmentPlan = environmentUrl ? state.environmentPlans.get(environmentUrl) : null;
+  // Runtime artwork must navigate through its image-specific target map. A
+  // background click is deliberately not sent to the per-click VLM: that
+  // guess could turn a Heritage Belt click into Changi or Sentosa. Exact
+  // target buttons stop propagation above and submit their curated node id.
+  if (imageClick && isRuntimeArtworkPage(requestPage)) {
+    if (!environmentUrl || !environmentPlan || environmentPlan.status === "request_failed") {
+      if (environmentUrl) requestEnvironmentPlan(environmentUrl);
+      renderTransientScrollStatus("Preparing accurate location targets…");
+      return;
+    }
+    renderTransientScrollStatus(
+      environmentPlan.targets?.length
+        ? "Click directly on a mapped location."
+        : "Location targets are not ready yet."
+    );
+    return;
+  }
+  // Non-runtime artwork can still use the image-aware resolver. Runtime
+  // artwork with a target plan has already returned above unless an exact
+  // curated target button handled the click.
+  const immediatePage = imageClick ? null : buildImmediatePageFromClick(normalizedClick);
   if (immediatePage) {
     enterReadyPage(immediatePage);
     return;
@@ -4300,6 +4389,19 @@ async function resolveClickAt(event) {
       message: explainClickError(error)
     });
   }
+}
+
+function isRuntimeArtworkPage(page) {
+  const imageUrl = page?.imageUrl ?? page?.generated?.imageUrl;
+  return typeof imageUrl === "string" && imageUrl.includes("/runtime-cache/");
+}
+
+function renderTransientScrollStatus(message) {
+  renderScrollStatus(message);
+  window.setTimeout(() => {
+    const label = elements.viewport.querySelector(".scroll-status-label");
+    if (label?.textContent === message) clearScrollStatus();
+  }, 1800);
 }
 
 function buildImmediatePageFromClick(normalizedClick) {
