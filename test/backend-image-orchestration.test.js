@@ -141,6 +141,18 @@ test("server publishes final readiness before queuing environment analysis", asy
   assert.match(worker, /shouldQueueEnvironmentPlanForJobKind\(completedJobKind\)/);
 });
 
+test("finished pages map their targets while unrelated image jobs continue", async () => {
+  const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const workerStart = source.indexOf("async function processNextEnvironmentPlan");
+  const workerEnd = source.indexOf("async function updateReadyJobForImage", workerStart);
+  const worker = source.slice(workerStart, workerEnd);
+
+  assert.match(worker, /pendingEnvironmentPlans\.size === 0/);
+  assert.match(worker, /ensureEnvironmentPlanForPage\(task\.page/);
+  assert.doesNotMatch(worker, /processingJobs/);
+  assert.doesNotMatch(worker, /scheduleEnvironmentPlanProcessing\(1000\)/);
+});
+
 test("server forwards optimized image options and stores versioned partial assets", async () => {
   const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
   assert.match(source, /createImageVariantKey/);
@@ -162,4 +174,22 @@ test("server forwards optimized image options and stores versioned partial asset
   assert.match(source, /countryCacheFlushRuns/);
   assert.match(source, /beginCountryImageJobCreation/);
   assert.match(source, /await rename\(tempPath, jobPath\)/);
+});
+
+test("selected image quality controls provider generation and cache identity", async () => {
+  const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const assetVersionStart = source.indexOf("function createAssetVersionForPage");
+  const assetVersionEnd = source.indexOf("function getCountryPackForPage", assetVersionStart);
+  const assetVersion = source.slice(assetVersionStart, assetVersionEnd);
+  const providerStart = source.indexOf("async function generateConfiguredImage");
+  const providerEnd = source.indexOf("async function resolveClickPhraseWithOpenAI", providerStart);
+  const provider = source.slice(providerStart, providerEnd);
+
+  assert.match(source, /defaultImageQuality: appConfig\.image\.quality/);
+  assert.match(source, /url\.searchParams\.get\("quality"\)/);
+  assert.match(source, /imageQuality: normalizeRequestedImageQuality\(imageQuality\)/);
+  assert.match(assetVersion, /quality: normalizeRequestedImageQuality\(imageQuality\)/);
+  assert.match(source, /quality: job\.imageQuality/);
+  assert.match(provider, /quality: normalizeRequestedImageQuality\(quality\)/);
+  assert.match(provider, /\["low", "medium", "high"\]\.includes\(normalized\)/);
 });

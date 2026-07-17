@@ -88,6 +88,7 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName
   const childTitles = (node.childIds ?? [])
     .map((childId) => nodes[childId]?.title)
     .filter(Boolean);
+  const calloutLabels = normalizeArtworkCalloutLabels(node.artworkCalloutLabels);
   const visualContext = resolveArtworkVisualContext({ scene, node, nodes });
 
   return {
@@ -104,6 +105,12 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName
       zoomLevel,
       factMode: hasUnconfirmedNodeFacts(node) ? "unconfirmed" : "curated",
       visualContext,
+      frontendOverlays: calloutLabels.map((text, index) => ({
+        type: "callout",
+        text,
+        anchor: `numbered callout ${index + 1}`,
+        sourceRequired: false
+      })),
       imagePrompt: buildRoamAtlasImagePrompt({
         nodeId: node.id,
         nodeTitle: node.title,
@@ -112,11 +119,20 @@ function createDefaultArtworkPage({ scene, node, nodes, countrySlug, countryName
         zoomLevel,
         density: zoomLevel === 0 ? "minimal" : "restrained",
         knownChildNodeTitles: childTitles,
+        knownCalloutLabels: calloutLabels,
         countryName,
         aspectRatio: "3:2"
       })
     }
   };
+}
+
+function normalizeArtworkCalloutLabels(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((label) => String(label ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
 }
 
 function hasUnconfirmedNodeFacts(node) {

@@ -320,7 +320,14 @@
         "nearbyNodeIds": [
           "gardens-by-the-bay"
         ]
-      }
+      },
+      "artworkVisualContext": "A focused architectural study of Marina Bay Sands showing the rooftop deck, hotel towers, museum building, and waterfront podium as four distinct visual subjects.",
+      "artworkCalloutLabels": [
+        "Rooftop deck",
+        "Hotel towers",
+        "Museum building",
+        "Waterfront podium"
+      ]
     },
     "gardens-by-the-bay": {
       "childIds": [

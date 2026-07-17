@@ -1,4 +1,4 @@
-export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v6-fast-focus";
+export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v7-curated-callouts";
 
 export const CORE_VISUAL_STYLE = `
 Core visual style:
@@ -18,7 +18,7 @@ Global image rules:
 2. Do not generate prices, opening hours, route times, official signage, official claims, source citations, marketing copy, or long factual paragraphs.
 3. Prefer fewer meaningful objects, strong negative space, and obvious click targets.
 4. Do not treat image content as factual proof. Frontend overlays own exact facts and source badges.
-5. For study plates, use blank callout boxes, leader lines, numbered anchors, or small inset diagrams; never factual image captions.
+5. For study plates, use supplied short callout headings when present. Without supplied headings, avoid empty callout boxes and use leader lines or small inset diagrams instead; never factual image captions.
 6. Keep all important subjects and supplied labels inside the central 3:2 safe area. Use simple visual bleed at the edges.
 7. Never render app names, product logos, old product names, or brand-like decorative titles.
 `;

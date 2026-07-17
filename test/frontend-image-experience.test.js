@@ -110,6 +110,33 @@ test("artwork becomes ready only after browser preload and decode", () => {
   assert.match(styleSource, /\.scroll-stage--placeholder\.has-artwork-preview \.scene-canvas/);
 });
 
+test("responsive image overlays use the rendered artwork bounds", () => {
+  const sceneRender = sourceBetween("function renderScene", "function applySceneLayout");
+  const overlayLayout = sourceBetween("function renderSceneImageOverlayFrame", "function toScenePercent");
+  const targetRender = sourceBetween("function renderImageTargetHotspots", "function normalizeEnvironmentPlanBounds");
+
+  assert.match(sceneRender, /renderSceneImageOverlayFrame/);
+  assert.match(sceneRender, /renderEnvironmentLayerNodes/);
+  assert.match(sceneRender, /renderImageTargetHotspots/);
+  assert.match(sceneRender, /observeSceneImageOverlayLayout\(canvas\)/);
+  assert.match(overlayLayout, /new ResizeObserver\(scheduleSceneImageOverlayLayout\)/);
+  assert.match(overlayLayout, /getContainedImageRect\(image\)/);
+  assert.match(overlayLayout, /imageRect\.left - canvasRect\.left/);
+  assert.match(overlayLayout, /imageRect\.width \/ canvasRect\.width/);
+  assert.match(appSource, /window\.addEventListener\("resize", scheduleSceneImageOverlayLayout\)/);
+  assert.match(styleSource, /\.scene-image-overlay-frame\s*\{[^}]*position: absolute;[^}]*pointer-events: none;/s);
+  assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*pointer-events: auto;/s);
+  assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*box-shadow: inset 0 0 0 2px rgba\(36, 95, 82, 0\.22\);/s);
+  assert.match(styleSource, /\.image-target-hotspot\.is-active\s*\{/);
+  assert.match(targetRender, /target\.visualBounds/);
+  assert.match(targetRender, /target\.labelBounds/);
+  assert.match(targetRender, /image-target-hotspot--\$\{mode\}/);
+  assert.match(targetRender, /target\.nodeId === state\.selectedNodeId/);
+  assert.match(styleSource, /\.image-target-hotspot--label\s*\{[^}]*display: none;[^}]*pointer-events: none;/s);
+  assert.match(styleSource, /@media \(max-width: 720px\)[\s\S]*\.image-target-hotspot--visual\s*\{[^}]*display: none;[^}]*pointer-events: none;/s);
+  assert.match(styleSource, /@media \(max-width: 720px\)[\s\S]*\.image-target-hotspot--label\s*\{[^}]*display: block;[^}]*pointer-events: auto;/s);
+});
+
 test("missing artwork keeps an accessible, honest, low-motion blueprint", () => {
   assert.match(appSource, /setAttribute\("aria-busy", isArtworkPending \? "true" : "false"\)/);
   assert.match(appSource, /loading-scene-progress--indeterminate/);
@@ -132,5 +159,111 @@ test("environment enhancement retries pending responses without gating artwork",
   assert.match(environmentRequest, /return null/);
   assert.match(appSource, /status === "deferred"/);
   assert.doesNotMatch(environmentLookup, /getPageEnvironmentUrl\(state\.currentPage\) \?\?/);
-  assert.match(environmentLookup, /imageUrl === sceneArtwork\?\.imageUrl/);
+  assert.match(environmentLookup, /isSameArtworkUrl\(imageUrl, sceneArtwork\?\.imageUrl\)/);
+  assert.match(appSource, /new URL\(imageUrl, window\.location\.origin\)\.pathname/);
+});
+
+test("opening prefetched child artwork promotes its exact child target plan", () => {
+  const sceneRender = sourceBetween("function renderScene", "function applySceneLayout");
+  const promotion = sourceBetween(
+    "async function promoteCurrentPageEnvironmentPlan",
+    "function applyCurrentPageEnvironmentReference"
+  );
+  const environmentReference = sourceBetween(
+    "function applyCurrentPageEnvironmentReference",
+    "async function fetchEnvironmentPlanWithRetry"
+  );
+
+  assert.match(sceneRender, /pageNode\?\.childIds\?\.length/);
+  assert.match(sceneRender, /promoteCurrentPageEnvironmentPlan\(imageUrl\)/);
+  assert.match(promotion, /currentNode\?\.childIds\?\.length > 0/);
+  assert.match(promotion, /nodeId: requestPage\.nodeId/);
+  assert.match(promotion, /priority: "interactive"/);
+  assert.match(promotion, /state\.currentPage\?\.nodeId !== expectedNodeId/);
+  assert.match(promotion, /requestEnvironmentPlan\(environmentUrl\)/);
+  assert.match(environmentReference, /state\.artworkByPage/);
+  assert.match(environmentReference, /environmentStatus/);
+  assert.doesNotMatch(promotion, /imageUrl:\s*null/);
+});
+
+test("VLM mappings provide responsive visual and label targets without giant boxes", () => {
+  const environmentRequest = sourceBetween(
+    "async function requestEnvironmentPlan",
+    "async function promoteCurrentPageEnvironmentPlan"
+  );
+  const environmentNormalization = sourceBetween(
+    "function normalizeEnvironmentPlan",
+    "function renderMapHotspotLabels"
+  );
+
+  assert.match(appSource, /ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v4"/);
+  assert.match(appSource, /ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v7"/);
+  assert.match(environmentRequest, /!isCurrentEnvironmentPlan\(plan\)/);
+  assert.match(
+    environmentRequest,
+    /promoteCurrentPageEnvironmentPlan\(state\.currentPage\?\.imageUrl \?\? environmentUrl\)/
+  );
+  assert.match(environmentNormalization, /visualBounds: normalizeEnvironmentPlanBounds/);
+  assert.match(environmentNormalization, /labelBounds: normalizeEnvironmentPlanBounds/);
+  assert.match(environmentNormalization, /maxWidth: 0\.48/);
+  assert.match(environmentNormalization, /maxHeight: 0\.52/);
+  assert.match(environmentNormalization, /maxWidth: 0\.24/);
+  assert.match(environmentNormalization, /maxHeight: 0\.12/);
+  assert.match(environmentNormalization, /centerX - width \/ 2/);
+});
+
+test("empty fallback target maps recover instead of disabling every selection box", () => {
+  const sceneRender = sourceBetween("function renderScene", "function applySceneLayout");
+  const environmentRequest = sourceBetween(
+    "async function requestEnvironmentPlan",
+    "async function promoteCurrentPageEnvironmentPlan"
+  );
+  const planRecovery = sourceBetween(
+    "function isCurrentEnvironmentPlan",
+    "function renderImageTargetHotspots"
+  );
+
+  assert.match(sceneRender, /environmentPlanNeedsTargetRecovery\(environmentPlan\)/);
+  assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(cachedPlan\)/);
+  assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(normalizedPlan\)/);
+  assert.match(environmentRequest, /Environment plan has no destination targets/);
+  assert.match(planRecovery, /plan\.targets\.length > 0/);
+  assert.match(planRecovery, /node\?\.childIds\?\.length/);
+});
+
+test("image quality selection is accessible, persistent, and reaches artwork requests", () => {
+  const qualitySetting = sourceBetween(
+    "function renderImageQualitySetting",
+    "function normalizeImageQuality"
+  );
+  const sceneRequest = sourceBetween(
+    "async function requestSceneArtwork",
+    "async function requestCurrentPageArtwork"
+  );
+  const pageRequest = sourceBetween(
+    "async function requestCurrentPageArtwork",
+    "async function pollArtworkJob"
+  );
+  const prefetchRequest = sourceBetween(
+    "function prefetchArtworkTarget",
+    "async function storeArtworkCache"
+  );
+
+  assert.match(appSource, /IMAGE_QUALITY_STORAGE_KEY/);
+  assert.match(appSource, /value: "low"/);
+  assert.match(appSource, /value: "medium"/);
+  assert.match(appSource, /value: "high"[\s\S]*recommended: true/);
+  assert.match(qualitySetting, /role="radiogroup"/);
+  assert.match(qualitySetting, /role="radio"/);
+  assert.match(qualitySetting, /aria-checked/);
+  assert.match(sceneRequest, /quality: state\.imageQuality/);
+  assert.match(pageRequest, /quality: state\.imageQuality/);
+  assert.match(prefetchRequest, /quality: state\.imageQuality/);
+  assert.match(appSource, /imageQuality: state\.imageQuality/);
+  assert.match(appSource, /localStorage\.setItem\(IMAGE_QUALITY_STORAGE_KEY/);
+  assert.match(styleSource, /\.image-quality-option\.is-active/);
+});
+
+test("the artwork poll budget covers high-quality provider generation", () => {
+  assert.match(appSource, /ARTWORK_POLL_TIMEOUT_MS = 10 \* 60 \* 1000/);
 });

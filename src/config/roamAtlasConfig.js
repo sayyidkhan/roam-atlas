@@ -11,9 +11,9 @@ export const ROAMATLAS_CONFIG = {
     // Use the widest landscape size supported by the Images API. The browser
     // preserves this 3:2 composition so generated pixels are not cropped.
     size: "1536x1024",
-    // Auto can select the slowest quality tier. Medium is the default interactive
-    // balance; reviewed core artwork can still be generated at a higher tier.
-    quality: "medium",
+    // Prefer the best visual result by default. The config UI can lower this
+    // per browser when faster generation is more important than detail.
+    quality: "high",
     // RoamAtlas artwork is opaque. JPEG materially reduces transfer and decode
     // work compared with the previous multi-megabyte PNG output.
     outputFormat: "jpeg",
@@ -29,11 +29,23 @@ export const ROAMATLAS_CONFIG = {
 export function resolveRoamAtlasConfig(env = {}) {
   return {
     ai: { ...ROAMATLAS_CONFIG.ai },
-    image: { ...ROAMATLAS_CONFIG.image },
+    image: {
+      ...ROAMATLAS_CONFIG.image,
+      quality: normalizeImageQuality(
+        readConfigValue(env.ROAMATLAS_IMAGE_QUALITY, ROAMATLAS_CONFIG.image.quality)
+      )
+    },
     server: {
       port: Number(readConfigValue(env.PORT, ROAMATLAS_CONFIG.server.port))
     }
   };
+}
+
+function normalizeImageQuality(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["low", "medium", "high"].includes(normalized)
+    ? normalized
+    : ROAMATLAS_CONFIG.image.quality;
 }
 
 function readConfigValue(value, fallback) {

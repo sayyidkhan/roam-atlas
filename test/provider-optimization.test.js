@@ -3,25 +3,27 @@ import assert from "node:assert/strict";
 
 import { ROAMATLAS_CONFIG } from "../src/config/roamAtlasConfig.js";
 import {
+  createImageRequestAbortContext,
   generateTileImageWithOpenAI,
   normalizeImageCompression,
   normalizeImageOutputFormat,
   normalizeImageQuality,
   normalizeImageRequestTimeout,
-  parseRetryAfterMs
+  parseRetryAfterMs,
+  resolveImageRequestTimeoutMs
 } from "../src/domain/imageProvider.js";
 import {
   createImageVariantKey,
   createRuntimeCachePaths
 } from "../src/domain/runtimeCache.js";
 
-test("interactive image defaults use an explicit lower-latency output profile", () => {
+test("image defaults use the recommended high-quality output profile", () => {
   assert.deepEqual(ROAMATLAS_CONFIG.image, {
     provider: "openai",
     model: "gpt-image-2",
     fallbackModel: null,
     size: "1536x1024",
-    quality: "medium",
+    quality: "high",
     outputFormat: "jpeg",
     outputCompression: 82,
     partialImages: 1
@@ -30,7 +32,29 @@ test("interactive image defaults use an explicit lower-latency output profile", 
   assert.equal(normalizeImageOutputFormat("jpg"), "jpeg");
   assert.equal(normalizeImageCompression(140), 100);
   assert.equal(normalizeImageRequestTimeout(1000), 10_000);
+  assert.equal(resolveImageRequestTimeoutMs({ quality: "low" }), 1 * 60 * 1000);
+  assert.equal(resolveImageRequestTimeoutMs({ quality: "medium" }), 3 * 60 * 1000);
+  assert.equal(resolveImageRequestTimeoutMs({ quality: "high" }), 5 * 60 * 1000);
+  assert.equal(
+    resolveImageRequestTimeoutMs({ quality: "high", requestTimeoutMs: 30_000 }),
+    30_000
+  );
   assert.equal(parseRetryAfterMs("7"), 7000);
+});
+
+test("provider response timeout can be disarmed while external cancellation stays active", (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const externalController = new AbortController();
+  const requestAbort = createImageRequestAbortContext(externalController.signal, 10_000);
+
+  requestAbort.clearRequestTimeout();
+  context.mock.timers.tick(10_000);
+  assert.equal(requestAbort.signal.aborted, false);
+
+  externalController.abort(new Error("job cancelled"));
+  assert.equal(requestAbort.signal.aborted, true);
+  assert.equal(requestAbort.signal.reason?.message, "job cancelled");
+  requestAbort.dispose();
 });
 
 test("image variant keys and URLs change with generation inputs", () => {

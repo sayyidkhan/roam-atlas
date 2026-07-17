@@ -76,6 +76,7 @@ import {
   buildHomepagePrompt,
   buildRegionPrompt,
   buildEncyclopediaPrompt,
+  buildEnvironmentPlanPrompt,
   buildRoamAtlasImagePrompt as buildPromptOutput
 } from "../src/lib/prompts/index.js";
 import {
@@ -849,7 +850,9 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(defaults.image.model, "gpt-image-2");
   assert.equal(defaults.image.fallbackModel, null);
   assert.equal(defaults.image.size, "1536x1024");
-  assert.equal(defaults.image.quality, "medium");
+  assert.equal(defaults.image.quality, "high");
+  assert.equal(resolveRoamAtlasConfig({ ROAMATLAS_IMAGE_QUALITY: "low" }).image.quality, "low");
+  assert.equal(resolveRoamAtlasConfig({ ROAMATLAS_IMAGE_QUALITY: "invalid" }).image.quality, "high");
   assert.equal(defaults.image.outputFormat, "jpeg");
   assert.equal(defaults.image.outputCompression, 82);
   assert.equal(defaults.server.port, 4150);
@@ -1294,7 +1297,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "roamatlas-flipbook-v6-fast-focus");
+  assert.equal(output.promptVersion, "roamatlas-flipbook-v7-curated-callouts");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
@@ -1375,7 +1378,7 @@ test("encyclopedia prompt creates explanatory visual plates with constrained ima
   assert.match(output.prompt, /Readable image text is allowed/);
   assert.match(output.prompt, /central 3:2 safe area/);
   assert.match(output.prompt, /No prices|No hours|No route times/);
-  assert.match(output.prompt, /blank callout panels|numbered anchor dots|leader lines/);
+  assert.match(output.prompt, /Do not draw numbered anchors or empty callout panels/);
 });
 
 test("central prompt router sends page depths to the right builders", () => {
@@ -2062,15 +2065,45 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /if \(body\.targetNodeId \|\| body\.detourPhrase\)/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
-  assert.match(promptSource, /environment-plan-v2/);
+  assert.match(promptSource, /environment-plan-v4/);
+  assert.match(promptSource, /return both visualBounds and labelBounds/);
+  assert.match(promptSource, /visualBounds must tightly cover the complete illustrated subject/);
+  assert.match(promptSource, /labelBounds must tightly cover ONLY/);
+  assert.match(promptSource, /exclude unrelated open water, empty sky, nearby destinations/);
   assert.match(promptSource, /Curated destination candidates/);
   assert.match(promptSource, /Use only the exact supplied nodeId values/);
+  assert.match(promptSource, /printed inside the generated artwork as advisory only/);
+  assert.match(promptSource, /Never reject an otherwise clear title\/subject match/);
+  assert.match(promptSource, /missing supplied mapNumber is valid for child destinations/);
+  assert.match(serverSource, /const targetCandidates = \(currentNode\?\.childIds \?\? \[\]\)/);
   assert.match(serverSource, /normalizeEnvironmentTarget/);
-  assert.match(serverSource, /allowedNodeIds\.has\(nodeId\)/);
+  assert.match(serverSource, /allowedTargetsByNodeId\.get\(nodeId\)/);
+  assert.match(serverSource, /normalizeEnvironmentVisualTargetBounds/);
+  assert.match(serverSource, /normalizeEnvironmentLabelTargetBounds/);
+  assert.match(serverSource, /existing\.imageUrl === page\.imageUrl/);
+  assert.match(serverSource, /hasExpectedEnvironmentTargets\(page, existing\)/);
+  assert.match(serverSource, /promptContext\.targetCandidates\.length === 0 \|\| plan\.targets\.length > 0/);
+  assert.doesNotMatch(serverSource, /returnedMapNumber !== expectedMapNumber/);
   assert.match(appSourceForEnvironmentTargets(), /renderImageTargetHotspots/);
   assert.match(promptSource, /marine_life may only go on clear open water/);
   assert.match(promptSource, /Never place them over land, islands, buildings, bridges, boats, labels/);
   assert.match(serverSource, /Environment overlays are decorative code-rendered ambience only and are not fact sources/);
+});
+
+test("environment planning keeps child destinations eligible without map numbers", () => {
+  const prompt = buildEnvironmentPlanPrompt({
+    countryName: "Singapore",
+    title: "Marina Bay and Civic District",
+    pageType: "region",
+    targetCandidates: [
+      { nodeId: "marina-bay-sands", title: "Marina Bay Sands", mapNumber: null }
+    ]
+  });
+
+  assert.match(prompt, /"nodeId":"marina-bay-sands"/);
+  assert.match(prompt, /"mapNumber":null/);
+  assert.match(prompt, /When the supplied mapNumber is null, return null/);
+  assert.doesNotMatch(prompt, /Omit candidates without a supplied mapNumber/);
 });
 
 function appSourceForEnvironmentTargets() {

@@ -28,12 +28,33 @@ import {
   routeForCountryLanding,
 } from "../domain/routes.js";
 
+const IMAGE_QUALITY_STORAGE_KEY = "roamatlas:image-quality";
+const IMAGE_QUALITY_OPTIONS = [
+  {
+    value: "low",
+    label: "Low",
+    description: "Fastest"
+  },
+  {
+    value: "medium",
+    label: "Medium",
+    description: "Balanced"
+  },
+  {
+    value: "high",
+    label: "High",
+    description: "Best detail",
+    recommended: true
+  }
+];
+
 const state = {
   currentView: "countries",
   selectedCountry: null,
   activeCountrySlug: DEFAULT_COUNTRY_SLUG,
   activePack: null,
   experienceConfig: { ...ROAMATLAS_EXPERIENCE_CONFIG },
+  imageQuality: loadImageQualityPreference(),
   countryQuery: "",
   countryDrafts: new Map(),
   countryDraftSectionTabs: new Map(),
@@ -60,6 +81,7 @@ const state = {
   prefetchSceneId: null,
   environmentPlans: new Map(),
   environmentPlanRequests: new Map(),
+  environmentPlanPromotions: new Map(),
   artworkImageLoads: new Map(),
   isResolvingClick: false,
   activeNavigationRequestId: null,
@@ -69,7 +91,11 @@ const state = {
 const COUNTRY_CARD_IMAGE_VERSION = "country-media-v7";
 const COUNTRY_CARD_IMAGE_CONCURRENCY = 2;
 const ARTWORK_POLL_INTERVAL_MS = 1600;
-const ARTWORK_POLL_TIMEOUT_MS = 3 * 60 * 1000;
+// High-quality gpt-image-2 requests can continue producing useful partials for
+// more than three minutes. Keep the browser watching beyond the provider's
+// longest quality-aware request window so healthy work is not reported as a
+// terminal illustration failure.
+const ARTWORK_POLL_TIMEOUT_MS = 10 * 60 * 1000;
 const ARTWORK_REQUEST_TIMEOUT_MS = 15 * 1000;
 const ARTWORK_POLL_MAX_ATTEMPTS = Math.ceil(ARTWORK_POLL_TIMEOUT_MS / ARTWORK_POLL_INTERVAL_MS);
 // The config view is often kept alive by an embedded browser while a local
@@ -82,6 +108,8 @@ const PLACE_IMAGE_REQUEST_SESSION = `${Date.now()}-${Math.random().toString(36).
 const DRAFT_PLACE_PHOTO_TIMEOUT_MS = 90 * 1000;
 const ENVIRONMENT_PLAN_RETRY_DELAYS_MS = [0, 2000, 5000, 10000, 20000, 30000];
 const ENVIRONMENT_PLAN_REQUEST_RETRY_MS = 3000;
+const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v4";
+const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v7";
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
 let countryPhotoQueue = [];
@@ -94,6 +122,8 @@ let artworkAttemptSequence = 0;
 let navigationRequestSequence = 0;
 let navigationAbortController = null;
 let appToastTimer = null;
+let sceneArtworkResizeObserver = null;
+let sceneImageOverlayLayoutFrame = null;
 
 const elements = {
   landing: document.querySelector("#country-landing"),
@@ -119,6 +149,8 @@ window.addEventListener("popstate", () => {
   cancelPendingNavigation();
   applyRouteFromLocation().catch(showBootstrapError);
 });
+
+window.addEventListener("resize", scheduleSceneImageOverlayLayout);
 
 elements.countryButton.addEventListener("click", () => {
   enterCountryLanding();
@@ -255,6 +287,24 @@ function openCountryFromLanding(country) {
 function bindCountryShell() {
   elements.countryShell.addEventListener("click", (event) => {
     const action = event.target.closest("[data-country-action]")?.dataset.countryAction;
+    if (action === "set-image-quality") {
+      const button = event.target.closest("[data-image-quality]");
+      const imageQuality = normalizeImageQuality(button?.dataset.imageQuality);
+      if (imageQuality === state.imageQuality) return;
+      const scrollSnapshot = captureCountryShellScroll();
+      state.imageQuality = imageQuality;
+      storeImageQualityPreference(imageQuality);
+      if (state.selectedCountry) clearCountryGeneratedState(state.selectedCountry.slug);
+      render();
+      restoreCountryShellScroll(scrollSnapshot);
+      showAppToast({
+        tone: "success",
+        eyebrow: "IMAGE QUALITY UPDATED",
+        title: `${imageQualityLabel(imageQuality)} quality selected`,
+        message: "New and regenerated illustrations will use this quality. Existing images from other quality tiers will not be reused."
+      });
+      return;
+    }
     if (action === "countries") {
       enterCountryLanding();
       return;
@@ -1129,11 +1179,80 @@ function renderCountryShell() {
         })}
         ${mapAction}
       </section>
+      ${renderImageQualitySetting()}
       ${renderCountryCacheFlushNotice(flushState)}
       ${renderCountryDraftPanel(country, draftState)}
     </article>
   `;
   hydrateDraftPlacePhotos(elements.countryShell);
+}
+
+function renderImageQualitySetting() {
+  return `
+    <section class="country-image-quality" aria-labelledby="image-quality-title">
+      <div class="country-image-quality-copy">
+        <p class="eyebrow">Illustration quality</p>
+        <h2 id="image-quality-title">Generated image detail</h2>
+        <p>Choose the quality for new and regenerated map illustrations. High is recommended for the clearest atlas artwork.</p>
+      </div>
+      <div class="image-quality-options" role="radiogroup" aria-label="Generated image quality">
+        ${IMAGE_QUALITY_OPTIONS.map((option) => {
+          const isActive = state.imageQuality === option.value;
+          return `
+            <button
+              type="button"
+              class="image-quality-option${isActive ? " is-active" : ""}"
+              data-country-action="set-image-quality"
+              data-image-quality="${option.value}"
+              role="radio"
+              aria-checked="${isActive}"
+            >
+              <span class="image-quality-option-title">
+                ${option.label}
+                ${option.recommended ? '<span class="image-quality-recommended">Recommended</span>' : ""}
+              </span>
+              <small>${option.description}</small>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function normalizeImageQuality(value, fallback = "high") {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return IMAGE_QUALITY_OPTIONS.some((option) => option.value === normalized)
+    ? normalized
+    : fallback;
+}
+
+function imageQualityLabel(value) {
+  return IMAGE_QUALITY_OPTIONS.find((option) => option.value === value)?.label ?? "High";
+}
+
+function loadImageQualityPreference() {
+  try {
+    return normalizeImageQuality(window.localStorage.getItem(IMAGE_QUALITY_STORAGE_KEY));
+  } catch {
+    return "high";
+  }
+}
+
+function hasStoredImageQualityPreference() {
+  try {
+    return Boolean(window.localStorage.getItem(IMAGE_QUALITY_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function storeImageQualityPreference(value) {
+  try {
+    window.localStorage.setItem(IMAGE_QUALITY_STORAGE_KEY, value);
+  } catch {
+    // The selected quality remains active for this page when storage is unavailable.
+  }
 }
 
 function renderCountryActionGuide(country, { canOpenMap, isOpen }) {
@@ -2897,6 +3016,7 @@ function clearCountryGeneratedState(countrySlug) {
   state.artworkByScene.clear();
   state.artworkByPage.clear();
   state.artworkImageLoads.clear();
+  state.environmentPlanPromotions.clear();
   invalidatePrefetchState();
   environmentPlanEpoch += 1;
   if (state.currentPage?.countrySlug === countrySlug) {
@@ -3135,13 +3255,18 @@ function renderScene() {
     hasArtwork: Boolean(displayImageUrl),
     isArtworkPending
   });
+  const imageOverlayFrame = imageUrl
+    ? renderSceneImageOverlayFrame([
+        ...renderEnvironmentLayerNodes(scene, environmentPlan),
+        ...renderImageTargetHotspots(environmentPlan, nodes)
+      ])
+    : null;
   canvas.replaceChildren(
     ...(displayImageUrl
       ? [renderSceneImage(displayImageUrl, scene.title, elements.stage, { isPreview: Boolean(previewImageUrl) })]
       : []),
-    ...(imageUrl ? renderEnvironmentLayerNodes(scene, environmentPlan) : []),
     ...scene.tiles.map((tile) => renderTile(tile, scene.coordinateSpace)),
-    ...(imageUrl ? renderImageTargetHotspots(environmentPlan, nodes) : [])
+    ...(imageOverlayFrame ? [imageOverlayFrame] : [])
   );
   elements.stage.replaceChildren(
     canvas,
@@ -3159,13 +3284,24 @@ function renderScene() {
       : []),
     ...(isArtworkPending ? [renderArtworkPending(pageTitle)] : [])
   );
+  observeSceneImageOverlayLayout(canvas);
   elements.viewport.querySelector(".region-rail")?.remove();
   if (imageUrl && nextDestinations.length) {
     elements.viewport.appendChild(renderRegionRail(scene, nodes, nextDestinations));
   }
   elements.stage.dataset.scene = scene.id;
-  if (environmentUrl && !environmentPlan) {
+  if (
+    environmentUrl
+    && (!environmentPlan || environmentPlanNeedsTargetRecovery(environmentPlan))
+  ) {
     requestEnvironmentPlan(environmentUrl);
+  }
+  if (
+    imageUrl
+    && !environmentUrl
+    && (pageNode?.childIds?.length ?? 0) > 0
+  ) {
+    promoteCurrentPageEnvironmentPlan(imageUrl);
   }
   if (!imageUrl && !hasArtworkJob) {
     if (canUseSceneArtwork) {
@@ -3197,6 +3333,51 @@ function renderSceneCanvas(scene, { hasArtwork = false, isArtworkPending = false
   canvas.setAttribute("aria-label", scene.title);
   canvas.setAttribute("aria-busy", isArtworkPending ? "true" : "false");
   return canvas;
+}
+
+function renderSceneImageOverlayFrame(children) {
+  const frame = document.createElement("div");
+  frame.className = "scene-image-overlay-frame";
+  frame.dataset.coordinateSpace = "rendered-artwork";
+  frame.replaceChildren(...children);
+  return frame;
+}
+
+function observeSceneImageOverlayLayout(canvas) {
+  sceneArtworkResizeObserver?.disconnect();
+  sceneArtworkResizeObserver = null;
+  if (!canvas?.querySelector(".scene-image-overlay-frame")) return;
+  if (typeof ResizeObserver === "function") {
+    sceneArtworkResizeObserver = new ResizeObserver(scheduleSceneImageOverlayLayout);
+    sceneArtworkResizeObserver.observe(canvas);
+  }
+  scheduleSceneImageOverlayLayout();
+}
+
+function scheduleSceneImageOverlayLayout() {
+  if (sceneImageOverlayLayoutFrame !== null) {
+    window.cancelAnimationFrame(sceneImageOverlayLayoutFrame);
+  }
+  sceneImageOverlayLayoutFrame = window.requestAnimationFrame(() => {
+    sceneImageOverlayLayoutFrame = null;
+    syncSceneImageOverlayLayout();
+  });
+}
+
+function syncSceneImageOverlayLayout() {
+  const canvas = elements.stage.querySelector(".scene-canvas");
+  const image = canvas?.querySelector(".scene-image");
+  const frame = canvas?.querySelector(".scene-image-overlay-frame");
+  if (!canvas || !image || !frame || !image.naturalWidth || !image.naturalHeight) return;
+
+  const canvasRect = canvas.getBoundingClientRect();
+  const imageRect = getContainedImageRect(image);
+  if (!canvasRect.width || !canvasRect.height || !imageRect.width || !imageRect.height) return;
+
+  frame.style.left = `${((imageRect.left - canvasRect.left) / canvasRect.width) * 100}%`;
+  frame.style.top = `${((imageRect.top - canvasRect.top) / canvasRect.height) * 100}%`;
+  frame.style.width = `${(imageRect.width / canvasRect.width) * 100}%`;
+  frame.style.height = `${(imageRect.height / canvasRect.height) * 100}%`;
 }
 
 function toScenePercent(value, total) {
@@ -3588,17 +3769,32 @@ function getArtworkFailureMessage(error) {
   return "We could not finish this illustration. The factual page remains available; retry when ready.";
 }
 
+function normalizeArtworkUrl(imageUrl) {
+  if (!imageUrl) return null;
+  try {
+    return new URL(imageUrl, window.location.origin).pathname;
+  } catch {
+    return String(imageUrl).split("?")[0].split("#")[0];
+  }
+}
+
+function isSameArtworkUrl(leftUrl, rightUrl) {
+  const left = normalizeArtworkUrl(leftUrl);
+  const right = normalizeArtworkUrl(rightUrl);
+  return Boolean(left && right && left === right);
+}
+
 function getSceneEnvironmentUrl(scene, imageUrl) {
   if (!imageUrl) return null;
   const sceneArtwork = state.artworkByScene.get(scene.id);
   const pageArtwork = state.artworkByPage.get(getPageArtworkCacheKey(state.currentPage));
-  if (state.currentPage.sceneId === scene.id && imageUrl === state.currentPage.imageUrl) {
+  if (state.currentPage.sceneId === scene.id && isSameArtworkUrl(imageUrl, state.currentPage.imageUrl)) {
     return getPageEnvironmentUrl(state.currentPage);
   }
-  if (imageUrl === pageArtwork?.imageUrl) {
+  if (isSameArtworkUrl(imageUrl, pageArtwork?.imageUrl)) {
     return pageArtwork.environmentUrl ?? getPageEnvironmentUrl(pageArtwork.page);
   }
-  if (imageUrl === sceneArtwork?.imageUrl) {
+  if (isSameArtworkUrl(imageUrl, sceneArtwork?.imageUrl)) {
     return sceneArtwork.environmentUrl ?? getPageEnvironmentUrl(sceneArtwork.page);
   }
   return null;
@@ -3613,16 +3809,19 @@ function getPageEnvironmentUrl(page) {
 async function requestEnvironmentPlan(environmentUrl) {
   const cachedPlan = state.environmentPlans.get(environmentUrl);
   const retryAt = Number(cachedPlan?.retryAt ?? 0);
+  const isWaitingToRetry = cachedPlan?.status === "request_failed" && Date.now() < retryAt;
+  const cachedPlanNeedsRecovery = cachedPlan?.status !== "request_failed"
+    && environmentPlanNeedsTargetRecovery(cachedPlan);
   if (
     !environmentUrl
     || state.environmentPlanRequests.has(environmentUrl)
-    || (cachedPlan && cachedPlan.status !== "request_failed")
-    || (cachedPlan?.status === "request_failed" && Date.now() < retryAt)
+    || isWaitingToRetry
+    || (cachedPlan && cachedPlan.status !== "request_failed" && !cachedPlanNeedsRecovery)
   ) {
     return;
   }
 
-  if (cachedPlan?.status === "request_failed") {
+  if (cachedPlan) {
     state.environmentPlans.delete(environmentUrl);
   }
 
@@ -3632,13 +3831,29 @@ async function requestEnvironmentPlan(environmentUrl) {
     .then((plan) => {
       if (requestEpoch !== environmentPlanEpoch) return;
       if (!plan) throw new Error("Environment plan is not ready");
-      state.environmentPlans.set(environmentUrl, normalizeEnvironmentPlan(plan));
+      if (!isCurrentEnvironmentPlan(plan)) {
+        // The illustration can outlive the VLM mapping contract in the runtime
+        // cache. Ask the server to rebuild that exact page's mapping and never
+        // paint the stale coordinates while it catches up.
+        promoteCurrentPageEnvironmentPlan(state.currentPage?.imageUrl ?? environmentUrl);
+        throw new Error("Environment plan is stale");
+      }
+      const normalizedPlan = normalizeEnvironmentPlan(plan);
+      if (environmentPlanNeedsTargetRecovery(normalizedPlan)) {
+        // A fallback plan with no destination targets is not a successful VLM
+        // mapping for an explorable page. Promote the current page so the
+        // server regenerates its target map, then let the normal retry loop
+        // fetch the replacement without hiding the illustration.
+        promoteCurrentPageEnvironmentPlan(state.currentPage?.imageUrl ?? environmentUrl);
+        throw new Error("Environment plan has no destination targets");
+      }
+      state.environmentPlans.set(environmentUrl, normalizedPlan);
     })
     .catch(() => {
       if (requestEpoch !== environmentPlanEpoch) return;
       const retryAt = Date.now() + ENVIRONMENT_PLAN_REQUEST_RETRY_MS;
       state.environmentPlans.set(environmentUrl, {
-        version: "environment-plan-v2",
+        version: ENVIRONMENT_PLAN_SCHEMA_VERSION,
         status: "request_failed",
         retryAt,
         targets: [],
@@ -3660,6 +3875,95 @@ async function requestEnvironmentPlan(environmentUrl) {
     });
 
   state.environmentPlanRequests.set(environmentUrl, request);
+}
+
+async function promoteCurrentPageEnvironmentPlan(imageUrl) {
+  const requestPage = getCurrentRequestPage();
+  const currentNode = state.activePack?.nodes?.[requestPage?.nodeId];
+  if (!imageUrl || !requestPage?.nodeId || !(currentNode?.childIds?.length > 0)) return;
+
+  const requestKey = `${state.activeCountrySlug}:${requestPage.sceneId}:${requestPage.nodeId}`;
+  if (state.environmentPlanPromotions.has(requestKey)) return;
+
+  const requestEpoch = environmentPlanEpoch;
+  const expectedPageId = requestPage.id;
+  const expectedNodeId = requestPage.nodeId;
+  const params = new URLSearchParams({
+    countrySlug: state.activeCountrySlug,
+    sceneId: requestPage.sceneId,
+    nodeId: requestPage.nodeId,
+    priority: "interactive",
+    quality: state.imageQuality
+  });
+
+  let request;
+  request = fetchArtworkResource(apiPath(`/api/artwork?${params.toString()}`), { cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Target plan promotion failed: ${response.status}`);
+      const { page } = await response.json();
+      if (
+        requestEpoch !== environmentPlanEpoch
+        || state.currentPage?.id !== expectedPageId
+        || state.currentPage?.nodeId !== expectedNodeId
+      ) return;
+
+      const environmentUrl = getPageEnvironmentUrl(page);
+      if (!environmentUrl) throw new Error("Target plan promotion did not provide an environment URL");
+      applyCurrentPageEnvironmentReference(page, environmentUrl);
+      requestEnvironmentPlan(environmentUrl);
+      render();
+    })
+    .catch(() => {
+      // The current page remains fully usable. A later render can retry the
+      // promotion without replacing its already-decoded illustration.
+    })
+    .finally(() => {
+      if (state.environmentPlanPromotions.get(requestKey) === request) {
+        state.environmentPlanPromotions.delete(requestKey);
+      }
+    });
+
+  state.environmentPlanPromotions.set(requestKey, request);
+}
+
+function applyCurrentPageEnvironmentReference(page, environmentUrl) {
+  const environmentStatus = page?.environmentStatus ?? page?.generated?.environmentStatus ?? "pending";
+  state.currentPage = {
+    ...state.currentPage,
+    environmentUrl,
+    environmentStatus,
+    generated: {
+      ...state.currentPage.generated,
+      ...page.generated,
+      environmentUrl,
+      environmentStatus
+    }
+  };
+
+  const scene = state.activePack?.scenes?.[state.currentPage.sceneId];
+  const cache = scene && state.currentPage.nodeId === scene.rootNodeId
+    ? state.artworkByScene
+    : state.artworkByPage;
+  const cacheKey = cache === state.artworkByScene
+    ? scene.id
+    : getPageArtworkCacheKey(state.currentPage);
+  const cachedArtwork = cache.get(cacheKey);
+  if (!cachedArtwork) return;
+  cache.set(cacheKey, {
+    ...cachedArtwork,
+    environmentUrl,
+    page: {
+      ...cachedArtwork.page,
+      environmentUrl,
+      environmentStatus,
+      generated: {
+        ...cachedArtwork.page?.generated,
+        ...page.generated,
+        environmentUrl,
+        environmentStatus
+      }
+    }
+  });
 }
 
 async function fetchEnvironmentPlanWithRetry(environmentUrl) {
@@ -3692,9 +3996,16 @@ function normalizeEnvironmentPlan(plan) {
           ...target,
           nodeId: String(target?.nodeId ?? ""),
           coordinateSpace: "normalized",
-          bounds: normalizeEnvironmentPlanBounds(target.bounds)
+          visualBounds: normalizeEnvironmentPlanBounds(target.visualBounds, {
+            maxWidth: 0.48,
+            maxHeight: 0.52
+          }),
+          labelBounds: normalizeEnvironmentPlanBounds(target.labelBounds, {
+            maxWidth: 0.24,
+            maxHeight: 0.12
+          })
         }))
-        .filter((target) => target.nodeId && target.bounds)
+        .filter((target) => target.nodeId && target.visualBounds && target.labelBounds)
     : [];
   const layers = Array.isArray(plan?.layers)
     ? plan.layers
@@ -3708,49 +4019,94 @@ function normalizeEnvironmentPlan(plan) {
     : [];
   return {
     ...plan,
-    version: "environment-plan-v2",
+    version: ENVIRONMENT_PLAN_SCHEMA_VERSION,
     targets,
     layers
   };
 }
 
+function isCurrentEnvironmentPlan(plan) {
+  return plan?.version === ENVIRONMENT_PLAN_SCHEMA_VERSION
+    && plan?.promptVersion === ENVIRONMENT_PLAN_PROMPT_VERSION;
+}
+
+function hasUsableEnvironmentTargets(plan) {
+  return Array.isArray(plan?.targets) && plan.targets.length > 0;
+}
+
+function environmentPlanExpectsTargets(plan) {
+  const page = getCurrentRequestPage();
+  const nodeId = plan?.nodeId ?? page?.nodeId;
+  const node = state.activePack?.nodes?.[nodeId];
+  return (node?.childIds?.length ?? 0) > 0;
+}
+
+function environmentPlanNeedsTargetRecovery(plan) {
+  return Boolean(plan)
+    && environmentPlanExpectsTargets(plan)
+    && !hasUsableEnvironmentTargets(plan);
+}
+
 function renderImageTargetHotspots(environmentPlan, nodes) {
   const targets = Array.isArray(environmentPlan?.targets) ? environmentPlan.targets : [];
   return targets
-    .filter((target) => target?.nodeId && nodes[target.nodeId] && target.bounds)
-    .map((target) => {
+    .filter((target) => target?.nodeId && nodes[target.nodeId] && target.visualBounds && target.labelBounds)
+    .flatMap((target) => {
       const node = nodes[target.nodeId];
-      const { x, y, width, height } = target.bounds;
-      const hit = document.createElement("button");
-      hit.type = "button";
-      hit.className = "image-target-hotspot";
-      hit.setAttribute("aria-label", `Explore ${node.title}`);
-      hit.style.left = `${x * 100}%`;
-      hit.style.top = `${y * 100}%`;
-      hit.style.width = `${width * 100}%`;
-      hit.style.height = `${height * 100}%`;
-      hit.addEventListener("click", (event) => {
-        event.stopPropagation();
-        resolveOverlayTarget({
-          normalizedClick: {
-            x: clamp01(x + width / 2),
-            y: clamp01(y + height / 2)
-          },
-          nodeId: target.nodeId
-        });
-      });
-      return hit;
+      return [
+        renderImageTargetHotspot(target, node, target.visualBounds, "visual"),
+        renderImageTargetHotspot(target, node, target.labelBounds, "label")
+      ];
     });
 }
 
-function normalizeEnvironmentPlanBounds(bounds) {
+function renderImageTargetHotspot(target, node, bounds, mode) {
+  const { x, y, width, height } = bounds;
+  const hit = document.createElement("button");
+  const isActive = target.nodeId === state.selectedNodeId;
+  hit.type = "button";
+  hit.className = `image-target-hotspot image-target-hotspot--${mode}`;
+  hit.classList.toggle("is-active", isActive);
+  hit.dataset.targetMode = mode;
+  if (isActive) hit.setAttribute("aria-current", "location");
+  hit.setAttribute(
+    "aria-label",
+    mode === "visual" ? `Explore the ${node.title} area` : `Explore ${node.title}`
+  );
+  hit.style.left = `${x * 100}%`;
+  hit.style.top = `${y * 100}%`;
+  hit.style.width = `${width * 100}%`;
+  hit.style.height = `${height * 100}%`;
+  hit.addEventListener("click", (event) => {
+    event.stopPropagation();
+    resolveOverlayTarget({
+      normalizedClick: {
+        x: clamp01(x + width / 2),
+        y: clamp01(y + height / 2)
+      },
+      nodeId: target.nodeId
+    });
+  });
+  return hit;
+}
+
+function normalizeEnvironmentPlanBounds(bounds, { maxWidth = 1, maxHeight = 1 } = {}) {
   if (!bounds) return null;
   const x = clamp01(Number(bounds.x));
   const y = clamp01(Number(bounds.y));
-  const width = Math.min(clamp(Number(bounds.width), 0.04, 1), 1 - x);
-  const height = Math.min(clamp(Number(bounds.height), 0.04, 1), 1 - y);
+  const rawWidth = Math.min(clamp(Number(bounds.width), 0.04, 1), 1 - x);
+  const rawHeight = Math.min(clamp(Number(bounds.height), 0.04, 1), 1 - y);
+  const width = Math.min(rawWidth, maxWidth);
+  const height = Math.min(rawHeight, maxHeight);
   if (width < 0.04 || height < 0.04) return null;
-  return { x, y, width, height };
+  const centerX = x + rawWidth / 2;
+  const centerY = y + rawHeight / 2;
+  return {
+    x: clamp(centerX - width / 2, 0, 1 - width),
+    y: clamp(centerY - height / 2, 0, 1 - height),
+    width,
+    height
+  };
 }
 
 function renderMapHotspotLabels(scene, nodes, { mode = "hidden", countrySlug }) {
@@ -3871,6 +4227,7 @@ function renderSceneImage(imageUrl, title, stageElement, { isPreview = false } =
       "--scene-display-aspect",
       String(image.naturalWidth / image.naturalHeight)
     );
+    scheduleSceneImageOverlayLayout();
   };
   image.addEventListener("load", syncDisplayAspect, { once: true });
   if (image.complete) syncDisplayAspect();
@@ -4528,7 +4885,8 @@ async function requestFlipbookPage({
       normalizedClick,
       imageClick,
       targetNodeId,
-      detourPhrase
+      detourPhrase,
+      imageQuality: state.imageQuality
     })
   });
 
@@ -4577,7 +4935,8 @@ async function requestSceneArtwork(sceneId, { jobKind = "interactive" } = {}) {
   try {
     const params = new URLSearchParams({
       countrySlug: state.activeCountrySlug,
-      sceneId
+      sceneId,
+      quality: state.imageQuality
     });
     if (jobKind === "interactive") {
       params.set("priority", "interactive");
@@ -4636,7 +4995,8 @@ async function requestCurrentPageArtwork({ jobKind = "interactive" } = {}) {
     const params = new URLSearchParams({
       countrySlug: state.activeCountrySlug,
       sceneId: page.sceneId,
-      nodeId: page.nodeId
+      nodeId: page.nodeId,
+      quality: state.imageQuality
     });
     if (jobKind === "interactive") {
       params.set("priority", "interactive");
@@ -5351,6 +5711,9 @@ async function loadExperienceConfig() {
     const response = await fetch(apiPath("/api/experience-config"), { cache: "no-store" });
     if (!response.ok) return;
     state.experienceConfig = await response.json();
+    if (!hasStoredImageQualityPreference()) {
+      state.imageQuality = normalizeImageQuality(state.experienceConfig.defaultImageQuality);
+    }
     if (state.currentView === "explorer") {
       prefetchNextDestinations();
       render();
@@ -5469,7 +5832,8 @@ function prefetchArtworkTarget(target) {
   const params = new URLSearchParams({
     countrySlug: state.activeCountrySlug,
     sceneId: target.sceneId,
-    prefetch: "priority"
+    prefetch: "priority",
+    quality: state.imageQuality
   });
   if (!isSceneRootTarget && target.nodeId) {
     params.set("nodeId", target.nodeId);

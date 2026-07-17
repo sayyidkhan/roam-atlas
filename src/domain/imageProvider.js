@@ -7,7 +7,13 @@ export const DEFAULT_IMAGE_QUALITY = ROAMATLAS_CONFIG.image.quality;
 export const DEFAULT_IMAGE_OUTPUT_FORMAT = ROAMATLAS_CONFIG.image.outputFormat;
 export const DEFAULT_IMAGE_OUTPUT_COMPRESSION = ROAMATLAS_CONFIG.image.outputCompression;
 export const DEFAULT_IMAGE_PARTIAL_IMAGES = ROAMATLAS_CONFIG.image.partialImages;
-export const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
+export const DEFAULT_IMAGE_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
+export const IMAGE_REQUEST_TIMEOUT_MS_BY_QUALITY = Object.freeze({
+  low: 1 * 60 * 1000,
+  medium: 3 * 60 * 1000,
+  high: 5 * 60 * 1000,
+  auto: 3 * 60 * 1000
+});
 export const DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT = `
 You are the travel image prompt compiler and visual style director.
 
@@ -85,7 +91,7 @@ export async function generateTileImageWithOpenAI({
   outputCompression = DEFAULT_IMAGE_OUTPUT_COMPRESSION,
   partialImages = DEFAULT_IMAGE_PARTIAL_IMAGES,
   onPartialImage = null,
-  requestTimeoutMs = DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+  requestTimeoutMs = null,
   signal = null
 }) {
   const requestedModel = normalizeImageModel(model);
@@ -114,68 +120,83 @@ export async function generateTileImageWithOpenAI({
       : {})
   };
 
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    signal: createImageRequestSignal(signal, requestTimeoutMs),
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(requestBody)
-  });
+  const requestAbort = createImageRequestAbortContext(
+    signal,
+    resolveImageRequestTimeoutMs({ quality: requestBody.quality, requestTimeoutMs })
+  );
 
-  if (!response.ok) {
-    const body = await response.text();
-    if (shouldTryFallbackImageModel({ model: requestedModel, fallbackModel: requestedFallbackModel, body })) {
-      return generateTileImageWithOpenAI({
-        apiKey,
-        model: requestedFallbackModel,
-        fallbackModel: null,
-        prompt,
+  try {
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      signal: requestAbort.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    // The quality timeout controls how long OpenAI may take to start the
+    // response. Once a streaming response has started, keeping the same timer
+    // attached aborts healthy generations after partial images have arrived.
+    // External cancellation remains active until the response is fully read.
+    requestAbort.clearRequestTimeout();
+
+    if (!response.ok) {
+      const body = await response.text();
+      if (shouldTryFallbackImageModel({ model: requestedModel, fallbackModel: requestedFallbackModel, body })) {
+        return generateTileImageWithOpenAI({
+          apiKey,
+          model: requestedFallbackModel,
+          fallbackModel: null,
+          prompt,
+          size,
+          quality,
+          outputFormat: requestedFormat,
+          outputCompression,
+          partialImages,
+          onPartialImage,
+          requestTimeoutMs,
+          signal
+        });
+      }
+      const error = new Error(`OpenAI image generation failed: ${response.status} ${body}`);
+      error.status = response.status;
+      error.retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+      throw error;
+    }
+
+    if (shouldStream) {
+      return readStreamingImageResponse(response, {
+        requestedModel,
         size,
-        quality,
+        quality: requestBody.quality,
         outputFormat: requestedFormat,
-        outputCompression,
-        partialImages,
-        onPartialImage,
-        requestTimeoutMs,
-        signal
+        outputCompression: requestBody.output_compression,
+        onPartialImage
       });
     }
-    const error = new Error(`OpenAI image generation failed: ${response.status} ${body}`);
-    error.status = response.status;
-    error.retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
-    throw error;
-  }
 
-  if (shouldStream) {
-    return readStreamingImageResponse(response, {
-      requestedModel,
+    const payload = await response.json();
+    const image = payload.data?.[0];
+    if (!image?.b64_json) {
+      throw new Error("OpenAI image generation returned no base64 image data.");
+    }
+
+    return {
+      b64Json: image.b64_json,
+      revisedPrompt: image.revised_prompt,
+      model: requestedModel,
       size,
-      quality: requestBody.quality,
-      outputFormat: requestedFormat,
+      quality: payload.quality ?? requestBody.quality,
+      outputFormat: payload.output_format ?? requestedFormat,
       outputCompression: requestBody.output_compression,
-      onPartialImage
-    });
+      usage: payload.usage ?? null,
+      provider: DEFAULT_IMAGE_PROVIDER
+    };
+  } finally {
+    requestAbort.dispose();
   }
-
-  const payload = await response.json();
-  const image = payload.data?.[0];
-  if (!image?.b64_json) {
-    throw new Error("OpenAI image generation returned no base64 image data.");
-  }
-
-  return {
-    b64Json: image.b64_json,
-    revisedPrompt: image.revised_prompt,
-    model: requestedModel,
-    size,
-    quality: payload.quality ?? requestBody.quality,
-    outputFormat: payload.output_format ?? requestedFormat,
-    outputCompression: requestBody.output_compression,
-    usage: payload.usage ?? null,
-    provider: DEFAULT_IMAGE_PROVIDER
-  };
 }
 
 export function normalizeImageQuality(value = DEFAULT_IMAGE_QUALITY) {
@@ -199,6 +220,17 @@ export function normalizeImageRequestTimeout(value = DEFAULT_IMAGE_REQUEST_TIMEO
   return Math.min(10 * 60 * 1000, Math.max(10_000, Number.isFinite(parsed) ? parsed : DEFAULT_IMAGE_REQUEST_TIMEOUT_MS));
 }
 
+export function resolveImageRequestTimeoutMs({
+  quality = DEFAULT_IMAGE_QUALITY,
+  requestTimeoutMs = null
+} = {}) {
+  if (requestTimeoutMs != null && String(requestTimeoutMs).trim() !== "") {
+    return normalizeImageRequestTimeout(requestTimeoutMs);
+  }
+  const normalizedQuality = normalizeImageQuality(quality);
+  return IMAGE_REQUEST_TIMEOUT_MS_BY_QUALITY[normalizedQuality] ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS;
+}
+
 export function parseRetryAfterMs(value, now = Date.now()) {
   const raw = String(value ?? "").trim();
   if (!raw) return 0;
@@ -208,25 +240,39 @@ export function parseRetryAfterMs(value, now = Date.now()) {
   return Number.isFinite(retryAt) ? Math.max(0, retryAt - now) : 0;
 }
 
-function createImageRequestSignal(externalSignal, requestTimeoutMs) {
-  const timeoutSignal = AbortSignal.timeout(normalizeImageRequestTimeout(requestTimeoutMs));
-  if (!externalSignal) return timeoutSignal;
-  if (typeof AbortSignal.any === "function") {
-    return AbortSignal.any([externalSignal, timeoutSignal]);
+export function createImageRequestAbortContext(externalSignal, requestTimeoutMs) {
+  const controller = new AbortController();
+  let timeoutId = setTimeout(() => {
+    if (controller.signal.aborted) return;
+    const timeoutError = new Error("The operation was aborted due to timeout");
+    timeoutError.name = "TimeoutError";
+    controller.abort(timeoutError);
+  }, normalizeImageRequestTimeout(requestTimeoutMs));
+  timeoutId.unref?.();
+
+  const clearRequestTimeout = () => {
+    if (timeoutId == null) return;
+    clearTimeout(timeoutId);
+    timeoutId = null;
+  };
+
+  const forwardExternalAbort = () => {
+    if (!controller.signal.aborted) controller.abort(externalSignal?.reason);
+  };
+  if (externalSignal?.aborted) {
+    forwardExternalAbort();
+  } else if (externalSignal) {
+    externalSignal.addEventListener("abort", forwardExternalAbort, { once: true });
   }
 
-  const controller = new AbortController();
-  const forwardAbort = (source) => {
-    if (!controller.signal.aborted) controller.abort(source.reason);
-  };
-  for (const source of [externalSignal, timeoutSignal]) {
-    if (source.aborted) {
-      forwardAbort(source);
-      break;
+  return {
+    signal: controller.signal,
+    clearRequestTimeout,
+    dispose() {
+      clearRequestTimeout();
+      externalSignal?.removeEventListener?.("abort", forwardExternalAbort);
     }
-    source.addEventListener("abort", () => forwardAbort(source), { once: true });
-  }
-  return controller.signal;
+  };
 }
 
 async function readStreamingImageResponse(

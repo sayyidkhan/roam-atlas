@@ -17,6 +17,14 @@ export function buildRegionPrompt(input) {
     input.knownChildNodeTitles && input.knownChildNodeTitles.length > 0
       ? input.knownChildNodeTitles.slice(0, 8).join(", ")
       : "none supplied; use only the main subject";
+  const calloutLabels = normalizeCalloutLabels(input.knownCalloutLabels);
+  const calloutDirection = calloutLabels.length > 0
+    ? [
+        `- Numbered callout headings: ${calloutLabels.map((label, index) => `${index + 1}. ${label}`).join("; ")}.`,
+        "- Render each supplied heading exactly once inside its matching numbered callout panel.",
+        "- Do not leave a supplied numbered callout panel blank. Do not add extra callout headings."
+      ].join("\n")
+    : "- No callout headings were supplied. Do not draw numbered anchors or empty callout panels.";
   const density = input.density ?? "restrained";
 
   const prompt = `
@@ -37,7 +45,8 @@ Composition:
 Clickability:
 - Curated child subjects: ${childHints}.
 - The image itself should include short readable labels only for supplied names.
-- Use separated visual forms, numbered anchors, or blank callout panels to show what is clickable.
+- Use separated visual forms to show what is clickable.
+${calloutDirection}
 - Exact facts, recommendations, and source badges belong to frontend overlays.
 
 ${CORE_VISUAL_STYLE}
@@ -59,4 +68,12 @@ Aspect ratio: ${input.aspectRatio ?? "3:2"}.
     zoomLevel: input.zoomLevel,
     recommendedNegativePromptTerms: NEGATIVE_STYLE_TERMS
   };
+}
+
+function normalizeCalloutLabels(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((label) => String(label ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
 }

@@ -49,6 +49,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
   const zoomLevel = inferZoomLevelForNode(matchedNode);
   const visualContext = visualContextForNode(matchedNode);
   const isUnconfirmedNode = hasUnconfirmedNodeFacts(matchedNode);
+  const calloutLabels = normalizeArtworkCalloutLabels(matchedNode.artworkCalloutLabels);
 
   return {
     nextNodeId: matchedNode.id,
@@ -64,6 +65,7 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
       zoomLevel,
       density: isUnconfirmedNode || zoomLevel === 0 ? "minimal" : "balanced",
       parentNodeTitle: currentNode?.title,
+      knownCalloutLabels: calloutLabels,
       countryName
     }),
     frontendOverlays: [
@@ -71,7 +73,13 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
         type: "label",
         text: matchedNode.title,
         anchor: clickedPhrase
-      }
+      },
+      ...calloutLabels.map((text, index) => ({
+        type: "callout",
+        text,
+        anchor: `numbered callout ${index + 1}`,
+        sourceRequired: false
+      }))
     ],
     clickTargetsToPrecompute: matchedNode.childIds.map((nodeId) => ({
       targetName: nodeId,
@@ -80,6 +88,14 @@ export function planNextFlipbookPage({ currentNode, matchedNode, clickedPhrase, 
     })),
     factMode: isUnconfirmedNode ? "unconfirmed" : "verified"
   };
+}
+
+function normalizeArtworkCalloutLabels(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((label) => String(label ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
 }
 
 function visualContextForNode(node) {

@@ -28,6 +28,15 @@ test("child artwork does not inherit unrelated parent-scene landmarks", () => {
     assert.doesNotMatch(page.plan.imagePrompt, /two glass conservator|Gardens by the Bay waterfront/i);
   }
   assert.match(marinaBaySands.plan.imagePrompt, /Marina Bay Sands/);
+  assert.match(marinaBaySands.plan.imagePrompt, /1\. Rooftop deck/);
+  assert.match(marinaBaySands.plan.imagePrompt, /2\. Hotel towers/);
+  assert.match(marinaBaySands.plan.imagePrompt, /3\. Museum building/);
+  assert.match(marinaBaySands.plan.imagePrompt, /4\. Waterfront podium/);
+  assert.match(marinaBaySands.plan.imagePrompt, /Do not leave a supplied numbered callout panel blank/);
+  assert.deepEqual(
+    marinaBaySands.plan.frontendOverlays.map(({ text }) => text),
+    ["Rooftop deck", "Hotel towers", "Museum building", "Waterfront podium"]
+  );
   assert.match(merlion.plan.imagePrompt, /Merlion Park/);
 });
 
@@ -40,13 +49,15 @@ test("region prompt honors page type and density without asking images to carry 
     density: "minimal",
     countryName: "Singapore",
     visualContext: "A focused architectural study of Marina Bay Sands.",
-    knownChildNodeTitles: []
+    knownChildNodeTitles: [],
+    knownCalloutLabels: []
   });
 
   assert.equal(output.pageType, "district_or_attraction");
   assert.match(output.prompt, /Page type: district_or_attraction/);
   assert.match(output.prompt, /Density: minimal/);
   assert.match(output.prompt, /Exact facts, recommendations, and source badges belong to frontend overlays/);
+  assert.match(output.prompt, /Do not draw numbered anchors or empty callout panels/);
   assert.doesNotMatch(output.prompt, /Do not rely on frontend text overlays/);
   assert.ok(output.prompt.length < 3600, `prompt was ${output.prompt.length} characters`);
 });

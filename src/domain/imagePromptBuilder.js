@@ -10,6 +10,7 @@ export function buildRoamAtlasImagePrompt({
   aspectRatio = "3:2",
   parentNodeTitle,
   knownChildNodeTitles = [],
+  knownCalloutLabels = [],
   countryName
 }) {
   return buildPromptOutput({
@@ -22,6 +23,7 @@ export function buildRoamAtlasImagePrompt({
     aspectRatio: normalizeAspectRatio(aspectRatio),
     parentNodeTitle,
     knownChildNodeTitles,
+    knownCalloutLabels,
     countryName
   }).prompt;
 }

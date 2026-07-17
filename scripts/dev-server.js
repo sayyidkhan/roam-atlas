@@ -269,7 +269,11 @@ createServer(async (request, response) => {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache"
       });
-      response.end(JSON.stringify(appExperienceConfig));
+      response.end(JSON.stringify({
+        ...appExperienceConfig,
+        defaultImageQuality: appConfig.image.quality,
+        imageQualityOptions: ["low", "medium", "high"]
+      }));
       return;
     }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/country-image") {
@@ -412,7 +416,7 @@ async function handleFlipbookClick(request, response) {
       countryName: pack.title
     });
     if (result.page.status === "generation_required") {
-      result.page = await attachCodexArtworkToPage(result.page, pack);
+      result.page = await attachCodexArtworkToPage(result.page, pack, body.imageQuality);
     }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify(result));
@@ -433,7 +437,7 @@ async function handleFlipbookClick(request, response) {
     });
     result.semanticCache = semanticHit;
     if (result.page.status === "generation_required") {
-      result.page = await attachCodexArtworkToPage(result.page, pack);
+      result.page = await attachCodexArtworkToPage(result.page, pack, body.imageQuality);
     }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify(result));
@@ -540,14 +544,14 @@ async function handleFlipbookClick(request, response) {
   };
 
   if (result.page.status === "generation_required") {
-    result.page = await attachCodexArtworkToPage(result.page, pack);
+    result.page = await attachCodexArtworkToPage(result.page, pack, body.imageQuality);
   }
 
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify(result));
 }
 
-async function attachCodexArtworkToPage(page, pack) {
+async function attachCodexArtworkToPage(page, pack, imageQuality) {
   const codexPage = getCanonicalArtworkPageForGeneration(
     page,
     pack.scenes,
@@ -555,7 +559,9 @@ async function attachCodexArtworkToPage(page, pack) {
     pack.countrySlug,
     pack.title
   );
-  const artworkPage = await createCodexImageJob(codexPage);
+  const artworkPage = await createCodexImageJob(codexPage, {
+    imageQuality: normalizeRequestedImageQuality(imageQuality)
+  });
   return {
     ...page,
     status: artworkPage.status,
@@ -991,7 +997,8 @@ async function handleArtworkRequest(url, response) {
     : nodeId
     ? "interactive"
     : "artwork";
-  const artworkPage = await createCodexImageJob(page, { jobKind });
+  const imageQuality = normalizeRequestedImageQuality(url.searchParams.get("quality"));
+  const artworkPage = await createCodexImageJob(page, { jobKind, imageQuality });
   response.writeHead(200, { "Content-Type": "application/json" });
   response.end(JSON.stringify({ page: artworkPage }));
 }
@@ -3318,11 +3325,15 @@ async function beginCountryImageJobCreation(countrySlug) {
   };
 }
 
-async function createCodexImageJobUnlocked(page, { jobKind = "interactive" } = {}) {
+async function createCodexImageJobUnlocked(
+  page,
+  { jobKind = "interactive", imageQuality = appConfig.image.quality } = {}
+) {
   const imageModel = getConfiguredImageModel();
+  imageQuality = normalizeRequestedImageQuality(imageQuality);
   const countrySlug = getRuntimeCountrySlugForPage(page);
   const prompt = page.plan?.imagePrompt;
-  const assetVersion = createAssetVersionForPage(page, { imageModel, prompt });
+  const assetVersion = createAssetVersionForPage(page, { imageModel, prompt, imageQuality });
   const paths = createRuntimeCachePaths({
     cacheRoot: runtimeCacheRoot,
     pageId: page.id,
@@ -3416,6 +3427,7 @@ async function createCodexImageJobUnlocked(page, { jobKind = "interactive" } = {
       imageProvider: existingMetadata.imageProvider ?? getConfiguredImageProvider(),
       imageModel: existingMetadata.imageModel ?? imageModel,
       requestedImageModel: existingMetadata.requestedImageModel ?? imageModel,
+      imageQuality,
       metadataUrl: paths.metadataUrl,
       environmentUrl: paths.environmentUrl,
       environmentStatus:
@@ -3511,6 +3523,7 @@ async function createCodexImageJobUnlocked(page, { jobKind = "interactive" } = {
     jobKind,
     autoProcess: canAutoProcessImages(),
     imageModel,
+    imageQuality,
     prompt,
     title: page.plan?.title,
     pageType: page.plan?.pageType,
@@ -3551,7 +3564,7 @@ function shouldQueueEnvironmentPlanForJobKind(jobKind) {
   return jobKind !== "prefetch";
 }
 
-function createAssetVersionForPage(page, { imageModel, prompt }) {
+function createAssetVersionForPage(page, { imageModel, prompt, imageQuality = appConfig.image.quality }) {
   const pack = getCountryPackForPage(page);
   const scene = pack?.scenes?.[page?.sceneId];
   return createImageVariantKey({
@@ -3559,7 +3572,7 @@ function createAssetVersionForPage(page, { imageModel, prompt }) {
     imageModel,
     fallbackImageModel: appConfig.image.fallbackModel,
     size: appConfig.image.size,
-    quality: appConfig.image.quality,
+    quality: normalizeRequestedImageQuality(imageQuality),
     outputFormat: appConfig.image.outputFormat,
     outputCompression: appConfig.image.outputCompression,
     promptVersion:
@@ -3642,9 +3655,15 @@ async function findMatchingEnvironmentPlan(page, paths) {
   const existing = await readRuntimeEnvironmentPlan(paths.environmentPath);
   return existing?.version === ENVIRONMENT_PLAN_SCHEMA_VERSION &&
     existing.promptVersion === ENVIRONMENT_PLAN_PROMPT_VERSION &&
-    existing.imageUrl === page.imageUrl
+    existing.imageUrl === page.imageUrl &&
+    hasExpectedEnvironmentTargets(page, existing)
     ? existing
     : null;
+}
+
+function hasExpectedEnvironmentTargets(page, plan) {
+  const candidateCount = getEnvironmentPromptContext(page).targetCandidates.length;
+  return candidateCount === 0 || (Array.isArray(plan?.targets) && plan.targets.length > 0);
 }
 
 function queueEnvironmentPlan({ page, paths, jobPath }) {
@@ -3668,10 +3687,6 @@ function scheduleEnvironmentPlanProcessing(delayMs = 250) {
 
 async function processNextEnvironmentPlan() {
   if (environmentPlanProcessorActive || pendingEnvironmentPlans.size === 0) return;
-  if (Array.from(processingJobs.values()).includes("interactive")) {
-    scheduleEnvironmentPlanProcessing(1000);
-    return;
-  }
 
   const [environmentPath, task] = pendingEnvironmentPlans.entries().next().value;
   pendingEnvironmentPlans.delete(environmentPath);
@@ -3741,7 +3756,8 @@ async function createEnvironmentPlanWithOpenAI(page, { signal = null } = {}) {
 
   const imageBytes = await readFile(imagePath);
   const mimeType = mimeTypeForImagePath(imagePath);
-  const prompt = buildEnvironmentPlanPrompt(getEnvironmentPromptContext(page));
+  const promptContext = getEnvironmentPromptContext(page);
+  const prompt = buildEnvironmentPlanPrompt(promptContext);
   const model = appConfig.ai.environmentModel;
   let lastError = null;
 
@@ -3782,10 +3798,14 @@ async function createEnvironmentPlanWithOpenAI(page, { signal = null } = {}) {
       source: "openai-vlm",
       model
     });
-    if (plan.layers.length > 0 || plan.targets.length > 0) {
+    const hasRequiredTargets =
+      promptContext.targetCandidates.length === 0 || plan.targets.length > 0;
+    if (hasRequiredTargets && (plan.layers.length > 0 || plan.targets.length > 0)) {
       return plan;
     }
-    lastError = `${model}: environment planner returned no usable targets or safe layers.`;
+    lastError = promptContext.targetCandidates.length > 0
+      ? `${model}: environment planner returned no usable destination targets.`
+      : `${model}: environment planner returned no usable targets or safe layers.`;
   }
 
   return createEnvironmentFallbackPlan(page, lastError ?? "No environment planner model is configured.");
@@ -3846,10 +3866,12 @@ function getEnvironmentPromptContext(page) {
 
 function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
   const targetCandidates = getEnvironmentPromptContext(page).targetCandidates;
-  const allowedNodeIds = new Set(targetCandidates.map((candidate) => candidate.nodeId));
+  const allowedTargetsByNodeId = new Map(
+    targetCandidates.map((candidate) => [candidate.nodeId, candidate])
+  );
   const targets = Array.isArray(rawPlan?.targets)
     ? rawPlan.targets
-        .map((target, index) => normalizeEnvironmentTarget(target, index, allowedNodeIds))
+        .map((target, index) => normalizeEnvironmentTarget(target, index, allowedTargetsByNodeId))
         .filter(Boolean)
         .slice(0, targetCandidates.length)
     : [];
@@ -3869,14 +3891,26 @@ function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
   });
 }
 
-function normalizeEnvironmentTarget(target, index, allowedNodeIds) {
+function normalizeEnvironmentTarget(target, index, allowedTargetsByNodeId) {
   const nodeId = String(target?.nodeId ?? "").trim();
-  const bounds = normalizeEnvironmentBounds(target?.bounds);
-  if (!allowedNodeIds.has(nodeId) || !bounds) return null;
+  const candidate = allowedTargetsByNodeId.get(nodeId);
+  const expectedMapNumber = candidate?.mapNumber == null
+    ? null
+    : String(candidate.mapNumber).trim() || null;
+  const visualBounds = normalizeEnvironmentVisualTargetBounds(target?.visualBounds);
+  const labelBounds = normalizeEnvironmentLabelTargetBounds(target?.labelBounds);
+  if (
+    !candidate ||
+    !visualBounds ||
+    !labelBounds ||
+    target?.confidence === "low"
+  ) return null;
   return {
     id: `target-${slugify(nodeId || index + 1)}`,
     nodeId,
-    bounds,
+    mapNumber: expectedMapNumber,
+    visualBounds,
+    labelBounds,
     coordinateSpace: "normalized",
     confidence: ["high", "medium", "low"].includes(target?.confidence)
       ? target.confidence
@@ -3935,6 +3969,44 @@ function normalizeEnvironmentBounds(bounds) {
   const height = Math.min(clamp(Number(bounds.height), 0.04, 1), 1 - y);
   if (!Number.isFinite(x) || !Number.isFinite(y) || width < 0.04 || height < 0.04) return null;
   return { x, y, width, height };
+}
+
+function normalizeEnvironmentVisualTargetBounds(bounds) {
+  const normalized = normalizeEnvironmentBounds(bounds);
+  if (!normalized) return null;
+
+  // Large-screen hit areas follow the subject located in this exact generated
+  // image. Cap overly broad VLM boxes so one destination cannot swallow a
+  // neighbouring chapter or most of the page.
+  return clampEnvironmentBoundsAroundCenter(normalized, {
+    maxWidth: 0.48,
+    maxHeight: 0.52
+  });
+}
+
+function normalizeEnvironmentLabelTargetBounds(bounds) {
+  const normalized = normalizeEnvironmentBounds(bounds);
+  if (!normalized) return null;
+
+  // Small-screen interaction stays on the compact printed number/title because
+  // broad semantic regions are too easy to trigger accidentally on touch.
+  return clampEnvironmentBoundsAroundCenter(normalized, {
+    maxWidth: 0.24,
+    maxHeight: 0.12
+  });
+}
+
+function clampEnvironmentBoundsAroundCenter(normalized, { maxWidth, maxHeight }) {
+  const width = Math.min(normalized.width, maxWidth);
+  const height = Math.min(normalized.height, maxHeight);
+  const centerX = normalized.x + normalized.width / 2;
+  const centerY = normalized.y + normalized.height / 2;
+  return {
+    x: clamp(centerX - width / 2, 0, 1 - width),
+    y: clamp(centerY - height / 2, 0, 1 - height),
+    width,
+    height
+  };
 }
 
 function normalizeAvoidList(value) {
@@ -4188,6 +4260,7 @@ async function processCodexImageJob(jobPath, job) {
     const generated = await generateConfiguredImage({
       model: imageModel,
       prompt: job.prompt,
+      quality: job.imageQuality,
       signal: abortController.signal,
       onPartialImage: async (partial) => {
         if (cancelledImageJobs.has(jobPath)) return;
@@ -4238,7 +4311,7 @@ async function processCodexImageJob(jobPath, job) {
           requestedImageModel: imageModel,
           imageProvider: generated.provider ?? getConfiguredImageProvider(),
           size: generated.size,
-          quality: generated.quality ?? appConfig.image.quality,
+          quality: generated.quality ?? job.imageQuality ?? appConfig.image.quality,
           outputFormat: generated.outputFormat ?? appConfig.image.outputFormat,
           outputCompression: generated.outputCompression ?? appConfig.image.outputCompression,
           imageUrl: paths.imageUrl,
@@ -4290,6 +4363,7 @@ async function processCodexImageJob(jobPath, job) {
       imageProvider: generated.provider ?? getConfiguredImageProvider(),
       imageModel: generated.model,
       requestedImageModel: imageModel,
+      imageQuality: job.imageQuality ?? appConfig.image.quality,
       metadataUrl: paths.metadataUrl,
       environmentUrl: paths.environmentUrl,
       environmentStatus: shouldQueueEnvironment ? "pending" : "deferred",
@@ -4370,20 +4444,33 @@ function canAutoProcessImages() {
   return hasConfiguredImageProvider() && appExperienceConfig.providerConcurrency > 0;
 }
 
-async function generateConfiguredImage({ model, prompt, onPartialImage, signal = null }) {
+async function generateConfiguredImage({
+  model,
+  prompt,
+  quality = appConfig.image.quality,
+  onPartialImage,
+  signal = null
+}) {
   return generateTileImageWithOpenAI({
     apiKey: process.env.OPENAI_API_KEY,
     model,
     prompt,
     fallbackModel: appConfig.image.fallbackModel,
     size: appConfig.image.size,
-    quality: appConfig.image.quality,
+    quality: normalizeRequestedImageQuality(quality),
     outputFormat: appConfig.image.outputFormat,
     outputCompression: appConfig.image.outputCompression,
     partialImages: appConfig.image.partialImages,
     onPartialImage,
     signal
   });
+}
+
+function normalizeRequestedImageQuality(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return ["low", "medium", "high"].includes(normalized)
+    ? normalized
+    : appConfig.image.quality;
 }
 
 async function resolveClickPhraseWithOpenAI({

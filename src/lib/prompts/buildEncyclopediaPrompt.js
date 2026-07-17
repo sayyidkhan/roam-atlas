@@ -41,6 +41,14 @@ export function buildEncyclopediaPrompt(input) {
   const detailTreatment = getDetailTreatment(input.pageType);
   const countryName = getPromptCountryName(input, { fallbackToNodeTitle: false });
   const countrySuffix = countryName === "selected country" ? "" : ` in ${countryName}`;
+  const calloutLabels = normalizeCalloutLabels(input.knownCalloutLabels);
+  const calloutDirection = calloutLabels.length > 0
+    ? [
+        `- Numbered callout headings: ${calloutLabels.map((label, index) => `${index + 1}. ${label}`).join("; ")}.`,
+        "- Render each supplied heading exactly once inside its matching numbered callout panel.",
+        "- Do not leave a supplied numbered callout panel blank. Do not add extra callout headings."
+      ].join("\n")
+    : "- No callout headings were supplied. Do not draw numbered anchors or empty callout panels.";
 
   const prompt = `
 Create a restrained illustrated encyclopedia plate for ${input.nodeTitle}${countrySuffix}.
@@ -57,13 +65,14 @@ ${detailTreatment}
 Composition:
 - One main subject only.
 - Use generous margins and a clean cutaway, exploded view, sectional view, or focused study composition.
-- Optional small inset diagrams, numbered anchors, fine leader lines, and blank callout panels are allowed.
+- Optional small inset diagrams and fine leader lines are allowed.
+${calloutDirection}
 - Readable image text is allowed only for supplied titles or one- to three-word category labels.
 - Do not create a busy scientific poster, text-heavy infographic, or city-wide background.
 - Include only the minimum context needed to understand the subject.
 
 Visual explanation:
-- Explain through visual structure: blank callout panels, numbered anchor dots, leader lines, inset diagrams, exploded components, or cutaway layers.
+- Explain through visual structure: supplied short callout headings, leader lines, inset diagrams, exploded components, or cutaway layers.
 - Exact facts and source-backed claims belong to frontend overlays.
 - No long factual captions, prices, hours, route details, or recommendations.
 
@@ -91,4 +100,12 @@ Aspect ratio: ${input.aspectRatio ?? "3:2"}.
       "readable annotations"
     ]
   };
+}
+
+function normalizeCalloutLabels(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((label) => String(label ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
 }

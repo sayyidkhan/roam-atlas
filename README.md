@@ -63,8 +63,9 @@ OPENAI_API_KEY="..."
 Non-secret model defaults live in `src/config/roamAtlasConfig.js`.
 
 - Text, VLM, and environment models must stay on GPT-5-family or newer models.
-- Interactive image generation uses `gpt-image-2` with an explicit medium-quality,
-  compressed JPEG profile and a streamed partial preview.
+- Interactive image generation uses `gpt-image-2` with a compressed JPEG
+  profile and a streamed partial preview. The country config screen offers
+  Low, Medium, and High output; High is the recommended and default tier.
 - Do not add model env overrides for normal local development; edit the config
   file when the project default should change.
 
@@ -125,5 +126,9 @@ facts stay `ai_generated` and `unconfirmed` until replaced with source-backed
 facts.
 
 Set `ROAMATLAS_RUNTIME_CACHE_DIR` to point at another private local directory.
+Set `ROAMATLAS_IMAGE_QUALITY` to `low`, `medium`, or `high` to override the
+server default; a browser's saved country-config selection takes precedence for
+its generation requests. Quality is part of the image cache identity, so assets
+from different tiers are never mixed.
 For production, keep job metadata in Redis and image files in object storage; do
 not commit generated runtime images to the codebase.
