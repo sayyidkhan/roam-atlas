@@ -1174,7 +1174,7 @@ function renderCountryShell() {
         ${renderCountryActionButton({
           action: "reset-generated-visuals",
           label: isCacheFlushing ? "Resetting visuals" : "Reset Generated Visuals",
-          info: `Delete generated ${country.name} map illustrations, image jobs, and ambience cache. Starter-map builder information and reference photos stay.`,
+          info: `Delete generated ${country.name} map illustrations, image jobs, ambience, and AI click-understanding cache. Starter-map builder information and reference photos stay.`,
           disabled: isCacheFlushing
         })}
         ${mapAction}
@@ -1288,7 +1288,7 @@ function renderCountryActionLegend(country, { canOpenMap }) {
         </div>
         <div>
           <dt>Reset Generated Visuals</dt>
-          <dd>Clear cached map illustrations, image jobs, and ambience cache for ${escapeHtml(country.name)}. Starter-map builder information and reference photos stay.</dd>
+          <dd>Clear cached map illustrations, image jobs, ambience, and AI click-understanding cache for ${escapeHtml(country.name)}. Starter-map builder information and reference photos stay.</dd>
         </div>
         <div>
           <dt>${escapeHtml(mapLabel)}</dt>
@@ -2620,7 +2620,7 @@ async function requestCountryRuntimeCacheFlush(country, { confirm = true, scope 
   if (confirm) {
     const confirmed = window.confirm(
       visualsOnly
-        ? `Reset generated visuals for ${country.name}? This clears generated map illustrations, image jobs, and ambience. Starter-map builder information, reference photos, and review artifacts stay.`
+        ? `Reset generated visuals for ${country.name}? This clears generated map illustrations, image jobs, ambience, and AI click understanding. Starter-map builder information, reference photos, and review artifacts stay.`
         : `Reset all runtime artifacts for ${country.name}? This clears generated images, click data, stored starter-map artifacts, and review artifacts. Source-controlled country pack data is not changed.`
     );
     if (!confirmed) return false;
@@ -2659,14 +2659,14 @@ async function requestCountryRuntimeCacheFlush(country, { confirm = true, scope 
       status: "ready",
       scope,
       message: visualsOnly
-        ? "Generated map visuals were cleared. Starter-map builder information and reference photos were kept."
+        ? "Generated map visuals and AI click understanding were cleared. Starter-map builder information and reference photos were kept."
         : "Generated runtime artifacts were cleared. Open the map or rebuild starter info to create fresh data."
     });
     render();
     showAppToast({
       title: visualsOnly ? "Generated visuals reset" : "Runtime artifacts reset",
       message: visualsOnly
-        ? "Map illustrations and visual cache were cleared. Builder information and reference photos were kept."
+        ? "Map illustrations, visual cache, and AI click understanding were cleared. Builder information and reference photos were kept."
         : "Generated runtime artifacts were cleared."
     });
     return true;

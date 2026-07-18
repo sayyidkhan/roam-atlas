@@ -1987,9 +1987,11 @@ test("server exposes country-scoped generated cache flushing", () => {
   assert.match(serverSource, /pathname === "\/api\/runtime-cache\/flush"/);
   assert.match(serverSource, /handleRuntimeCacheFlushRequest/);
   assert.match(serverSource, /flushCountryGeneratedVisualCache/);
-  assert.match(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment"\]/);
-  assert.doesNotMatch(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment", "place-images"\]/);
-  assert.match(serverSource, /preservedFolders: \["starter-map", "country-pack-draft", "understanding", "place-images"\]/);
+  assert.match(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment", "understanding"\]/);
+  assert.doesNotMatch(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment", "understanding", "place-images"\]/);
+  assert.match(serverSource, /preservedFolders: \["starter-map", "country-pack-draft", "place-images"\]/);
+  assert.match(serverSource, /const isRuntimeImageFile = \/\\\.\(\?:avif\|gif\|jpe\?g\|png\|webp\)\$\/i/);
+  assert.match(serverSource, /isMutableRuntimeJson \|\| isRuntimeImageFile/);
   assert.match(serverSource, /Source-controlled country pack data was not changed/);
   assert.match(serverSource, /isPathInside/);
   assert.match(serverSource, /rm\(countryCacheRoot, \{ recursive: true, force: true \}\)/);

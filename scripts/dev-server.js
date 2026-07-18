@@ -2848,7 +2848,7 @@ async function flushCountryGeneratedVisualCache(countrySlug) {
     throw new Error(`Unsafe runtime cache path for ${countrySlug}.`);
   }
 
-  const visualFolders = ["image-jobs", "flipbook", "environment"];
+  const visualFolders = ["image-jobs", "flipbook", "environment", "understanding"];
   const run = (async () => {
     await Promise.allSettled([...(activeCountryImageJobCreations.get(countrySlug) ?? [])]);
     flushingCountryCacheRoots.add(countryCacheRoot);
@@ -2869,8 +2869,8 @@ async function flushCountryGeneratedVisualCache(countrySlug) {
         flushed: true,
         scope: "visuals",
         removedFolders: visualFolders,
-        preservedFolders: ["starter-map", "country-pack-draft", "understanding", "place-images"],
-        factBoundary: "Generated visual cache was cleared. Starter-map, reference photos, and source-controlled country pack data were not changed."
+        preservedFolders: ["starter-map", "country-pack-draft", "place-images"],
+        factBoundary: "Generated visual cache and AI click understanding were cleared. Starter-map, reference photos, and source-controlled country pack data were not changed."
       };
     } finally {
       flushingCountryCacheRoots.delete(countryCacheRoot);
@@ -2925,7 +2925,6 @@ async function flushCountryGeneratedRuntimeCache(countrySlug) {
 }
 
 function clearCountryVisualRuntimeMemory(countrySlug, countryCacheRoot) {
-  const cachePrefix = `${countrySlug}:`;
   for (const jobPath of [...terminalImageJobs]) {
     if (isPathInside(countryCacheRoot, path.normalize(jobPath))) {
       terminalImageJobs.delete(jobPath);
@@ -4908,9 +4907,12 @@ async function serveRuntimeCache(pathname, response) {
   const file = await readFile(filePath);
   const ext = path.extname(filePath);
   const isMutableRuntimeJson = isMutableRuntimeJsonPath(compatibleRelativePath);
+  const isRuntimeImageFile = /\.(?:avif|gif|jpe?g|png|webp)$/i.test(ext);
   response.writeHead(200, {
     "Content-Type": mimeTypes[ext] ?? "application/octet-stream",
-    "Cache-Control": isMutableRuntimeJson
+    // A reset can regenerate a visual at the same deterministic URL. Do not
+    // let an immutable browser entry hide that fresh artwork after a reset.
+    "Cache-Control": isMutableRuntimeJson || isRuntimeImageFile
       ? "no-store"
       : "private, max-age=31536000, immutable"
   });
