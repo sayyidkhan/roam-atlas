@@ -3464,8 +3464,8 @@ button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
   border: 0;
   border-radius: 18px;
   padding: 0;
-  background: rgba(36, 95, 82, 0.025);
-  box-shadow: inset 0 0 0 2px rgba(36, 95, 82, 0.22);
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
   pointer-events: auto;
   transition: background-color 140ms ease, box-shadow 140ms ease;
@@ -3481,11 +3481,6 @@ button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
   background: rgba(36, 95, 82, 0.09);
   box-shadow: inset 0 0 0 3px rgba(36, 95, 82, 0.48);
   outline: none;
-}
-
-.image-target-hotspot.is-active {
-  background: rgba(36, 95, 82, 0.08);
-  box-shadow: inset 0 0 0 3px rgba(36, 95, 82, 0.44);
 }
 
 .environment-layer {

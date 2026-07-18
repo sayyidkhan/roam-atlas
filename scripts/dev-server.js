@@ -78,6 +78,7 @@ import {
   ENVIRONMENT_PLAN_SCHEMA_VERSION,
   buildEnvironmentPlanPrompt
 } from "../src/lib/prompts/buildEnvironmentPlanPrompt.js";
+import { validateEnvironmentTargets } from "../src/domain/environmentTargetValidation.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -87,6 +88,7 @@ const appExperienceConfig = resolveRoamAtlasExperienceConfig(process.env);
 const port = appConfig.server.port;
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
 const defaultCountryPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
+const ENVIRONMENT_PLAN_MAX_ATTEMPTS = 3;
 const processingJobs = new Map();
 const processingJobRuns = new Map();
 const processingJobAbortControllers = new Map();
@@ -3662,8 +3664,10 @@ async function findMatchingEnvironmentPlan(page, paths) {
 }
 
 function hasExpectedEnvironmentTargets(page, plan) {
-  const candidateCount = getEnvironmentPromptContext(page).targetCandidates.length;
-  return candidateCount === 0 || (Array.isArray(plan?.targets) && plan.targets.length > 0);
+  return validateEnvironmentTargets({
+    targets: plan?.targets ?? [],
+    targetCandidates: getEnvironmentPromptContext(page).targetCandidates
+  }).valid;
 }
 
 function queueEnvironmentPlan({ page, paths, jobPath }) {
@@ -3762,50 +3766,66 @@ async function createEnvironmentPlanWithOpenAI(page, { signal = null } = {}) {
   let lastError = null;
 
   if (model) {
-    const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      signal: createServerRequestSignal(signal, 90_000),
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model,
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: prompt },
-              {
-                type: "input_image",
-                image_url: `data:${mimeType};base64,${imageBytes.toString("base64")}`,
-                detail: "high"
-              }
-            ]
-          }
-        ]
-      })
-    });
+    for (let attempt = 1; attempt <= ENVIRONMENT_PLAN_MAX_ATTEMPTS; attempt += 1) {
+      const retryContext = attempt === 1 || !lastError
+        ? prompt
+        : `${prompt}\n\nYour previous response was rejected: ${lastError}\nReturn a complete, non-overlapping target map or an empty targets array. Never return a partial map.`;
+      const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        signal: createServerRequestSignal(signal, 90_000),
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          store: false,
+          text: {
+            format: {
+              type: "json_schema",
+              name: "roamatlas_environment_target_map",
+              strict: true,
+              schema: buildEnvironmentTargetResponseSchema(promptContext.targetCandidates)
+            }
+          },
+          input: [
+            {
+              role: "user",
+              content: [
+                { type: "input_text", text: retryContext },
+                {
+                  type: "input_image",
+                  image_url: `data:${mimeType};base64,${imageBytes.toString("base64")}`,
+                  detail: "high"
+                }
+              ]
+            }
+          ]
+        })
+      });
 
-    if (!openaiResponse.ok) {
-      lastError = `${model}: ${await openaiResponse.text()}`;
-      return createEnvironmentFallbackPlan(page, lastError);
-    }
+      if (!openaiResponse.ok) {
+        lastError = `${model}: ${await openaiResponse.text()}`;
+        continue;
+      }
 
-    const payload = await openaiResponse.json();
-    const parsed = parseJsonObject(extractOpenAIText(payload));
-    const plan = normalizeEnvironmentPlan(parsed, page, {
-      source: "openai-vlm",
-      model
-    });
-    const hasRequiredTargets =
-      promptContext.targetCandidates.length === 0 || plan.targets.length > 0;
-    if (hasRequiredTargets && (plan.layers.length > 0 || plan.targets.length > 0)) {
-      return plan;
+      const payload = await openaiResponse.json();
+      const parsed = parseJsonObject(extractOpenAIText(payload));
+      const plan = normalizeEnvironmentPlan(parsed, page, {
+        source: "openai-vlm",
+        model
+      });
+      const targetValidation = validateEnvironmentTargets({
+        targets: plan.targets,
+        targetCandidates: promptContext.targetCandidates
+      });
+      if (targetValidation.valid && (plan.layers.length > 0 || plan.targets.length > 0)) {
+        return plan;
+      }
+      lastError = promptContext.targetCandidates.length > 0
+        ? `${model}: ${targetValidation.reason ?? "environment planner returned no usable destination targets."}`
+        : `${model}: environment planner returned no usable targets or safe layers.`;
     }
-    lastError = promptContext.targetCandidates.length > 0
-      ? `${model}: environment planner returned no usable destination targets.`
-      : `${model}: environment planner returned no usable targets or safe layers.`;
   }
 
   return createEnvironmentFallbackPlan(page, lastError ?? "No environment planner model is configured.");
@@ -3829,6 +3849,47 @@ function createServerRequestSignal(externalSignal, timeoutMs) {
     source.addEventListener("abort", () => forwardAbort(source), { once: true });
   }
   return controller.signal;
+}
+
+function buildEnvironmentTargetResponseSchema(targetCandidates) {
+  const candidateNodeIds = targetCandidates.map((candidate) => candidate.nodeId);
+  const boundsSchema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["x", "y", "width", "height"],
+    properties: {
+      x: { type: "number", minimum: 0, maximum: 1 },
+      y: { type: "number", minimum: 0, maximum: 1 },
+      width: { type: "number", minimum: 0.04, maximum: 1 },
+      height: { type: "number", minimum: 0.04, maximum: 1 }
+    }
+  };
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["targets", "warnings"],
+    properties: {
+      targets: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["nodeId", "mapNumber", "visualBounds", "labelBounds", "confidence", "reason"],
+          properties: {
+            nodeId: candidateNodeIds.length > 0
+              ? { type: "string", enum: candidateNodeIds }
+              : { type: "string" },
+            mapNumber: { type: ["string", "null"] },
+            visualBounds: boundsSchema,
+            labelBounds: boundsSchema,
+            confidence: { type: "string", enum: ["high", "medium", "low"] },
+            reason: { type: "string" }
+          }
+        }
+      },
+      warnings: { type: "array", items: { type: "string" } }
+    }
+  };
 }
 
 function throwIfAborted(signal) {
@@ -3869,12 +3930,13 @@ function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
   const allowedTargetsByNodeId = new Map(
     targetCandidates.map((candidate) => [candidate.nodeId, candidate])
   );
-  const targets = Array.isArray(rawPlan?.targets)
-    ? rawPlan.targets
+  const rawTargets = Array.isArray(rawPlan?.targets) ? rawPlan.targets : [];
+  const targets = rawTargets
         .map((target, index) => normalizeEnvironmentTarget(target, index, allowedTargetsByNodeId))
         .filter(Boolean)
-        .slice(0, targetCandidates.length)
-    : [];
+        .slice(0, targetCandidates.length + 1);
+  const targetValidation = validateEnvironmentTargets({ targets, targetCandidates });
+  const targetMapIsValid = rawTargets.length === targets.length && targetValidation.valid;
   const layers = Array.isArray(rawPlan?.layers)
     ? rawPlan.layers
         .map((layer, index) => normalizeEnvironmentLayer(layer, index))
@@ -3884,10 +3946,13 @@ function normalizeEnvironmentPlan(rawPlan, page, { source, model }) {
   return createEnvironmentPlanEnvelope(page, {
     source,
     model,
-    status: layers.length || targets.length ? "ready" : "fallback",
-    targets,
+    status: targetMapIsValid && (layers.length || targets.length) ? "ready" : "fallback",
+    targets: targetMapIsValid ? targets : [],
     layers,
-    warnings: normalizeEnvironmentWarnings(rawPlan?.warnings)
+    warnings: [
+      ...normalizeEnvironmentWarnings(rawPlan?.warnings),
+      ...(targetMapIsValid ? [] : [targetValidation.reason ?? "AI returned an invalid destination target map."])
+    ].slice(0, 4)
   });
 }
 

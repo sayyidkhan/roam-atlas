@@ -16,6 +16,7 @@ import { resolveFlipbookClick } from "../domain/flipbookPage.js";
 import { PLACE_IMAGE_SELECTION_VERSION } from "../domain/placeImageSelection.js";
 import { listNextArtworkDestinations } from "../domain/nextArtworkDestinations.js";
 import { createCountryPackStarterMap } from "../domain/countryDraft.js";
+import { validateEnvironmentTargets } from "../domain/environmentTargetValidation.js";
 import {
   appendUnconfirmedRegionCandidates,
   isDraftItemApproved
@@ -108,8 +109,8 @@ const PLACE_IMAGE_REQUEST_SESSION = `${Date.now()}-${Math.random().toString(36).
 const DRAFT_PLACE_PHOTO_TIMEOUT_MS = 90 * 1000;
 const ENVIRONMENT_PLAN_RETRY_DELAYS_MS = [0, 2000, 5000, 10000, 20000, 30000];
 const ENVIRONMENT_PLAN_REQUEST_RETRY_MS = 3000;
-const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v4";
-const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v7";
+const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v6";
+const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v9";
 let countryPhotoObserver = null;
 let activeCountryPhotoLoads = 0;
 let countryPhotoQueue = [];
@@ -4031,7 +4032,11 @@ function isCurrentEnvironmentPlan(plan) {
 }
 
 function hasUsableEnvironmentTargets(plan) {
-  return Array.isArray(plan?.targets) && plan.targets.length > 0;
+  const node = state.activePack?.nodes?.[plan?.nodeId ?? getCurrentRequestPage()?.nodeId];
+  return validateEnvironmentTargets({
+    targets: plan?.targets ?? [],
+    targetCandidates: (node?.childIds ?? []).map((nodeId) => ({ nodeId }))
+  }).valid;
 }
 
 function environmentPlanExpectsTargets(plan) {
@@ -4048,6 +4053,12 @@ function environmentPlanNeedsTargetRecovery(plan) {
 }
 
 function renderImageTargetHotspots(environmentPlan, nodes) {
+  const currentNode = nodes[environmentPlan?.nodeId ?? getCurrentRequestPage()?.nodeId];
+  const targetValidation = validateEnvironmentTargets({
+    targets: environmentPlan?.targets ?? [],
+    targetCandidates: (currentNode?.childIds ?? []).map((nodeId) => ({ nodeId }))
+  });
+  if (!targetValidation.valid) return [];
   const targets = Array.isArray(environmentPlan?.targets) ? environmentPlan.targets : [];
   return targets
     .filter((target) => target?.nodeId && nodes[target.nodeId] && target.visualBounds && target.labelBounds)
@@ -4063,12 +4074,9 @@ function renderImageTargetHotspots(environmentPlan, nodes) {
 function renderImageTargetHotspot(target, node, bounds, mode) {
   const { x, y, width, height } = bounds;
   const hit = document.createElement("button");
-  const isActive = target.nodeId === state.selectedNodeId;
   hit.type = "button";
   hit.className = `image-target-hotspot image-target-hotspot--${mode}`;
-  hit.classList.toggle("is-active", isActive);
   hit.dataset.targetMode = mode;
-  if (isActive) hit.setAttribute("aria-current", "location");
   hit.setAttribute(
     "aria-label",
     mode === "visual" ? `Explore the ${node.title} area` : `Explore ${node.title}`

@@ -126,12 +126,13 @@ test("responsive image overlays use the rendered artwork bounds", () => {
   assert.match(appSource, /window\.addEventListener\("resize", scheduleSceneImageOverlayLayout\)/);
   assert.match(styleSource, /\.scene-image-overlay-frame\s*\{[^}]*position: absolute;[^}]*pointer-events: none;/s);
   assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*pointer-events: auto;/s);
-  assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*box-shadow: inset 0 0 0 2px rgba\(36, 95, 82, 0\.22\);/s);
-  assert.match(styleSource, /\.image-target-hotspot\.is-active\s*\{/);
+  assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*background: transparent;[^}]*box-shadow: none;/s);
+  assert.match(styleSource, /\.image-target-hotspot:hover,[\s\S]*?\.image-target-hotspot:focus-visible\s*\{/);
+  assert.doesNotMatch(styleSource, /\.image-target-hotspot\.is-active\s*\{/);
   assert.match(targetRender, /target\.visualBounds/);
   assert.match(targetRender, /target\.labelBounds/);
   assert.match(targetRender, /image-target-hotspot--\$\{mode\}/);
-  assert.match(targetRender, /target\.nodeId === state\.selectedNodeId/);
+  assert.match(targetRender, /validateEnvironmentTargets/);
   assert.match(styleSource, /\.image-target-hotspot--label\s*\{[^}]*display: none;[^}]*pointer-events: none;/s);
   assert.match(styleSource, /@media \(max-width: 720px\)[\s\S]*\.image-target-hotspot--visual\s*\{[^}]*display: none;[^}]*pointer-events: none;/s);
   assert.match(styleSource, /@media \(max-width: 720px\)[\s\S]*\.image-target-hotspot--label\s*\{[^}]*display: block;[^}]*pointer-events: auto;/s);
@@ -196,8 +197,8 @@ test("VLM mappings provide responsive visual and label targets without giant box
     "function renderMapHotspotLabels"
   );
 
-  assert.match(appSource, /ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v4"/);
-  assert.match(appSource, /ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v7"/);
+  assert.match(appSource, /ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v6"/);
+  assert.match(appSource, /ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v9"/);
   assert.match(environmentRequest, /!isCurrentEnvironmentPlan\(plan\)/);
   assert.match(
     environmentRequest,
@@ -227,7 +228,7 @@ test("empty fallback target maps recover instead of disabling every selection bo
   assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(cachedPlan\)/);
   assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(normalizedPlan\)/);
   assert.match(environmentRequest, /Environment plan has no destination targets/);
-  assert.match(planRecovery, /plan\.targets\.length > 0/);
+  assert.match(planRecovery, /validateEnvironmentTargets/);
   assert.match(planRecovery, /node\?\.childIds\?\.length/);
 });
 

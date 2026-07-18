@@ -2065,8 +2065,8 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /if \(body\.targetNodeId \|\| body\.detourPhrase\)/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
-  assert.match(promptSource, /environment-plan-v4/);
-  assert.match(promptSource, /return both visualBounds and labelBounds/);
+  assert.match(promptSource, /environment-plan-v6/);
+  assert.match(promptSource, /Return exactly one target for every supplied curated destination candidate/);
   assert.match(promptSource, /visualBounds must tightly cover the complete illustrated subject/);
   assert.match(promptSource, /labelBounds must tightly cover ONLY/);
   assert.match(promptSource, /exclude unrelated open water, empty sky, nearby destinations/);
@@ -2082,11 +2082,14 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /normalizeEnvironmentLabelTargetBounds/);
   assert.match(serverSource, /existing\.imageUrl === page\.imageUrl/);
   assert.match(serverSource, /hasExpectedEnvironmentTargets\(page, existing\)/);
-  assert.match(serverSource, /promptContext\.targetCandidates\.length === 0 \|\| plan\.targets\.length > 0/);
+  assert.match(serverSource, /validateEnvironmentTargets/);
+  assert.match(serverSource, /ENVIRONMENT_PLAN_MAX_ATTEMPTS = 3/);
+  assert.match(serverSource, /attempt <= ENVIRONMENT_PLAN_MAX_ATTEMPTS/);
+  assert.match(serverSource, /type: "json_schema"/);
+  assert.match(serverSource, /buildEnvironmentTargetResponseSchema/);
   assert.doesNotMatch(serverSource, /returnedMapNumber !== expectedMapNumber/);
   assert.match(appSourceForEnvironmentTargets(), /renderImageTargetHotspots/);
-  assert.match(promptSource, /marine_life may only go on clear open water/);
-  assert.match(promptSource, /Never place them over land, islands, buildings, bridges, boats, labels/);
+  assert.doesNotMatch(promptSource, /marine_life/);
   assert.match(serverSource, /Environment overlays are decorative code-rendered ambience only and are not fact sources/);
 });
 
