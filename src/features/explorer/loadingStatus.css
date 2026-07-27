@@ -1,0 +1,109 @@
+.loading-panel {
+  position: fixed;
+  z-index: 26;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  border: 1px solid rgba(31, 44, 42, 0.1);
+  border-radius: 16px;
+  padding: 14px 16px 12px;
+  background: rgba(255, 250, 240, 0.96);
+  color: rgba(31, 44, 42, 0.82);
+  box-shadow: 0 14px 36px rgba(31, 44, 42, 0.12);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.loading-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.loading-panel-detail {
+  margin: 8px 0 10px;
+  color: rgba(31, 44, 42, 0.66);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.loading-panel-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(36, 95, 82, 0.12);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.loading-panel-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(36, 95, 82, 0.72);
+  transition: width 240ms ease;
+}
+
+.loading-panel-progress--indeterminate span {
+  width: 34%;
+  animation: artwork-progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+.loading-panel-progress--complete span,
+.loading-panel-progress--failed span {
+  width: 100%;
+}
+
+.loading-panel-progress--failed span {
+  background: rgba(140, 54, 42, 0.72);
+}
+
+.loading-panel-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+}
+
+.loading-panel-step {
+  color: rgba(31, 44, 42, 0.42);
+}
+
+.loading-panel-step--active {
+  color: rgba(36, 95, 82, 0.92);
+  font-weight: 700;
+}
+
+.loading-panel-step--done {
+  color: rgba(31, 44, 42, 0.62);
+}
+
+.loading-panel-step--failed {
+  color: rgba(140, 54, 42, 0.88);
+  font-weight: 700;
+}
+
+.scroll-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(36, 95, 82, 0.82);
+  animation: scroll-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes scroll-status-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

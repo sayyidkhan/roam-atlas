@@ -1,0 +1,105 @@
+@media (max-width: 720px) {
+  .image-target-hotspot--visual {
+    display: none;
+    pointer-events: none;
+  }
+
+  .image-target-hotspot--label {
+    display: block;
+    pointer-events: auto;
+  }
+
+  .region-rail {
+    padding: 12px 10px 10px;
+  }
+
+  .region-rail-controls {
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    gap: 5px;
+  }
+
+  .region-rail-scroll-button {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .region-rail-item {
+    flex-basis: min(168px, calc(100vw - 100px));
+    min-height: 38px;
+    padding: 6px 9px;
+  }
+
+  .scene-hud {
+    left: 12px;
+    right: auto;
+    flex-direction: column;
+  }
+
+  .scene-hud h1 {
+    max-width: calc(100vw - 24px);
+    font-size: 18px;
+  }
+
+  .corner-actions {
+    top: 102px;
+    left: 12px;
+    right: 12px;
+    bottom: auto;
+    justify-content: flex-start;
+  }
+
+  .corner-actions .ghost-button {
+    min-width: 0;
+  }
+
+  .scroll-stage.has-local-art .scene-canvas,
+  .scroll-stage.has-artwork-preview .scene-canvas {
+    left: 12px;
+    width: min(calc(100vw - 24px), 366px);
+    height: calc(min(calc(100vw - 24px), 366px) / var(--scene-display-aspect, 1.5));
+    top: 43%;
+    transform: translateY(-50%);
+  }
+
+  .scroll-stage {
+    --scene-art-inset: 12px;
+    --scene-safe-inline: 12px;
+    --scene-safe-top: 156px;
+    --scene-safe-bottom: 68px;
+  }
+
+  .loading-scene-board {
+    align-content: start;
+    gap: 10px;
+  }
+
+  .loading-scene-board-head {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .loading-scene-board-head strong {
+    font-size: 18px;
+  }
+
+  .loading-scene-count {
+    width: max-content;
+  }
+
+  .loading-destination-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .loading-destination-card {
+    min-height: 56px;
+  }
+
+  .detail-sheet {
+    left: 12px;
+    right: auto;
+    bottom: 12px;
+    width: min(320px, calc(100vw - 24px));
+  }
+}

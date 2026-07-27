@@ -1,4 +1,4 @@
-import { DEFAULT_COUNTRY_SLUG, getCountryPack } from "./countryPacks/index.js";
+import { DEFAULT_COUNTRY_SLUG, getCountryPack } from "./countryPacks/serverRegistry.js";
 
 const defaultPack = getCountryPack(DEFAULT_COUNTRY_SLUG);
 

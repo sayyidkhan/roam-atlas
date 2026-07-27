@@ -1,0 +1,52 @@
+@media (max-width: 720px) {
+  .country-draft-header {
+    display: grid;
+  }
+
+  .draft-item-heading {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  }
+
+  .draft-item-heading:has(.draft-item-photo) {
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+  }
+
+  .draft-item-heading > span:not(.draft-item-counter):not(.visually-hidden) {
+    grid-column: 3;
+    justify-self: start;
+  }
+
+  .draft-item-heading .draft-meta {
+    grid-column: 3 / -1;
+    justify-content: start;
+    flex-wrap: wrap;
+  }
+
+  .draft-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-chat-form {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-confirmation {
+    display: grid;
+  }
+
+  .draft-confirmation button {
+    width: 100%;
+  }
+
+  .draft-chat-form button {
+    width: 100%;
+  }
+
+  .draft-genai-form {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-genai-form button {
+    width: 100%;
+  }
+}

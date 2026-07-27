@@ -745,3 +745,18 @@ A change is done when:
 - It does not invent unsupported claims.
 - It has updated docs or data contracts if behavior changed.
 - It has focused tests for risky logic.
+
+## AI-Native Architecture
+
+Follow [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the target migration
+shape and [docs/TESTING.md](docs/TESTING.md) for the provider-isolation policy.
+
+- Prefer feature-first modules with one cohesive responsibility per file.
+- Keep browser UI, HTTP transport, persistence, external-provider adapters,
+  and domain policy separate.
+- Do not add generic `helpers`, `utils`, `common`, or a new catch-all server
+  entry point.
+- Keep files small enough to retrieve in isolation when it improves cohesion;
+  never split code only to satisfy a line count.
+- Playwright must use local artwork fixtures and mocked image/VLM API responses.
+  It must never call OpenAI or another external network provider.

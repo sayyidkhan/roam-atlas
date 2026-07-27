@@ -1,0 +1,284 @@
+.draft-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: end;
+  gap: 5px;
+}
+
+.draft-meta-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  min-height: 24px;
+  box-sizing: border-box;
+  border: 1px solid rgba(31, 44, 42, 0.12);
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(255, 250, 240, 0.72);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.draft-meta-chip--trust {
+  border-color: rgba(36, 95, 82, 0.18);
+  background: rgba(36, 95, 82, 0.08);
+  color: var(--accent);
+}
+
+button.draft-meta-chip--action {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.draft-meta-chip--action:hover,
+button.draft-meta-chip--action:focus-visible {
+  border-color: rgba(36, 95, 82, 0.34);
+  background: rgba(36, 95, 82, 0.12);
+}
+
+button.draft-meta-chip--action.is-approved {
+  border-color: rgba(36, 95, 82, 0.42);
+  background: rgba(36, 95, 82, 0.16);
+}
+
+.draft-trust-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.draft-trust-tick svg {
+  width: 14px;
+  height: 14px;
+}
+
+.draft-trust-tick-ring {
+  fill: rgba(255, 250, 240, 0.72);
+  stroke: rgba(36, 95, 82, 0.34);
+  stroke-width: 1.1;
+}
+
+.draft-trust-tick-mark {
+  fill: none;
+  stroke: rgba(36, 95, 82, 0.38);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+  opacity: 0.42;
+}
+
+button.draft-meta-chip--action:hover .draft-trust-tick-ring,
+button.draft-meta-chip--action:focus-visible .draft-trust-tick-ring {
+  stroke: rgba(36, 95, 82, 0.52);
+}
+
+button.draft-meta-chip--action:hover .draft-trust-tick-mark,
+button.draft-meta-chip--action:focus-visible .draft-trust-tick-mark {
+  opacity: 0.78;
+}
+
+.draft-trust-tick.is-approved .draft-trust-tick-ring {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.draft-trust-tick.is-approved .draft-trust-tick-mark {
+  stroke: rgba(255, 250, 240, 0.96);
+  stroke-width: 1.35;
+  opacity: 1;
+}
+
+.draft-meta-chip--confirmed {
+  border-color: rgba(36, 95, 82, 0.28);
+  background: rgba(36, 95, 82, 0.08);
+}
+
+.draft-meta-chip--likely {
+  border-color: rgba(36, 95, 82, 0.18);
+  background: rgba(255, 250, 240, 0.92);
+}
+
+.draft-meta-label {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.draft-meta-chip::before {
+  content: "";
+  position: absolute;
+  right: 11px;
+  bottom: calc(100% + 5px);
+  z-index: 46;
+  border: 6px solid transparent;
+  border-top-color: rgba(246, 241, 230, 0.98);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.98);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.draft-meta-chip:hover .draft-button-tooltip,
+.draft-meta-chip:focus-within .draft-button-tooltip,
+.draft-meta-chip:hover::before,
+.draft-meta-chip:focus-within::before {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.draft-item-heading .draft-genai-button,
+.draft-item-heading .draft-delete-button,
+.draft-item-heading .draft-candidate-edit-button {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+.draft-descendant-approval {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  min-height: 24px;
+  box-sizing: border-box;
+  border: 1px solid rgba(36, 95, 82, 0.28);
+  border-radius: 999px;
+  padding: 0 8px;
+  background: rgba(255, 250, 240, 0.72);
+  color: var(--accent);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.draft-descendant-approval:hover,
+.draft-descendant-approval:focus-visible {
+  border-color: rgba(36, 95, 82, 0.48);
+  background: rgba(36, 95, 82, 0.12);
+  outline: none;
+}
+
+.draft-item-heading .draft-genai-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.draft-item-heading .draft-delete-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.draft-child-item .draft-item-heading {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+}
+
+.draft-candidate-edit-button {
+  width: auto;
+  min-width: 32px;
+  padding: 0 6px;
+  border: 1px solid rgba(36, 95, 82, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 250, 240, 0.72);
+  color: var(--accent);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.draft-candidate-edit-button:hover,
+.draft-candidate-edit-button:focus-visible {
+  border-color: rgba(36, 95, 82, 0.48);
+  background: rgba(36, 95, 82, 0.12);
+  outline: none;
+}
+
+.draft-item-counter {
+  min-width: 28px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: rgba(36, 95, 82, 0.1);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.45;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.draft-child-list {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  border-left: 1px dashed rgba(31, 44, 42, 0.18);
+}
+
+.draft-child-item {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(31, 44, 42, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.draft-child-item strong {
+  font-size: 12.5px;
+}
+
+.draft-child-item span {
+  font-size: 10.5px;
+}
+
+.draft-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.draft-item span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.draft-item .draft-button-tooltip-title,
+.draft-meta-chip .draft-button-tooltip-title {
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.draft-item .draft-button-tooltip-copy,
+.draft-meta-chip .draft-button-tooltip-copy {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.draft-item p {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}

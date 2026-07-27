@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { readFrontendRuntimeSource } from "./support/frontend-runtime-source.js";
+import { readFrontendStylesSource } from "./support/frontend-styles-source.js";
 
 import {
   atlasNodes,
@@ -42,7 +44,7 @@ import {
   getCountryImageOverrideUrl,
   getCountryImageTopics
 } from "../src/data/countryImageTopics.js";
-import { countryPacks } from "../src/data/countryPacks/index.js";
+import { countryPacks } from "../src/data/countryPacks/serverRegistry.js";
 import {
   buildItinerary,
   createUnmappedDetour,
@@ -55,7 +57,18 @@ import {
   resolveHotspotAction,
   viewportToScenePoint
 } from "../src/domain/scrollScene.js";
-import { assertGeneratedImagesAreNotFactSources } from "../src/domain/guardrails.js";
+import {
+  assertGeneratedImagesAreNotFactSources,
+  hasUnconfirmedNodeFacts
+} from "../src/domain/guardrails.js";
+import {
+  ArtworkRequestQuerySchema,
+  ArtworkResponseSchema
+} from "../src/features/artwork/artworkContract.js";
+import {
+  CountryPackRegistryResponseSchema,
+  CountryPackResponseSchema
+} from "../src/features/countryCatalog/countryPackContract.js";
 import {
   precomputeClickableRegions,
   resolveImageClick
@@ -139,9 +152,13 @@ test("country landing lists world countries with routable country shells", () =>
 });
 
 test("country landing cards request country-specific media images", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const catalogSource = readFileSync(
+    new URL("../src/features/countryCatalog/countryCatalog.js", import.meta.url),
+    "utf8"
+  );
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const styleSource = readFrontendStylesSource();
 
   assert.deepEqual(getCountryImageTopics(getCountryBySlug("singapore")).slice(0, 1), [
     "Singapore Marina Bay Sands"
@@ -157,19 +174,21 @@ test("country landing cards request country-specific media images", () => {
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("united-arab-emirates")), /Burj_Al-Arab/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("palestinian-territories")), /Church_of_the_Nativity/);
-  assert.match(appSource, /country-card-photo/);
-  assert.match(appSource, /setAttribute\("data-country-card-action", "config"\)/);
-  assert.match(appSource, /setAttribute\("data-country-card-action", "open"\)/);
+  assert.match(appSource, /createCountryCatalog/);
+  assert.match(appSource, /countryCatalog\.render\(state\.countryQuery\)/);
+  assert.match(catalogSource, /country-card-photo/);
+  assert.match(catalogSource, /setAttribute\("data-country-card-action", "config"\)/);
+  assert.match(catalogSource, /setAttribute\("data-country-card-action", "open"\)/);
   assert.match(appSource, /openCountryFromLanding/);
   assert.match(appSource, /enterCountryShell\(country\)/);
-  assert.match(appSource, /getCountryPhotoUrl/);
-  assert.match(appSource, /\/api\/country-image\?countrySlug=/);
-  assert.match(appSource, /country-media-v7/);
-  assert.match(appSource, /observeCountryCardPhotos/);
-  assert.match(appSource, /resetCountryPhotoQueue/);
-  assert.match(appSource, /IntersectionObserver/);
-  assert.match(appSource, /COUNTRY_CARD_IMAGE_CONCURRENCY = 2/);
-  assert.match(appSource, /queueCountryCardPhoto/);
+  assert.match(catalogSource, /getCountryPhotoUrl/);
+  assert.match(catalogSource, /\/api\/country-image\?countrySlug=/);
+  assert.match(catalogSource, /country-media-v7/);
+  assert.match(catalogSource, /observePhotos/);
+  assert.match(catalogSource, /resetPhotoQueue/);
+  assert.match(catalogSource, /IntersectionObserver/);
+  assert.match(catalogSource, /DEFAULT_IMAGE_CONCURRENCY = 2/);
+  assert.match(catalogSource, /queuePhoto/);
   assert.match(serverSource, /handleCountryImageRequest/);
   assert.match(serverSource, /\/api\/country-image/);
   assert.match(serverSource, /result = await persistCountryCardImage\(country, result\);/);
@@ -345,6 +364,13 @@ test("generated images are never accepted as fact sources", () => {
     () => assertGeneratedImagesAreNotFactSources(polluted),
     /Generated images cannot be fact sources/
   );
+});
+
+test("unconfirmed facts keep a node outside the verified explorer mode", () => {
+  assert.equal(hasUnconfirmedNodeFacts({ facts: [{ confidence: "confirmed" }] }), false);
+  assert.equal(hasUnconfirmedNodeFacts({ facts: [{ confidence: "general" }] }), false);
+  assert.equal(hasUnconfirmedNodeFacts({ facts: [{ confidence: "unconfirmed" }] }), true);
+  assert.equal(hasUnconfirmedNodeFacts({ facts: [{ sourceType: "ai_generated" }] }), true);
 });
 
 test("country draft prompts keep generated country pages outside verified facts", () => {
@@ -736,7 +762,12 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
 });
 
 test("country packs load source data dynamically instead of hardcoding every pack", () => {
-  const registrySource = readFileSync(new URL("../src/data/countryPacks/index.js", import.meta.url), "utf8");
+  const registrySource = readFileSync(new URL("../src/data/countryPacks/serverRegistry.js", import.meta.url), "utf8");
+  const browserRegistrySource = readFileSync(new URL("../src/data/countryPacks/index.js", import.meta.url), "utf8");
+  const clientSource = readFileSync(
+    new URL("../src/features/countryCatalog/countryPackClient.js", import.meta.url),
+    "utf8"
+  );
   const packFiles = readdirSync(new URL("../src/data/countryPacks/", import.meta.url));
   const malaysiaSource = readFileSync(new URL("../src/data/countryPacks/malaysia.json", import.meta.url), "utf8");
   const singaporeSource = readFileSync(new URL("../src/data/countryPacks/singapore.json", import.meta.url), "utf8");
@@ -746,6 +777,10 @@ test("country packs load source data dynamically instead of hardcoding every pac
 
   assert.match(registrySource, /loadCountryPacksFromDirectory/);
   assert.match(registrySource, /compileCountryPackData/);
+  assert.match(browserRegistrySource, /fetchCountryPackRegistry/);
+  assert.doesNotMatch(browserRegistrySource, /fetch\("\/api\/country-packs/);
+  assert.match(clientSource, /\/api\/country-packs\?scope=summary/);
+  assert.match(clientSource, /\/api\/country-packs\?slug=/);
   assert.doesNotMatch(registrySource, /malaysiaCountryPack/);
   assert.doesNotMatch(registrySource, /loadJsCountryPack/);
   assert.ok(packFiles.includes("malaysia.json"));
@@ -780,6 +815,46 @@ test("country packs load source data dynamically instead of hardcoding every pac
     ["light", "cloud", "water", "foliage"]
   );
   assert.equal(scene.cameraPresets[0].targetBounds.width, scene.coordinateSpace.width);
+});
+
+test("country-pack API contracts preserve curated registry metadata", () => {
+  const singapore = countryPacks.singapore;
+  const registry = CountryPackRegistryResponseSchema.parse({
+    defaultCountrySlug: "singapore",
+    countryPacks: { singapore }
+  });
+  const singlePack = CountryPackResponseSchema.parse({
+    countrySlug: "singapore",
+    countryPack: singapore
+  });
+
+  assert.equal(registry.countryPacks.singapore.confidence, "confirmed");
+  assert.equal(singlePack.countryPack.rootNodeId, "singapore");
+});
+
+test("artwork API contract requires a structured factual plan", () => {
+  const pack = countryPacks.singapore;
+  const page = getDefaultArtworkPageForScene(
+    "singapore-overview",
+    pack.scenes,
+    pack.nodes,
+    pack.countrySlug,
+    pack.title
+  );
+
+  assert.equal(ArtworkResponseSchema.parse({ page }).page.plan.factMode, "curated");
+  assert.throws(
+    () => ArtworkResponseSchema.parse({ page: { ...page, plan: { title: "Singapore" } } }),
+    /factMode/
+  );
+});
+
+test("artwork query contract rejects unknown quality tiers", () => {
+  assert.equal(ArtworkRequestQuerySchema.parse({ quality: "high" }).quality, "high");
+  assert.throws(
+    () => ArtworkRequestQuerySchema.parse({ quality: "ultra" }),
+    /quality/
+  );
 });
 
 test("Singapore country pack can be projected into the starter map storage shape", () => {
@@ -1131,8 +1206,12 @@ test("missing tiles do not block factual node display", () => {
 });
 
 test("scene images can render image-specific ambient environment overlays", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const environmentLayerSource = readFileSync(
+    new URL("../src/features/explorer/environmentLayerRenderer.js", import.meta.url),
+    "utf8"
+  );
+  const styles = readFrontendStylesSource();
   const singaporeLayerKinds = new Set(scrollScenes["singapore-overview"].ambientLayers.map((layer) => layer.kind));
   const malaysiaLayerKinds = new Set(
     countryPacks.malaysia.scenes["malaysia-overview"].ambientLayers.map((layer) => layer.kind)
@@ -1143,23 +1222,23 @@ test("scene images can render image-specific ambient environment overlays", () =
     assert.ok(malaysiaLayerKinds.has(kind));
     assert.match(styles, new RegExp(`environment-layer--${kind}`));
   }
-  for (const kind of ["marine_life", "birds"]) {
+  for (const kind of ["marine-life", "birds"]) {
     assert.match(styles, new RegExp(`environment-layer--${kind}`));
   }
   assert.match(appSource, /renderEnvironmentLayerNodes/);
   assert.match(appSource, /requestEnvironmentPlan/);
   assert.match(appSource, /environmentUrl/);
-  assert.match(appSource, /image-plan-atmosphere-code-replacement/);
-  assert.match(appSource, /renderAtmosphereLayer/);
-  assert.match(appSource, /getAtmosphereProfile/);
-  assert.match(appSource, /renderWaterZone/);
-  assert.match(appSource, /renderMarineAtmosphere/);
-  assert.match(appSource, /getNormalizedEnvironmentBounds/);
-  assert.match(appSource, /isRenderableEnvironmentLayer/);
-  assert.match(appSource, /renderEnvironmentParticleMarkup/);
-  assert.match(appSource, /isSafeFallbackEnvironmentLayer/);
-  assert.match(appSource, /createEnvironmentParticles/);
-  assert.match(appSource, /environmentParticleDuration/);
+  assert.match(environmentLayerSource, /image-plan-atmosphere-code-replacement/);
+  assert.match(environmentLayerSource, /renderAtmosphereLayer/);
+  assert.match(environmentLayerSource, /getAtmosphereProfile/);
+  assert.match(environmentLayerSource, /renderWaterZone/);
+  assert.match(environmentLayerSource, /renderMarineAtmosphere/);
+  assert.match(environmentLayerSource, /getNormalizedEnvironmentBounds/);
+  assert.match(environmentLayerSource, /isRenderableEnvironmentLayer/);
+  assert.match(environmentLayerSource, /renderEnvironmentParticleMarkup/);
+  assert.match(environmentLayerSource, /isSafeFallbackEnvironmentLayer/);
+  assert.match(environmentLayerSource, /createEnvironmentParticles/);
+  assert.match(environmentLayerSource, /environmentParticleDuration/);
   assert.match(styles, /--scene-art-width/);
   assert.match(styles, /--scene-art-height/);
   assert.match(styles, /atmosphere-layer/);
@@ -1462,32 +1541,39 @@ test("scene artwork registry does not reuse old public generated images", () => 
 });
 
 test("frontend homepage requests runtime artwork without hardcoded local host", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const destinationNavigationSource = readFileSync(
+    new URL("../src/features/explorer/destinationNavigationView.js", import.meta.url),
+    "utf8"
+  );
+  const styleSource = readFrontendStylesSource();
   assert.doesNotMatch(appSource, /overview-codex-local\.png/);
   assert.doesNotMatch(appSource, /127\.0\.0\.1:4173/);
   assert.match(appSource, /requestSceneArtwork/);
   assert.match(appSource, /renderRegionRail/);
   assert.match(appSource, /renderLoadingSceneBoard/);
-  assert.match(appSource, /loading-destination-grid/);
-  assert.match(appSource, /loading-destination-card/);
+  assert.match(destinationNavigationSource, /loading-destination-grid/);
+  assert.match(destinationNavigationSource, /loading-destination-card/);
   assert.match(appSource, /buildImmediatePageFromTarget/);
   assert.match(appSource, /buildImmediatePageFromClick/);
   assert.match(appSource, /resolveFlipbookClick/);
   assert.match(appSource, /targetNodeId: target\.nodeId/);
-  assert.match(appSource, /getPrefetchTargetState/);
-  assert.match(appSource, /region-rail-progress/);
-  assert.match(appSource, /getHotspotMapNumber/);
-  assert.match(appSource, /orderArtworkTargetsByMapNumber/);
-  assert.match(appSource, /const orderedTargets = orderArtworkTargetsByMapNumber\(scene, targets\);/);
+  assert.match(destinationNavigationSource, /getPrefetchTargetState/);
+  assert.match(destinationNavigationSource, /region-rail-progress/);
+  assert.match(destinationNavigationSource, /getHotspotMapNumber/);
+  assert.match(destinationNavigationSource, /orderArtworkTargetsByMapNumber/);
+  assert.match(
+    destinationNavigationSource,
+    /const orderedTargets = orderArtworkTargetsByMapNumber\(scene, targets\);/
+  );
   assert.match(appSource, /const immediatePage = imageClick \? null : buildImmediatePageFromClick\(normalizedClick\)/);
   assert.match(appSource, /if \(imageClick && isRuntimeArtworkPage\(requestPage\)\)/);
   assert.match(appSource, /environmentPlan\.status === "request_failed"/);
   assert.match(appSource, /ENVIRONMENT_PLAN_REQUEST_RETRY_MS/);
   assert.match(appSource, /Preparing accurate location targets/);
-  assert.match(appSource, /region-rail-number/);
+  assert.match(destinationNavigationSource, /region-rail-number/);
   assert.match(styleSource, /\.region-rail-number/);
-  assert.match(appSource, /renderRegionRailCheck/);
+  assert.match(destinationNavigationSource, /renderRegionRailCheck/);
   assert.match(appSource, /prefetchJobs/);
   assert.match(appSource, /renderLoadingPanel/);
   assert.match(appSource, /import \{ buildLoadingStepTrail \} from "\.\.\/domain\/loadingSteps\.js";/);
@@ -1505,7 +1591,12 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(styleSource, /--prefetch-progress/);
   assert.match(appSource, /nodeId: page\.nodeId/);
   assert.match(appSource, /params\.set\("priority", "interactive"\)/);
-  assert.match(appSource, /apiPath\("\/api\/flipbook\/click"\)/);
+  assert.match(appSource, /explorerClient\.resolveFlipbookClick/);
+  const explorerClientSource = readFileSync(
+    new URL("../src/features/explorer/explorerClient.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(explorerClientSource, /\/api\/flipbook\/click/);
   assert.match(appSource, /getCurrentRequestPage/);
   assert.match(appSource, /setBrowserPath\(canonicalRouteForNode/);
   assert.match(appSource, /enterCountryShell/);
@@ -1514,54 +1605,99 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
 });
 
 test("country shell uses starter map wording instead of generated draft wording", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const countryDraftClientSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftClient.js", import.meta.url),
+    "utf8"
+  );
+  const runtimeCacheClientSource = readFileSync(
+    new URL("../src/features/runtimeCache/runtimeCacheClient.js", import.meta.url),
+    "utf8"
+  );
+  const placeImageClientSource = readFileSync(
+    new URL("../src/features/placeImages/placeImageClient.js", import.meta.url),
+    "utf8"
+  );
+  const countrySetupViewSource = readFileSync(
+    new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url),
+    "utf8"
+  );
+  const countryShellControllerSource = readFileSync(
+    new URL("../src/features/countrySetup/countryShellController.js", import.meta.url),
+    "utf8"
+  );
+  const draftChatViewSource = readFileSync(
+    new URL("../src/features/countryDraft/draftChatView.js", import.meta.url),
+    "utf8"
+  );
+  const draftReviewViewSource = readFileSync(
+    new URL("../src/features/countryDraft/draftReviewView.js", import.meta.url),
+    "utf8"
+  );
+  const countryDraftPanelSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    "utf8"
+  );
+  const styleSource = readFrontendStylesSource();
 
-  assert.match(appSource, /Back to countries/);
-  assert.match(appSource, /Reset Generated Visuals/);
-  assert.match(appSource, /Rebuild starter info/);
-  assert.match(appSource, /renderDraftResetButton/);
+  assert.match(countrySetupViewSource, /Back to countries/);
+  assert.match(countrySetupViewSource, /Reset Generated Visuals/);
+  assert.match(countryDraftPanelSource, /Rebuild starter info/);
+  assert.match(countryDraftPanelSource, /renderDraftResetButton/);
   assert.match(appSource, /renderResetIcon/);
-  assert.match(appSource, /draft-tool-menu-button/);
-  assert.match(appSource, /draft-tool-menu-dots/);
-  assert.match(appSource, /toggle-starter-tools/);
+  assert.match(countryDraftPanelSource, /draft-tool-menu-button/);
+  assert.match(countryDraftPanelSource, /draft-tool-menu-dots/);
+  assert.match(countryShellControllerSource, /toggle-starter-tools/);
   assert.match(appSource, /countryDraftToolMenuOpen/);
-  assert.match(appSource, /if \(action === "toggle-starter-tools"[\s\S]*captureCountryShellScroll\(\)[\s\S]*restoreCountryShellScroll\(scrollSnapshot\)/);
-  assert.match(appSource, /<strong>Rebuild starter info<\/strong>/);
+  assert.match(
+    countryShellControllerSource,
+    /if \(action === "toggle-starter-tools"[\s\S]*captureCountryShellScroll\(\)[\s\S]*restoreCountryShellScroll\(scrollSnapshot\)/
+  );
+  assert.match(countryDraftPanelSource, /<strong>Rebuild starter info<\/strong>/);
   assert.match(appSource, /draft-button-tooltip-title/);
-  assert.match(appSource, /Action guide/);
-  assert.match(appSource, /toggle-action-guide/);
+  assert.match(countrySetupViewSource, /Action guide/);
+  assert.match(countrySetupViewSource, /toggle-action-guide/);
   assert.match(appSource, /countryActionLegendOpen/);
-  assert.match(appSource, /aria-expanded/);
-  assert.match(appSource, /renderCountryActionGuide/);
-  assert.match(appSource, /renderCountryActionLegend/);
-  assert.match(appSource, /Refresh regions, summary, and themes/);
-  assert.match(appSource, /Clear cached thumbnails and search again/);
-  assert.match(appSource, /preserveScroll: true/);
-  assert.match(appSource, /data-country-draft-section-tab/);
-  assert.match(appSource, /countryDraftSectionTabs\.set\(state\.selectedCountry\.slug, sectionTab\)/);
+  assert.match(countrySetupViewSource, /aria-expanded/);
+  assert.match(countrySetupViewSource, /renderActionGuide/);
+  assert.match(countrySetupViewSource, /renderActionLegend/);
+  assert.match(countryDraftPanelSource, /Refresh regions, summary, and themes/);
+  assert.match(countryDraftPanelSource, /Clear cached thumbnails and search again/);
+  assert.match(countryShellControllerSource, /preserveScroll: true/);
+  assert.match(countryDraftPanelSource, /data-country-draft-section-tab/);
+  assert.match(
+    countryShellControllerSource,
+    /countryDraftSectionTabs\.set\(state\.selectedCountry\.slug, sectionTab\)/
+  );
   assert.match(appSource, /restoreCountryShellScroll\(scrollSnapshot\)/);
-  assert.match(appSource, /reset-generated-visuals/);
-  assert.match(appSource, /reset-metadata/);
-  assert.match(appSource, /reset-reference-photos/);
-  assert.match(appSource, /Reset photos/);
+  assert.match(countryShellControllerSource, /reset-generated-visuals/);
+  assert.match(countryDraftPanelSource, /reset-metadata/);
+  assert.match(countryDraftPanelSource, /reset-reference-photos/);
+  assert.match(countryDraftPanelSource, /Reset photos/);
   assert.match(appSource, /requestPlaceImageReset/);
-  assert.match(appSource, /\/api\/place-image\/reset/);
+  assert.match(appSource, /placeImageClient\.reset/);
+  assert.match(placeImageClientSource, /\/api\/place-image\/reset/);
   assert.match(styleSource, /\.draft-tool-menu/);
   assert.match(styleSource, /\.draft-tool-menu-dots/);
   assert.match(styleSource, /\.draft-tool-menu-item/);
-  assert.match(appSource, /AI starter map/);
-  assert.match(appSource, /Edit starter map/);
-  assert.match(appSource, /data-country-chat-form/);
-  assert.match(appSource, /\/api\/country-draft\/influence/);
-  assert.match(appSource, /Confirm for curation/);
-  assert.match(appSource, /\/api\/country-draft\/confirm/);
-  assert.match(appSource, /Resetting/);
+  assert.match(countryDraftPanelSource, /AI starter map/);
+  assert.match(countryDraftPanelSource, /Edit starter map/);
+  assert.match(draftChatViewSource, /data-country-chat-form/);
+  assert.match(appSource, /countryDraftClient\.influence/);
+  assert.match(countryDraftClientSource, /\/api\/country-draft\/influence/);
+  assert.match(draftReviewViewSource, /Confirm for curation/);
+  assert.match(appSource, /countryDraftClient\.confirm/);
+  assert.match(countryDraftClientSource, /\/api\/country-draft\/confirm/);
+  assert.match(countryDraftPanelSource, /Resetting/);
   assert.doesNotMatch(appSource, /Starter country pack/);
   assert.doesNotMatch(appSource, /This starter map comes from source-controlled starter data/);
-  assert.match(appSource, /Source-reviewed country pack/);
-  assert.match(appSource, /requestCountryRuntimeCacheFlush\(state\.selectedCountry, \{ confirm: false, scope: "visuals" \}\)/);
-  assert.match(appSource, /\/api\/runtime-cache\/flush/);
+  assert.match(draftReviewViewSource, /Source-reviewed country pack/);
+  assert.match(
+    countryShellControllerSource,
+    /requestCountryRuntimeCacheFlush\(state\.selectedCountry, \{ confirm: false, scope: "visuals" \}\)/
+  );
+  assert.match(appSource, /flushCountryRuntimeCache/);
+  assert.match(runtimeCacheClientSource, /\/api\/runtime-cache\/flush/);
   assert.match(appSource, /clearCountryGeneratedState/);
   assert.match(appSource, /loadStoredCountryDraft/);
   assert.match(appSource, /showAppToast/);
@@ -1690,11 +1826,15 @@ test("source-reviewed region suggestions append only unconfirmed new children", 
 });
 
 test("draft tree reserves controls for nested curation without wrapping the delete button", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-  assert.match(appSource, /approve-draft-descendants/);
-  assert.match(appSource, /data-draft-path/);
-  assert.match(appSource, /edit-draft-candidate/);
+  const appSource = readFrontendRuntimeSource();
+  const countryDraftPanelSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    "utf8"
+  );
+  const styleSource = readFrontendStylesSource();
+  assert.match(countryDraftPanelSource, /approve-draft-descendants/);
+  assert.match(countryDraftPanelSource, /data-draft-path/);
+  assert.match(countryDraftPanelSource, /edit-draft-candidate/);
   assert.match(appSource, /showAppToast\(\{\s*tone: "error",\s*title: "Curation update failed"/);
   assert.match(styleSource, /grid-template-columns: auto auto auto minmax\(0, 1fr\) auto auto auto auto/);
   assert.match(styleSource, /grid-template-columns: auto minmax\(0, 1fr\) auto auto auto/);
@@ -1806,26 +1946,46 @@ test("place image selection prefers capital skylines for states and scenes for t
 });
 
 test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const draftMetadataSource = readFileSync(
+    new URL("../src/features/countryDraft/draftMetadataView.js", import.meta.url),
+    "utf8"
+  );
+  const draftPhotoSource = readFileSync(
+    new URL("../src/features/countryDraft/draftReferencePhotoView.js", import.meta.url),
+    "utf8"
+  );
+  const styleSource = readFrontendStylesSource();
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const countryDraftHandlerSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  const placeImageClientSource = readFileSync(
+    new URL("../src/features/placeImages/placeImageClient.js", import.meta.url),
+    "utf8"
+  );
+  const placeImageHandlerSource = readFileSync(
+    new URL("../src/features/placeImages/placeImageHttpHandler.js", import.meta.url),
+    "utf8"
+  );
   const runtimeCacheSource = readFileSync(new URL("../src/domain/runtimeCache.js", import.meta.url), "utf8");
 
   // Frontend renders reference photos on candidate cards through the API only.
-  assert.match(appSource, /draft-trust-tick/);
-  assert.match(appSource, /approve-draft-item/);
+  assert.match(draftMetadataSource, /draft-trust-tick/);
+  assert.match(draftMetadataSource, /approve-draft-item/);
   assert.match(serverSource, /\/api\/country-draft\/approve-item/);
-  assert.match(serverSource, /approveDraftItem/);
+  assert.match(countryDraftHandlerSource, /approveDraftItem/);
   assert.match(appSource, /buildPlaceImageUrl/);
   assert.match(appSource, /hydrateDraftPlacePhotos/);
-  assert.match(appSource, /loading="eager"/);
-  assert.match(appSource, /image\.loading = "eager"/);
-  assert.match(appSource, /data-photo-state="queued"/);
-  assert.match(appSource, /draft-photo-spinner/);
-  assert.match(appSource, /draft-photo-fallback[\s\S]*<svg viewBox="0 0 24 24"/);
-  assert.match(appSource, /setDraftPhotoState/);
-  assert.match(appSource, /normalizeLoadedDraftPhotoUrl/);
-  assert.match(appSource, /\$\{parsed\.origin\}\$\{parsed\.pathname\}\$\{parsed\.search\}/);
+  assert.match(draftPhotoSource, /loading="eager"/);
+  assert.match(draftPhotoSource, /image\.loading = "eager"/);
+  assert.match(draftPhotoSource, /data-photo-state="queued"/);
+  assert.match(draftPhotoSource, /draft-photo-spinner/);
+  assert.match(draftPhotoSource, /draft-photo-fallback[\s\S]*<svg viewBox="0 0 24 24"/);
+  assert.match(draftPhotoSource, /setDraftPhotoState/);
+  assert.match(draftPhotoSource, /normalizeLoadedDraftPhotoUrl/);
+  assert.match(draftPhotoSource, /\$\{parsed\.origin\}\$\{parsed\.pathname\}\$\{parsed\.search\}/);
   assert.match(appSource, /PLACE_IMAGE_SELECTION_VERSION/);
   assert.match(appSource, /PLACE_IMAGE_REQUEST_SESSION/);
   assert.match(appSource, /request: PLACE_IMAGE_REQUEST_SESSION/);
@@ -1834,10 +1994,12 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(appSource, /draft-photo-lightbox-reset/);
   assert.match(appSource, /data-draft-photo-feedback/);
   assert.match(appSource, /Search Exa again/);
-  assert.match(appSource, /\/api\/place-image\/feedback/);
+  assert.match(appSource, /placeImageClient\.submitFeedback/);
+  assert.match(placeImageClientSource, /\/api\/place-image\/feedback/);
   assert.match(appSource, /data-suggest-draft-photo-prompts/);
   assert.match(appSource, /Suggest prompts/);
-  assert.match(appSource, /\/api\/place-image\/suggestions/);
+  assert.match(appSource, /placeImageClient\.requestSuggestions/);
+  assert.match(placeImageClientSource, /\/api\/place-image\/suggestions/);
   assert.match(appSource, /draft-photo-prompt-source/);
   assert.match(appSource, /Gen AI/);
   assert.match(appSource, /Fallback/);
@@ -1845,7 +2007,8 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(appSource, /Keep this photo/);
   assert.match(appSource, /Delete photo/);
   assert.match(appSource, /result\.activeDeleted/);
-  assert.match(appSource, /\/api\/place-image\/history/);
+  assert.match(appSource, /placeImageClient\.loadHistory/);
+  assert.match(placeImageClientSource, /\/api\/place-image\/history/);
   assert.match(appSource, /getPlaceImageRefreshKey/);
   assert.match(appSource, /params\.set\("placeRefresh", String\(placeRefresh\)\)/);
   assert.match(appSource, /map-hotspot-chip-photo/);
@@ -1867,16 +2030,17 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.doesNotMatch(styleSource, /draft-photo-loading/);
 
   // Server resolves place images via Exa and caches them in the runtime cache.
-  assert.match(serverSource, /handlePlaceImageRequest/);
-  assert.match(serverSource, /handlePlaceImageResetRequest/);
-  assert.match(serverSource, /handlePlaceImageFeedbackRequest/);
+  assert.match(serverSource, /placeImageHttpHandlers\.handleImageRequest/);
+  assert.match(serverSource, /placeImageHttpHandlers\.handleResetRequest/);
+  assert.match(serverSource, /placeImageHttpHandlers\.handleFeedbackRequest/);
   assert.match(serverSource, /\/api\/place-image\/feedback/);
-  assert.match(serverSource, /handlePlaceImageSuggestionsRequest/);
+  assert.match(serverSource, /placeImageHttpHandlers\.handleSuggestionsRequest/);
+  assert.match(placeImageHandlerSource, /suggestPrompts/);
   assert.match(serverSource, /suggestPlaceImagePrompts/);
   assert.match(serverSource, /getMappedPlaceImageSuggestionContext/);
-  assert.match(serverSource, /Prompt suggestions only steer an external reference-image search/);
+  assert.match(placeImageHandlerSource, /Prompt suggestions only steer an external reference-image search/);
   assert.match(serverSource, /normalizePlaceImageFeedback/);
-  assert.match(serverSource, /handlePlaceImageHistoryRequest/);
+  assert.match(serverSource, /placeImageHttpHandlers\.handleHistoryRequest/);
   assert.match(serverSource, /selectPlaceImageHistoryEntry/);
   assert.match(serverSource, /deleteStoredActivePlaceImage/);
   assert.match(serverSource, /archiveStoredPlaceImage/);
@@ -1904,20 +2068,40 @@ test("candidate region cards request Exa-backed reference photos through the pla
 });
 
 test("draft tree exposes icon-only GenAI modal triggers", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const draftMetadataSource = readFileSync(
+    new URL("../src/features/countryDraft/draftMetadataView.js", import.meta.url),
+    "utf8"
+  );
+  const draftChatSource = readFileSync(
+    new URL("../src/features/countryDraft/draftChatView.js", import.meta.url),
+    "utf8"
+  );
+  const countryDraftPanelSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    "utf8"
+  );
+  const countryDraftClientSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftClient.js", import.meta.url),
+    "utf8"
+  );
+  const countryShellControllerSource = readFileSync(
+    new URL("../src/features/countrySetup/countryShellController.js", import.meta.url),
+    "utf8"
+  );
+  const styleSource = readFrontendStylesSource();
 
-  assert.match(appSource, /data-country-action="toggle-genai-prompt"/);
-  assert.match(appSource, /data-genai-target/);
-  assert.match(appSource, /data-country-genai-form/);
+  assert.match(countryDraftPanelSource, /data-country-action="toggle-genai-prompt"/);
+  assert.match(countryDraftPanelSource, /data-genai-target/);
+  assert.match(draftChatSource, /data-country-genai-form/);
   assert.match(appSource, /countryDraftGenAiOpen/);
   assert.match(appSource, /renderGenAiIcon/);
-  assert.match(appSource, /data-tooltip/);
-  assert.match(appSource, /role="dialog"/);
-  assert.match(appSource, /aria-haspopup="dialog"/);
-  assert.match(appSource, /data-genai-target="starter-map"/);
-  assert.match(appSource, /`region:\$\{region\.name\}`/);
-  assert.match(appSource, /`theme:\$\{theme\.label\}`/);
+  assert.match(countryDraftPanelSource, /data-tooltip/);
+  assert.match(draftChatSource, /role="dialog"/);
+  assert.match(countryDraftPanelSource, /aria-haspopup="dialog"/);
+  assert.match(countryDraftPanelSource, /data-genai-target="starter-map"/);
+  assert.match(countryDraftPanelSource, /`region:\$\{region\.name\}`/);
+  assert.match(countryDraftPanelSource, /`theme:\$\{theme\.label\}`/);
   assert.match(styleSource, /\.draft-edit-modal-backdrop/);
   assert.match(styleSource, /\.draft-chat-log--modal/);
   assert.match(styleSource, /\.draft-chat-message--processing/);
@@ -1927,23 +2111,24 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
   assert.match(styleSource, /\.draft-button-tooltip-title/);
   assert.match(styleSource, /font-weight: 900/);
   assert.match(styleSource, /\.draft-meta-chip:hover \.draft-button-tooltip/);
-  assert.match(appSource, /renderDraftChatLog/);
+  assert.match(draftChatSource, /renderDraftChatLog/);
   assert.match(appSource, /Processing your instruction/);
   assert.match(appSource, /status: "done"/);
   assert.match(appSource, /replaceLatestProcessingMessage/);
   assert.match(appSource, /renderDraftMetadata/);
-  assert.match(appSource, /Trust/);
-  assert.match(appSource, /Needs review/);
+  assert.match(draftMetadataSource, /Trust/);
+  assert.match(draftMetadataSource, /Needs review/);
   assert.match(styleSource, /\.draft-meta-chip/);
   // Modal prompts must reuse the guarded influence flow, not a new AI path.
   assert.match(
-    appSource,
+    countryShellControllerSource,
     /data-country-chat-form\], \[data-country-genai-form/
   );
   assert.match(appSource, /scopeInstructionToCandidate/);
   assert.match(appSource, /Keep every other candidate unchanged/);
-  assert.match(appSource, /generate=false/);
-  assert.match(appSource, /force=true/);
+  assert.match(appSource, /countryDraftClient\.load/);
+  assert.match(countryDraftClientSource, /generate/);
+  assert.match(countryDraftClientSource, /query\.set\("force", "true"\)/);
   assert.match(appSource, /createCountryPackStarterMap\(countryPack\)/);
   assert.match(appSource, /isDraftItemApproved/);
   assert.match(appSource, /Runtime data may add unconfirmed candidates/);
@@ -1957,35 +2142,58 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
 });
 
 test("draft tree exposes drag handles for sorting top-level starter records", () => {
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
+  const countryDraftPanelSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    "utf8"
+  );
+  const countryDraftClientSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftClient.js", import.meta.url),
+    "utf8"
+  );
+  const countryDraftHandlerSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  const countryShellControllerSource = readFileSync(
+    new URL("../src/features/countrySetup/countryShellController.js", import.meta.url),
+    "utf8"
+  );
+  const styleSource = readFrontendStylesSource();
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
 
-  assert.match(appSource, /data-draft-drag-handle/);
-  assert.match(appSource, /data-draft-sort-index/);
-  assert.match(appSource, /data-country-action="delete-draft-item"/);
+  assert.match(countryDraftPanelSource, /data-draft-drag-handle/);
+  assert.match(countryDraftPanelSource, /data-draft-sort-index/);
+  assert.match(countryDraftPanelSource, /data-country-action="delete-draft-item"/);
   assert.match(appSource, /deleteCurrentDraftItem/);
   assert.match(appSource, /Delete \$\{itemLabel\} from this starter map/);
   assert.match(appSource, /reorderCurrentDraftItems/);
   assert.match(appSource, /reorderArray/);
   assert.match(appSource, /persistCountryDraftReorder/);
-  assert.match(appSource, /\/api\/country-draft\/reorder/);
-  assert.match(appSource, /list: payload\.list/);
+  assert.match(appSource, /countryDraftClient\.reorder/);
+  assert.match(countryDraftClientSource, /\/api\/country-draft\/reorder/);
+  assert.match(countryShellControllerSource, /list: payload\.list/);
   assert.match(appSource, /\[list\]: nextItems/);
   assert.match(styleSource, /\.draft-sort-handle/);
   assert.match(styleSource, /\.draft-delete-button/);
   assert.match(styleSource, /\.draft-item\.is-drop-before/);
   assert.match(styleSource, /\.draft-item\.is-drop-after/);
   assert.match(serverSource, /\/api\/country-draft\/reorder/);
-  assert.match(serverSource, /handleCountryDraftReorderRequest/);
-  assert.match(serverSource, /Records still need source review/);
+  assert.match(serverSource, /countryDraftHttpHandlers\.handleReorderRequest/);
+  assert.match(countryDraftHandlerSource, /Records still need source review/);
 });
 
 test("server exposes country-scoped generated cache flushing", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const runtimeCacheHandlerSource = readFileSync(
+    new URL("../src/features/runtimeCache/runtimeCacheHttpHandler.js", import.meta.url),
+    "utf8"
+  );
 
   assert.match(serverSource, /pathname === "\/api\/runtime-cache\/flush"/);
-  assert.match(serverSource, /handleRuntimeCacheFlushRequest/);
+  assert.match(serverSource, /handleRuntimeCacheFlushHttpRequest/);
+  assert.match(runtimeCacheHandlerSource, /RuntimeCacheFlushRequestSchema\.safeParse/);
+  assert.match(runtimeCacheHandlerSource, /const scope = parsed\.data\.scope \?\? "all"/);
   assert.match(serverSource, /flushCountryGeneratedVisualCache/);
   assert.match(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment", "understanding"\]/);
   assert.doesNotMatch(serverSource, /const visualFolders = \["image-jobs", "flipbook", "environment", "understanding", "place-images"\]/);
@@ -1999,21 +2207,26 @@ test("server exposes country-scoped generated cache flushing", () => {
 
 test("config thumbnails stream cached place images directly and cannot stay pending forever", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-  const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
-
-  const placeImageHandler = serverSource.slice(
-    serverSource.indexOf("async function handlePlaceImageRequest"),
-    serverSource.indexOf("function respondPlaceImageNotFound")
+  const placeImageHandlerSource = readFileSync(
+    new URL("../src/features/placeImages/placeImageHttpHandler.js", import.meta.url),
+    "utf8"
   );
+  const draftPhotoSource = readFileSync(
+    new URL("../src/features/countryDraft/draftReferencePhotoView.js", import.meta.url),
+    "utf8"
+  );
+  const appSource = readFrontendRuntimeSource();
+  const styleSource = readFrontendStylesSource();
+
+  const placeImageHandler = placeImageHandlerSource;
   assert.match(placeImageHandler, /const cachedImagePath = getImagePathFromUrl\(record\.imageUrl\)/);
   assert.match(placeImageHandler, /"Content-Type": mimeTypeForImagePath\(cachedImagePath\)/);
   assert.match(placeImageHandler, /response\.end\(image\)/);
   assert.match(placeImageHandler, /"Cache-Control": "no-store"/);
-  assert.match(appSource, /retryDraftPlacePhoto/);
-  assert.match(appSource, /retryCount >= 2/);
-  assert.match(appSource, /DRAFT_PLACE_PHOTO_TIMEOUT_MS = 90 \* 1000/);
-  assert.match(appSource, /setDraftPhotoState\(button, "searching", "Still searching", 0\.82\)/);
+  assert.match(draftPhotoSource, /retryDraftPlacePhoto/);
+  assert.match(draftPhotoSource, /retryCount >= 2/);
+  assert.match(draftPhotoSource, /photoTimeoutMs = 90_000/);
+  assert.match(draftPhotoSource, /setDraftPhotoState\(button, "searching", "Still searching", 0\.82\)/);
   assert.match(appSource, /placeImageRefreshes/);
   assert.match(appSource, /params\.set\("refresh", String\(refresh\)\)/);
   assert.match(appSource, /data-draft-photo-delete/);
@@ -2053,18 +2266,28 @@ test("server filters thin Exa grounding snippets and restricts search to officia
 
 test("server creates image-specific environment plans for generated artwork", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const artworkHandlerSource = readFileSync(
+    new URL("../src/features/artwork/artworkHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  const clickHandlerSource = readFileSync(
+    new URL("../src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
+    "utf8"
+  );
   const promptSource = readFileSync(new URL("../src/lib/prompts/buildEnvironmentPlanPrompt.js", import.meta.url), "utf8");
 
   assert.match(serverSource, /ensureEnvironmentPlanForPage/);
   assert.match(serverSource, /createEnvironmentPlanWithOpenAI/);
-  assert.match(serverSource, /getDefaultArtworkPageForNode/);
-  assert.match(serverSource, /url\.searchParams\.get\("nodeId"\)/);
-  assert.match(serverSource, /searchParams\.get\("prefetch"\) === "priority"/);
-  assert.match(serverSource, /searchParams\.get\("priority"\) === "interactive"/);
-  assert.match(serverSource, /jobKind = isInteractivePriority[\s\S]*"interactive"[\s\S]*isPrefetch[\s\S]*"prefetch"/);
+  assert.match(serverSource, /handleArtworkHttpRequest/);
+  assert.match(artworkHandlerSource, /getDefaultArtworkPageForNode/);
+  assert.match(artworkHandlerSource, /ArtworkRequestQuerySchema\.parse/);
+  assert.match(artworkHandlerSource, /nodeId: url\.searchParams\.get\("nodeId"\)/);
+  assert.match(artworkHandlerSource, /query\.prefetch === "priority"/);
+  assert.match(artworkHandlerSource, /query\.priority === "interactive"/);
+  assert.match(artworkHandlerSource, /jobKind = isInteractivePriority[\s\S]*"interactive"[\s\S]*isPrefetch[\s\S]*"prefetch"/);
   assert.match(serverSource, /chooseHigherPriorityJobKind/);
   assert.match(serverSource, /imageJobPriority/);
-  assert.match(serverSource, /if \(body\.targetNodeId \|\| body\.detourPhrase\)/);
+  assert.match(clickHandlerSource, /const hasExplicitIntent = Boolean\(body\.targetNodeId \|\| body\.detourPhrase\)/);
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
   assert.match(promptSource, /environment-plan-v4/);
@@ -2109,39 +2332,61 @@ test("environment planning keeps child destinations eligible without map numbers
 });
 
 function appSourceForEnvironmentTargets() {
-  return readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  return readFrontendRuntimeSource();
 }
 
 test("server persists country starter maps in country-scoped runtime storage", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const countryPackHandlerSource = readFileSync(
+    new URL("../src/features/countryCatalog/countryPackHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  const experienceHandlerSource = readFileSync(
+    new URL("../src/features/experience/experienceConfigHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  const countryDraftHandlerSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  const countrySetupViewSource = readFileSync(
+    new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url),
+    "utf8"
+  );
+  const countryDraftPanelSource = readFileSync(
+    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    "utf8"
+  );
+  const appSource = readFrontendRuntimeSource();
 
   assert.match(serverSource, /createCountryStarterMapCachePaths/);
-  assert.match(serverSource, /createCountryPackStarterMap/);
-  assert.match(serverSource, /createCountryPackDraftFromStarterMap/);
-  assert.match(serverSource, /curated_pack_snapshot/);
-  assert.match(serverSource, /source: "country_pack"/);
+  assert.match(countryDraftHandlerSource, /createCountryPackStarterMap/);
+  assert.match(countryDraftHandlerSource, /createCountryPackDraftFromStarterMap/);
+  assert.match(countryDraftHandlerSource, /curated_pack_snapshot/);
+  assert.match(countryDraftHandlerSource, /source: "country_pack"/);
   assert.match(serverSource, /readStoredCountryDraft/);
   assert.match(serverSource, /writeStoredCountryDraft/);
-  assert.match(serverSource, /Always reconstruct the curated tree from the repository/);
-  assert.match(serverSource, /appendUnconfirmedRegionCandidates\(packSnapshot, region\.name, storedPackSnapshot\)/);
-  assert.match(appSource, /label: `Build \$\{country\.name\} map`/);
-  assert.match(appSource, /No \$\{escapeHtml\(country\.name\)\} map data loaded/);
+  assert.match(countryDraftHandlerSource, /Checked-in packs are authoritative/);
+  assert.match(countryDraftHandlerSource, /appendUnconfirmedRegionCandidates\(packSnapshot, region\.name, storedPackSnapshot\)/);
+  assert.match(countrySetupViewSource, /label: `Build \$\{country\.name\} map`/);
+  assert.match(countryDraftPanelSource, /No \$\{escapeHtml\(country\.name\)\} map data loaded/);
   assert.match(serverSource, /starter-map/);
-  assert.match(serverSource, /url\.searchParams\.get\("force"\) === "true"/);
-  assert.match(serverSource, /regenerated: forceGenerate/);
-  assert.match(serverSource, /url\.searchParams\.get\("generate"\) !== "false"/);
-  assert.match(serverSource, /isSourceReviewedCountryPack/);
-  assert.match(serverSource, /countryPack\.confidence !== "unconfirmed"/);
-  assert.match(serverSource, /only supports append-only GenAI candidates within a selected region/);
-  assert.match(serverSource, /appendUnconfirmedRegionCandidates/);
-  assert.match(serverSource, /handleCountryDraftConfirmRequest/);
+  assert.match(countryDraftHandlerSource, /url\.searchParams\.get\("force"\) === "true"/);
+  assert.match(countryDraftHandlerSource, /regenerated: forceGenerate/);
+  assert.match(countryDraftHandlerSource, /url\.searchParams\.get\("generate"\) !== "false"/);
+  assert.match(countryDraftHandlerSource, /isSourceReviewedCountryPack/);
+  assert.match(countryDraftHandlerSource, /countryPack\.confidence !== "unconfirmed"/);
+  assert.match(countryDraftHandlerSource, /only supports append-only GenAI candidates within a selected region/);
+  assert.match(countryDraftHandlerSource, /appendUnconfirmedRegionCandidates/);
+  assert.match(serverSource, /countryDraftHttpHandlers\.handleConfirmRequest/);
   assert.match(serverSource, /confirmed_for_curation/);
   assert.match(serverSource, /resolveRoamAtlasConfig/);
   assert.match(serverSource, /resolveRoamAtlasExperienceConfig/);
   assert.match(serverSource, /\/api\/experience-config/);
-  assert.match(serverSource, /handleCountryPacksRequest/);
-  assert.match(serverSource, /get\("scope"\)/);
+  assert.match(serverSource, /handleExperienceConfigHttpRequest/);
+  assert.match(experienceHandlerSource, /imageQualityOptions: \["low", "medium", "high"\]/);
+  assert.match(serverSource, /handleCountryPackHttpRequest/);
+  assert.match(countryPackHandlerSource, /get\("scope"\)/);
   assert.match(serverSource, /attachCodexArtworkToPage/);
   assert.match(serverSource, /getCanonicalArtworkPageForGeneration/);
   assert.match(serverSource, /DEFAULT_IMAGE_PROVIDER/);
@@ -2160,10 +2405,9 @@ test("dev server serves the app shell for direct country and node routes", () =>
   assert.match(serverSource, /shouldIgnoreLiveReloadPath/);
   assert.match(serverSource, /startLiveReloadWatcher/);
   assert.match(serverSource, /Cache-Control": "no-cache"/);
-  assert.match(htmlSource, /href="\/src\/styles\.css(?:\?[^"]*)?"/);
-  assert.match(htmlSource, /src="\/src\/ui\/app\.js(?:\?[^"]*)?"/);
-  assert.doesNotMatch(htmlSource, /href="\.\/src\/styles\.css"/);
-  assert.doesNotMatch(htmlSource, /src="\.\/src\/ui\/app\.js"/);
+  assert.match(htmlSource, /id="root"/);
+  assert.match(htmlSource, /src="\/src\/app\/main\.tsx"/);
+  assert.doesNotMatch(htmlSource, /src="\/src\/ui\/app\.js/);
 });
 
 test("default artwork pages are generated through the runtime image pipeline", () => {
@@ -2525,21 +2769,27 @@ test("runtime page clicks without reliable VLM should stay on the current page",
 });
 
 test("server keeps deterministic fallback for non-runtime flipbook click handling", () => {
-  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  assert.match(serverSource, /resolveSemanticRegionHit/);
-  assert.match(serverSource, /resolveClickPhraseWithOpenAI/);
-  assert.match(serverSource, /shouldUseLocalFallback/);
-  assert.match(serverSource, /!body\.currentPage\?\.imageUrl/);
-  assert.doesNotMatch(serverSource, /canUseStaticHomepageFallback/);
-  assert.doesNotMatch(serverSource, /isHomepagePage/);
-  assert.doesNotMatch(serverSource, /resolvedPhrase:/);
+  const handlerSource = readFileSync(
+    new URL("../src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(handlerSource, /resolveSemanticRegionHit/);
+  assert.match(handlerSource, /resolveClickPhrase/);
+  assert.match(handlerSource, /shouldUseLocalFallback/);
+  assert.match(handlerSource, /!body\.currentPage\?\.imageUrl/);
+  assert.doesNotMatch(handlerSource, /canUseStaticHomepageFallback/);
+  assert.doesNotMatch(handlerSource, /isHomepagePage/);
+  assert.doesNotMatch(handlerSource, /resolvedPhrase:/);
 });
 
 test("server does not let stale semantic coordinates override a generated overview or explicit target", () => {
-  const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  assert.match(serverSource, /const isGeneratedOverview/);
-  assert.match(serverSource, /currentScene\?\.pageType === "homepage_overview" && hasRuntimeGeneratedPage/);
-  assert.match(serverSource, /const semanticHit = !isGeneratedOverview && !body\.targetNodeId && !body\.detourPhrase/);
+  const handlerSource = readFileSync(
+    new URL("../src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(handlerSource, /const isGeneratedOverview/);
+  assert.match(handlerSource, /currentScene\?\.pageType === "homepage_overview" && hasRuntimeGeneratedPage/);
+  assert.match(handlerSource, /const semanticHit = !isGeneratedOverview && !hasExplicitIntent/);
 });
 
 test("server VLM resolver tolerates missing generated artwork", () => {
@@ -2566,7 +2816,7 @@ test("server semantic cache prefers the nearest cached click over confidence alo
 
 test("runtime image job polling is not cached by the browser", () => {
   const serverSource = readFileSync(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
+  const appSource = readFrontendRuntimeSource();
   assert.match(serverSource, /isMutableRuntimeJsonPath/);
   assert.match(serverSource, /\(\?:image-jobs\|codex-jobs\|understanding\|environment\|starter-map\|country-pack-draft\)/);
   assert.match(serverSource, /"Cache-Control": isMutableRuntimeJson/);

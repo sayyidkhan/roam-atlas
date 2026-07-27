@@ -15,7 +15,7 @@ export function createStarterCountryPackData(country) {
     rootNodeId,
     overviewSceneId,
     confidence: "unconfirmed",
-    registration: "worldwide_generated",
+    registration: "unregistered",
     factBoundary: `${countryName} uses a worldwide RoamAtlas starter pack. It is a planning scaffold only until source review adds verified facts.`,
     versions: {
       data: `${countrySlug}-world-starter-v1`,

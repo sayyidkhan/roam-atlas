@@ -1,0 +1,90 @@
+.map-hotspot-hit:hover,
+.map-hotspot-hit:focus-visible {
+  background: rgba(36, 95, 82, 0.08);
+  outline: 2px solid rgba(36, 95, 82, 0.28);
+  outline-offset: -2px;
+}
+
+.scroll-stage.has-local-art .tile {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scene-canvas .scene-image {
+  position: absolute;
+  inset: 0;
+  left: auto;
+  top: auto;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 0 26px rgba(31, 44, 42, 0.12));
+}
+
+.scene-canvas--artwork .scene-image {
+  object-fit: contain;
+}
+
+.scene-canvas .scene-image--preview {
+  opacity: 0.76;
+  filter: saturate(0.88) contrast(0.96);
+}
+
+.scene-image-overlay-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scene-canvas .environment-layer-root {
+  position: absolute;
+  inset: 0;
+  left: auto;
+  top: auto;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  transform: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.image-target-hotspot {
+  position: absolute;
+  z-index: 4;
+  border: 0;
+  border-radius: 18px;
+  padding: 0;
+  background: rgba(36, 95, 82, 0.025);
+  box-shadow: inset 0 0 0 2px rgba(36, 95, 82, 0.22);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.image-target-hotspot--label {
+  display: none;
+  pointer-events: none;
+}
+
+.image-target-hotspot:hover,
+.image-target-hotspot:focus-visible {
+  background: rgba(36, 95, 82, 0.09);
+  box-shadow: inset 0 0 0 3px rgba(36, 95, 82, 0.48);
+  outline: none;
+}
+
+.image-target-hotspot.is-active {
+  background: rgba(36, 95, 82, 0.08);
+  box-shadow: inset 0 0 0 3px rgba(36, 95, 82, 0.44);
+}

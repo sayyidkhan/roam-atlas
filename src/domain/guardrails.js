@@ -23,6 +23,12 @@ export function factConfidenceLabel(confidence) {
   return labels[confidence] ?? "Unconfirmed";
 }
 
+export function hasUnconfirmedNodeFacts(node) {
+  return Boolean(node?.facts?.some(
+    (fact) => fact.confidence === "unconfirmed" || fact.sourceType === "ai_generated"
+  ));
+}
+
 export function isTravelSensitiveFact(text) {
   return /\b(opening|ticket|price|closed|closure|live|currently|today|transport time)\b/i.test(
     text

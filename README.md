@@ -18,6 +18,10 @@ AI-generated, while factual claims are grounded in curated and official data.
 - [PRODUCT.md](docs/PRODUCT.md) is the product source of truth.
 - [AGENTS.md](AGENTS.md) is the operating guide for coding, research, image,
   fact-check, and itinerary agents.
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) defines the feature-first migration
+  target and non-negotiable system boundaries.
+- [TESTING.md](docs/TESTING.md) defines isolated provider fixtures, including
+  the rule that Playwright never contacts a live image or VLM API.
 
 ## Country Packs and Routes
 
@@ -39,8 +43,8 @@ Country pack registry:
 ```text
 src/data/countryPacks/
   index.js
-  malaysia.js
-  singapore.js
+  malaysia.json
+  singapore.json
 ```
 
 Unmapped countries can have routes and shells, but they must not invent verified
@@ -74,6 +78,10 @@ Run locally with:
 ```bash
 OPENAI_API_KEY="..." npm run dev
 ```
+
+The development command starts Vite on `127.0.0.1:4150` and the local API on
+`127.0.0.1:4151`; Vite proxies `/api` and `/runtime-cache` to the API process.
+The browser therefore always receives transformed React/TypeScript modules.
 
 If a key is pasted into chat, rotate it after testing.
 

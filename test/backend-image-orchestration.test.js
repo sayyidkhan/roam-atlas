@@ -178,6 +178,10 @@ test("server forwards optimized image options and stores versioned partial asset
 
 test("selected image quality controls provider generation and cache identity", async () => {
   const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const artworkHandler = await readFile(
+    new URL("../src/features/artwork/artworkHttpHandler.js", import.meta.url),
+    "utf8"
+  );
   const assetVersionStart = source.indexOf("function createAssetVersionForPage");
   const assetVersionEnd = source.indexOf("function getCountryPackForPage", assetVersionStart);
   const assetVersion = source.slice(assetVersionStart, assetVersionEnd);
@@ -186,8 +190,9 @@ test("selected image quality controls provider generation and cache identity", a
   const provider = source.slice(providerStart, providerEnd);
 
   assert.match(source, /defaultImageQuality: appConfig\.image\.quality/);
-  assert.match(source, /url\.searchParams\.get\("quality"\)/);
-  assert.match(source, /imageQuality: normalizeRequestedImageQuality\(imageQuality\)/);
+  assert.match(source, /handleArtworkHttpRequest/);
+  assert.match(artworkHandler, /url\.searchParams\.get\("quality"\)/);
+  assert.match(artworkHandler, /imageQuality: normalizeImageQuality\(query\.quality\)/);
   assert.match(assetVersion, /quality: normalizeRequestedImageQuality\(imageQuality\)/);
   assert.match(source, /quality: job\.imageQuality/);
   assert.match(provider, /quality: normalizeRequestedImageQuality\(quality\)/);

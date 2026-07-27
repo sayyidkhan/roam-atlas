@@ -1,0 +1,42 @@
+@media (max-width: 720px) {
+  .country-shell {
+    padding: 18px 14px;
+    place-items: start stretch;
+  }
+
+  .country-shell-panel {
+    max-height: none;
+    padding: 18px;
+  }
+
+  .country-config-hero {
+    display: grid;
+  }
+
+  .country-action-guide,
+  .country-action-guide-button {
+    width: 100%;
+  }
+
+  .country-action-legend {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .country-shell-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .country-image-quality {
+    grid-template-columns: 1fr;
+  }
+
+  .image-quality-options {
+    width: 100%;
+  }
+
+  .country-action-legend dl {
+    grid-template-columns: 1fr;
+  }
+}

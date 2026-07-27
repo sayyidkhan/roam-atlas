@@ -7,6 +7,16 @@ import { fileURLToPath } from "node:url";
 import { deflateSync, inflateSync } from "node:zlib";
 
 import { getSceneArtwork } from "../src/data/sceneArtwork.js";
+import { handleArtworkHttpRequest } from "../src/features/artwork/artworkHttpHandler.js";
+import { handleCountryPackHttpRequest } from "../src/features/countryCatalog/countryPackHttpHandler.js";
+import { createCountryDraftHttpHandlers } from "../src/features/countryDraft/countryDraftHttpHandler.js";
+import { createPlaceImageHttpHandlers } from "../src/features/placeImages/placeImageHttpHandler.js";
+import { handleRuntimeCacheFlushHttpRequest } from "../src/features/runtimeCache/runtimeCacheHttpHandler.js";
+import { handleExperienceConfigHttpRequest } from "../src/features/experience/experienceConfigHttpHandler.js";
+import {
+  handleFlipbookClickHttpRequest,
+  handleResolveClickHttpRequest
+} from "../src/features/explorer/clickResolutionHttpHandler.js";
 import {
   getCanonicalArtworkPageForGeneration,
   getDefaultArtworkPageForNode,
@@ -18,7 +28,7 @@ import {
   countryPacks,
   getCountryPack,
   isSourceControlledCountryPack
-} from "../src/data/countryPacks/index.js";
+} from "../src/data/countryPacks/serverRegistry.js";
 import { getCountryBySlug } from "../src/data/countries.js";
 import {
   getCountryImageOverrideUrl,
@@ -37,19 +47,10 @@ import { resolveRoamAtlasExperienceConfig } from "../src/config/experienceConfig
 import {
   buildCountryDraftInfluencePrompt,
   buildCountryDraftPrompt,
-  createCountryPackDraftFromStarterMap,
-  createCountryPackStarterMap,
   createCountryDraftFallback,
-  normalizeCountryDraftInstruction,
   normalizeCountryDraftPayload,
   refreshCuratedPackSnapshotThemes
 } from "../src/domain/countryDraft.js";
-import {
-  approveDraftItem,
-  appendUnconfirmedRegionCandidates,
-  parseDraftReviewTarget,
-  unapproveDraftItem
-} from "../src/domain/countryDraftReview.js";
 import { resolveFlipbookClick } from "../src/domain/flipbookPage.js";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -103,6 +104,20 @@ let imageJobRescanRequested = false;
 let environmentPlanProcessorActive = false;
 let activeEnvironmentTask = null;
 const countryDraftCache = new Map();
+const countryDraftHttpHandlers = createCountryDraftHttpHandlers({
+  readJson,
+  getCountryBySlug,
+  getCountryPack,
+  isSourceControlledCountryPack,
+  countryDraftCache,
+  readStoredCountryDraft,
+  writeStoredCountryDraft,
+  withFreshPackThemes,
+  generateCountryDraft,
+  normalizeCurrentCountryDraft,
+  createStarterMapConfirmation,
+  writeStoredCountryPromotion
+});
 const countryImageCache = new Map();
 const placeImageCache = new Map();
 const placeImageRequestsInFlight = new Map();
@@ -261,19 +276,24 @@ createServer(async (request, response) => {
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/artwork") {
-      await handleArtworkRequest(url, response);
+      await handleArtworkHttpRequest({
+        url,
+        response,
+        defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
+        getCountryPack,
+        getDefaultArtworkPageForNode,
+        getDefaultArtworkPageForScene,
+        createImageJob: createCodexImageJob,
+        normalizeImageQuality: normalizeRequestedImageQuality
+      });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/experience-config") {
-      response.writeHead(200, {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache"
+      handleExperienceConfigHttpRequest({
+        response,
+        experienceConfig: appExperienceConfig,
+        defaultImageQuality: appConfig.image.quality
       });
-      response.end(JSON.stringify({
-        ...appExperienceConfig,
-        defaultImageQuality: appConfig.image.quality,
-        imageQualityOptions: ["low", "medium", "high"]
-      }));
       return;
     }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/country-image") {
@@ -281,59 +301,71 @@ createServer(async (request, response) => {
       return;
     }
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname === "/api/place-image") {
-      await handlePlaceImageRequest(url, response);
+      await placeImageHttpHandlers.handleImageRequest(url, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/place-image/reset") {
-      await handlePlaceImageResetRequest(request, response);
+      await placeImageHttpHandlers.handleResetRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/place-image/feedback") {
-      await handlePlaceImageFeedbackRequest(request, response);
+      await placeImageHttpHandlers.handleFeedbackRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/place-image/suggestions") {
-      await handlePlaceImageSuggestionsRequest(request, response);
+      await placeImageHttpHandlers.handleSuggestionsRequest(request, response);
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/place-image/history") {
-      await handlePlaceImageHistoryRequest(url, response);
+      await placeImageHttpHandlers.handleHistoryRequest(url, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/place-image/history/select") {
-      await handlePlaceImageHistorySelectionRequest(request, response);
+      await placeImageHttpHandlers.handleHistorySelectionRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/place-image/history/delete") {
-      await handlePlaceImageHistoryDeleteRequest(request, response);
+      await placeImageHttpHandlers.handleHistoryDeleteRequest(request, response);
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/country-packs") {
-      await handleCountryPacksRequest(url, response);
+      handleCountryPackHttpRequest({
+        url,
+        response,
+        countryPacks,
+        defaultCountrySlug: DEFAULT_COUNTRY_SLUG
+      });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/country-draft") {
-      await handleCountryDraftRequest(url, response);
+      await countryDraftHttpHandlers.handleDraftRequest(url, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/influence") {
-      await handleCountryDraftInfluenceRequest(request, response);
+      await countryDraftHttpHandlers.handleInfluenceRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/confirm") {
-      await handleCountryDraftConfirmRequest(request, response);
+      await countryDraftHttpHandlers.handleConfirmRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/reorder") {
-      await handleCountryDraftReorderRequest(request, response);
+      await countryDraftHttpHandlers.handleReorderRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/country-draft/approve-item") {
-      await handleCountryDraftApproveRequest(request, response);
+      await countryDraftHttpHandlers.handleApprovalRequest(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/runtime-cache/flush") {
-      await handleRuntimeCacheFlushRequest(request, response);
+      await handleRuntimeCacheFlushHttpRequest({
+        request,
+        response,
+        readJson,
+        getCountryBySlug,
+        flushVisualCache: flushCountryGeneratedVisualCache,
+        flushRuntimeCache: flushCountryGeneratedRuntimeCache
+      });
       return;
     }
     if (request.method === "GET" && url.pathname === DEV_RELOAD_PATH) {
@@ -359,196 +391,34 @@ createServer(async (request, response) => {
 });
 
 async function handleResolveClick(request, response) {
-  const body = await readJson(request);
-  const result = await resolveClickPhraseWithOpenAI({
-    sceneId: body.sceneId,
-    countrySlug: body.countrySlug ?? DEFAULT_COUNTRY_SLUG,
-    imageUrl: body.imageUrl,
-    normalizedClick: body.normalizedClick,
-    point: body.point
+  await handleResolveClickHttpRequest({
+    request,
+    response,
+    defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
+    readJson,
+    resolveClickPhrase: resolveClickPhraseWithOpenAI
   });
-
-  if (result.status === "provider_missing") {
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(result));
-    return;
-  }
-
-  if (result.status === "vlm_error") {
-    response.writeHead(502, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(result));
-    return;
-  }
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify(result));
 }
 
 async function handleFlipbookClick(request, response) {
-  const body = await readJson(request);
-  const pack = getCountryPackForPage(body.currentPage);
-  const normalizedClick = body.imageClick?.normalizedImage ?? body.normalizedClick;
-  const currentScene = pack.scenes[body.currentPage?.sceneId];
-  const isGeneratedOverview =
-    currentScene?.pageType === "homepage_overview" && hasRuntimeGeneratedPage(body.currentPage);
-  const localResult = !body.targetNodeId && !body.detourPhrase
-    ? resolveDeterministicClick({
-        currentPage: body.currentPage,
-        normalizedClick
-      })
-    : null;
-
-  const semanticHit = !isGeneratedOverview && !body.targetNodeId && !body.detourPhrase
-    ? await resolveSemanticRegionHit({
-        currentPage: body.currentPage,
-        normalizedClick
-      })
-    : null;
-  if (body.targetNodeId || body.detourPhrase) {
-    const result = resolveFlipbookClick({
-      currentPage: body.currentPage,
-      normalizedClick,
-      targetNodeId: body.targetNodeId,
-      detourPhrase: body.detourPhrase,
-      scenes: pack.scenes,
-      nodes: pack.nodes,
-      sceneArtwork,
-      countryName: pack.title
-    });
-    if (result.page.status === "generation_required") {
-      result.page = await attachCodexArtworkToPage(result.page, pack, body.imageQuality);
-    }
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(result));
-    return;
-  }
-
-  if (semanticHit) {
-    const semanticClick = semanticHit.cacheClick ?? centerOfBox(semanticHit.bbox) ?? normalizedClick;
-    const result = resolveFlipbookClick({
-      currentPage: body.currentPage,
-      normalizedClick: semanticClick,
-      targetNodeId: semanticHit.matchedNodeId,
-      detourPhrase: semanticHit.matchedNodeId ? null : semanticHit.phrase,
-      scenes: pack.scenes,
-      nodes: pack.nodes,
-      sceneArtwork,
-      countryName: pack.title
-    });
-    result.semanticCache = semanticHit;
-    if (result.page.status === "generation_required") {
-      result.page = await attachCodexArtworkToPage(result.page, pack, body.imageQuality);
-    }
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify(result));
-    return;
-  }
-
-  const vlm = await resolveClickPhraseWithOpenAI({
-    sceneId: body.currentPage?.sceneId,
-    countrySlug: getRuntimeCountrySlugForPage(body.currentPage),
-    imageUrl: body.currentPage?.imageUrl,
-    normalizedClick: body.normalizedClick,
-    imageClick: body.imageClick
+  await handleFlipbookClickHttpRequest({
+    request,
+    response,
+    readJson,
+    getCountryPackForPage,
+    getCountrySlugForPage: getRuntimeCountrySlugForPage,
+    sceneArtwork,
+    hasRuntimeGeneratedPage,
+    resolveDeterministicClick,
+    resolveSemanticRegionHit,
+    resolveClickPhrase: resolveClickPhraseWithOpenAI,
+    matchVlmPhraseForCurrentPage,
+    resolveFlipbookClick,
+    appendSemanticRegionFromResult,
+    createUnresolvedClickResult,
+    centerOfBox,
+    attachArtwork: attachCodexArtworkToPage
   });
-  const isRuntimePage = hasRuntimeGeneratedPage(body.currentPage);
-  const hasReliableVlm =
-    vlm.status === "resolved" &&
-    (vlm.confidence === "high" || vlm.confidence === "medium") &&
-    Boolean(vlm.phrase);
-  const vlmMatch =
-    !body.targetNodeId &&
-    !body.detourPhrase &&
-    hasReliableVlm
-      ? matchVlmPhraseForCurrentPage({
-          currentPage: body.currentPage,
-          phrase: vlm.phrase
-        })
-      : null;
-  const shouldUseVlmMatch =
-    vlmMatch?.status === "matched" &&
-    (!isRuntimePage || vlmMatch.confidence === "confirmed");
-  const shouldUseVlmDetour =
-    !body.targetNodeId &&
-    !body.detourPhrase &&
-    !shouldUseVlmMatch &&
-    hasReliableVlm;
-  const shouldUseLocalFallback =
-    !body.targetNodeId &&
-    !body.detourPhrase &&
-    !body.currentPage?.imageUrl &&
-    localResult?.click?.status === "matched" &&
-    (!hasReliableVlm || vlmMatch?.nodeId !== localResult.click.nodeId);
-  const result = body.targetNodeId || body.detourPhrase
-    ? resolveFlipbookClick({
-        currentPage: body.currentPage,
-        normalizedClick,
-        targetNodeId: body.targetNodeId,
-        detourPhrase: body.detourPhrase,
-        scenes: pack.scenes,
-        nodes: pack.nodes,
-        sceneArtwork,
-        countryName: pack.title
-      })
-    : shouldUseVlmMatch
-    ? resolveFlipbookClick({
-        currentPage: body.currentPage,
-        normalizedClick,
-        targetNodeId: vlmMatch.nodeId,
-        scenes: pack.scenes,
-        nodes: pack.nodes,
-        sceneArtwork,
-        countryName: pack.title
-      })
-    : shouldUseVlmDetour
-    ? resolveFlipbookClick({
-        currentPage: body.currentPage,
-        normalizedClick,
-        detourPhrase: vlm.phrase,
-        scenes: pack.scenes,
-        nodes: pack.nodes,
-        sceneArtwork,
-        countryName: pack.title
-      })
-    : shouldUseLocalFallback
-    ? localResult
-    : createUnresolvedClickResult({
-        currentPage: body.currentPage,
-        normalizedClick,
-        vlm
-      });
-
-  // Overview art is regenerated and can move every illustrated region. Do not
-  // persist a coordinate cache for it: each click must be resolved against the
-  // artwork currently on screen. Deeper scene artwork may reuse a successful
-  // semantic region because it remains tied to that specific image artifact.
-  if (!isGeneratedOverview) {
-    await appendSemanticRegionFromResult({
-      currentPage: body.currentPage,
-      normalizedClick,
-      result,
-      vlm
-    });
-  }
-
-  result.vlm = {
-    status: vlm.status,
-    phrase: vlm.phrase ?? null,
-    matchedNodeId: vlmMatch?.nodeId ?? null,
-    confidence: vlm.confidence ?? null,
-    reason: vlm.reason ?? null,
-    imageMarked: vlm.imageMarked ?? null,
-    fallbackReason: shouldUseLocalFallback
-      ? "Curated hotspot overrode missing or conflicting VLM match."
-      : null
-  };
-
-  if (result.page.status === "generation_required") {
-    result.page = await attachCodexArtworkToPage(result.page, pack, body.imageQuality);
-  }
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify(result));
 }
 
 async function attachCodexArtworkToPage(page, pack, imageQuality) {
@@ -919,90 +789,6 @@ function actionForNode(nodeId, pack) {
     : { type: "open_node", nodeId };
 }
 
-async function handleCountryPacksRequest(url, response) {
-  const countrySlug = String(url.searchParams.get("slug") ?? "").trim().toLowerCase();
-  const scope = url.searchParams.get("scope") ?? (countrySlug ? "full" : "summary");
-
-  if (countrySlug) {
-    const pack = countryPacks[countrySlug];
-    if (!pack) {
-      response.writeHead(404, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ error: `Unknown country pack: ${countrySlug}` }));
-      return;
-    }
-
-    response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
-    response.end(JSON.stringify({ countrySlug, countryPack: pack }));
-    return;
-  }
-
-  const payload =
-    scope === "full"
-      ? { defaultCountrySlug: DEFAULT_COUNTRY_SLUG, countryPacks }
-      : {
-          defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
-          countryPacks: summarizeCountryPackRegistry(countryPacks)
-        };
-
-  response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-cache" });
-  response.end(JSON.stringify(payload));
-}
-
-function summarizeCountryPackRegistry(packs) {
-  return Object.fromEntries(
-    Object.entries(packs).map(([countrySlug, pack]) => [countrySlug, summarizeCountryPack(pack)])
-  );
-}
-
-function summarizeCountryPack(pack) {
-  return {
-    countryCode: pack.countryCode,
-    countrySlug: pack.countrySlug,
-    title: pack.title,
-    rootNodeId: pack.rootNodeId,
-    overviewSceneId: pack.overviewSceneId,
-    confidence: pack.confidence,
-    registration: pack.registration
-  };
-}
-
-async function handleArtworkRequest(url, response) {
-  const sceneId = url.searchParams.get("sceneId");
-  const nodeId = url.searchParams.get("nodeId");
-  const countrySlug = url.searchParams.get("countrySlug") ?? DEFAULT_COUNTRY_SLUG;
-  const pack = getCountryPack(countrySlug);
-  if (!pack) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country pack: ${countrySlug}` }));
-    return;
-  }
-
-  const page = nodeId
-    ? getDefaultArtworkPageForNode(nodeId, sceneId, pack.scenes, pack.nodes, pack.countrySlug, pack.title)
-    : getDefaultArtworkPageForScene(sceneId, pack.scenes, pack.nodes, pack.countrySlug, pack.title);
-  if (!page) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: nodeId ? `Unknown artwork node: ${nodeId}` : `Unknown artwork scene: ${sceneId}` }));
-    return;
-  }
-
-  const isPrefetch = url.searchParams.get("prefetch") === "true" || url.searchParams.get("prefetch") === "priority";
-  const isInteractivePriority = url.searchParams.get("priority") === "interactive";
-  const jobKind = isInteractivePriority
-    ? "interactive"
-    : isPrefetch
-    ? url.searchParams.get("prefetch") === "priority"
-      ? "prefetch"
-      : "artwork"
-    : nodeId
-    ? "interactive"
-    : "artwork";
-  const imageQuality = normalizeRequestedImageQuality(url.searchParams.get("quality"));
-  const artworkPage = await createCodexImageJob(page, { jobKind, imageQuality });
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({ page: artworkPage }));
-}
-
 async function handleCountryImageRequest(url, response) {
   const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
   const country = getCountryBySlug(countrySlug);
@@ -1164,194 +950,26 @@ function toSafeHeaderValue(value) {
 const PLACE_IMAGE_FACT_BOUNDARY =
   "Reference photo from an external search result. It is not evidence of current appearance, availability, or official status.";
 const PLACE_IMAGE_HISTORY_LIMIT = 6;
-
-async function handlePlaceImageRequest(url, response) {
-  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
-  const place = String(url.searchParams.get("place") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const context = String(url.searchParams.get("context") ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
-  const feedback = normalizePlaceImageFeedback(url.searchParams.get("feedback"));
-  const kind = String(url.searchParams.get("kind") ?? "").trim().toLowerCase();
-  const tags = String(url.searchParams.get("tags") ?? "")
-    .split(",")
-    .map((tag) => tag.trim().toLowerCase())
-    .filter(Boolean)
-    .slice(0, 8);
-  const country = getCountryBySlug(countrySlug);
-  if (!country || !place) {
-    respondPlaceImageNotFound(response, "unknown-country-or-place");
-    return;
-  }
-
-  const record = await resolvePlaceImage(country, place, { context, kind, tags, feedback });
-  if (!record?.imageUrl) {
-    respondPlaceImageNotFound(response, record?.reason ?? "no-image-found");
-    return;
-  }
-
-  // Serve our cached copy directly. A redirect worked in normal browsers, but
-  // embedded webviews can leave an <img> in a permanent pending state after
-  // following it. The cache is already local and immutable, so returning the
-  // bytes here is both simpler and more reliable for the config thumbnails.
-  const cachedImagePath = getImagePathFromUrl(record.imageUrl);
-  if (cachedImagePath) {
-    try {
-      const image = await readFile(cachedImagePath);
-      response.writeHead(200, {
-        "Content-Type": mimeTypeForImagePath(cachedImagePath),
-        // The server-side copy is the cache. Do not let the browser retain a
-        // stale thumbnail after the user resets generated visuals.
-        "Cache-Control": "no-store",
-        "X-RoamAtlas-Image-Source": toSafeHeaderValue(record.source),
-        "X-RoamAtlas-Image-Page": toSafeHeaderValue(record.sourceUrl)
-      });
-      response.end(image);
-      return;
-    } catch {
-      // The record can outlive a manually deleted image; fall back to the
-      // redirect path below so the normal image error handling remains intact.
-    }
-  }
-
-  response.writeHead(302, {
-    Location: record.imageUrl,
-    "Cache-Control": "no-store",
-    "X-RoamAtlas-Image-Source": toSafeHeaderValue(record.source),
-    "X-RoamAtlas-Image-Page": toSafeHeaderValue(record.sourceUrl)
-  });
-  response.end();
-}
-
-async function handlePlaceImageResetRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  const result = place
-    ? await resetStoredPlaceImage(country, place)
-    : await resetStoredCountryPlaceImages(country);
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    countrySlug: country.slug,
-    countryName: country.name,
-    ...result
-  }));
-}
-
-async function handlePlaceImageFeedbackRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const feedback = normalizePlaceImageFeedback(body.feedback);
-  const country = getCountryBySlug(countrySlug);
-  if (!country || !place || !feedback) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "A country, place, and photo feedback are required." }));
-    return;
-  }
-
-  // Feedback only steers a new external reference-photo search. It never
-  // changes the curated place data or becomes a travel claim.
-  const result = await resetStoredPlaceImage(country, place, { preserveHistory: true });
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    countrySlug: country.slug,
-    countryName: country.name,
-    place,
-    feedback,
-    ...result,
-    factBoundary: "Photo feedback is used only to refine the external reference-image search. Curated travel data was not changed."
-  }));
-}
-
-async function handlePlaceImageSuggestionsRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const kind = String(body.kind ?? "region").replace(/[^a-z-]/gi, "").trim().toLowerCase().slice(0, 32) || "region";
-  const currentFeedback = normalizePlaceImageFeedback(body.currentFeedback);
-  const country = getCountryBySlug(countrySlug);
-  const mappedLocation = getMappedPlaceImageSuggestionContext(country, place);
-  if (!country || !place || !mappedLocation) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "A country and a mapped place are required." }));
-    return;
-  }
-
-  const result = await suggestPlaceImagePrompts(country, {
-    place: mappedLocation.title,
-    context: mappedLocation.children,
-    kind: mappedLocation.kind ?? kind,
-    currentFeedback
-  });
-  response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-  response.end(JSON.stringify({
-    countrySlug: country.slug,
-    place,
-    suggestions: result.suggestions,
-    source: result.source,
-    factBoundary: "Prompt suggestions only steer an external reference-image search. They are not travel facts."
-  }));
-}
-
-async function handlePlaceImageHistoryRequest(url, response) {
-  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
-  const place = String(url.searchParams.get("place") ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const country = getCountryBySlug(countrySlug);
-  if (!country || !place) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "A country and place are required." }));
-    return;
-  }
-
-  const history = await readPlaceImageHistory(country, place);
-  response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-  response.end(JSON.stringify({
-    countrySlug: country.slug,
-    place,
-    items: history.map(toPlaceImageHistoryItem),
-    factBoundary: PLACE_IMAGE_FACT_BOUNDARY
-  }));
-}
-
-async function handlePlaceImageHistorySelectionRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const entryId = String(body.entryId ?? "").trim();
-  const country = getCountryBySlug(countrySlug);
-  if (!country || !place || !entryId) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "A country, place, and saved photo are required." }));
-    return;
-  }
-
-  const result = await selectPlaceImageHistoryEntry(country, place, entryId);
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({ countrySlug: country.slug, place, ...result }));
-}
-
-async function handlePlaceImageHistoryDeleteRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const place = String(body.place ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
-  const entryId = String(body.entryId ?? "").trim();
-  const country = getCountryBySlug(countrySlug);
-  if (!country || !place || !entryId) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "A country, place, and saved photo are required." }));
-    return;
-  }
-
-  const result = await deletePlaceImageHistoryEntry(country, place, entryId);
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({ countrySlug: country.slug, place, ...result }));
-}
+const placeImageHttpHandlers = createPlaceImageHttpHandlers({
+  readJson,
+  getCountryBySlug,
+  normalizeFeedback: normalizePlaceImageFeedback,
+  respondNotFound: respondPlaceImageNotFound,
+  resolveImage: resolvePlaceImage,
+  getImagePathFromUrl,
+  readFile,
+  mimeTypeForImagePath,
+  toSafeHeaderValue,
+  resetPlaceImage: resetStoredPlaceImage,
+  resetCountryImages: resetStoredCountryPlaceImages,
+  getSuggestionContext: getMappedPlaceImageSuggestionContext,
+  suggestPrompts: suggestPlaceImagePrompts,
+  readHistory: readPlaceImageHistory,
+  toHistoryItem: toPlaceImageHistoryItem,
+  selectHistoryEntry: selectPlaceImageHistoryEntry,
+  deleteHistoryEntry: deletePlaceImageHistoryEntry,
+  factBoundary: PLACE_IMAGE_FACT_BOUNDARY
+});
 
 function normalizePlaceImageFeedback(value) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
@@ -1477,11 +1095,11 @@ async function resetStoredPlaceImage(country, place, { preserveHistory = false }
   }
 
   await settlePlaceImageRequestsForPlace(paths);
-  let record = null;
+  let record;
   try {
     record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
   } catch {
-    record = null;
+    // A missing metadata file means there is no active record to archive.
   }
 
   const archived = preserveHistory
@@ -1599,11 +1217,11 @@ async function selectPlaceImageHistoryEntry(country, place, entryId) {
   const targetImage = await readFile(targetImagePath);
   const targetExtension = getPlaceImageExtension(target.imageUrl);
 
-  let activeRecord = null;
+  let activeRecord;
   try {
     activeRecord = JSON.parse(await readFile(paths.metadataPath, "utf8"));
   } catch {
-    activeRecord = null;
+    // Selecting history still works when no active photo has been saved.
   }
   if (activeRecord?.imageUrl) await archiveStoredPlaceImage(paths, activeRecord);
 
@@ -1666,11 +1284,11 @@ async function deleteStoredActivePlaceImage(country, place) {
   const paths = createPlaceImageCachePaths({ cacheRoot: runtimeCacheRoot, countrySlug: country.slug, place });
   await settlePlaceImageRequestsForPlace(paths);
 
-  let record = null;
+  let record;
   try {
     record = JSON.parse(await readFile(paths.metadataPath, "utf8"));
   } catch {
-    record = null;
+    // The active image cannot be deleted when its metadata is missing.
   }
   if (!record?.imageUrl) {
     throw new Error("The current reference photo is no longer available.");
@@ -2519,325 +2137,6 @@ function isAllowedCountryMediaUrl(value) {
   } catch {
     return false;
   }
-}
-
-async function handleCountryDraftRequest(url, response) {
-  const countrySlug = String(url.searchParams.get("countrySlug") ?? "").trim().toLowerCase();
-  const forceGenerate = url.searchParams.get("force") === "true";
-  const shouldGenerate = forceGenerate || url.searchParams.get("generate") !== "false";
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  const countryPack = getCountryPack(country.slug);
-  if (isSourceControlledCountryPack(countryPack)) {
-    const packSnapshot = createCountryPackStarterMap(countryPack);
-
-    // A runtime starter-map file is never the source of truth for a checked-in
-    // country pack. Always reconstruct the curated tree from the repository,
-    // then carry over only extra append-only candidates from the runtime copy.
-    // This prevents a cleared or malformed runtime file from blanking Singapore.
-    if (!forceGenerate) {
-      const storedPackSnapshot = await readStoredCountryDraft(country);
-      if (storedPackSnapshot?.mode === "curated_pack_snapshot") {
-        for (const region of packSnapshot.regions ?? []) {
-          appendUnconfirmedRegionCandidates(packSnapshot, region.name, storedPackSnapshot);
-        }
-        packSnapshot.changeNote = "";
-      }
-    }
-
-    countryDraftCache.set(country.slug, packSnapshot);
-    await writeStoredCountryDraft(country, packSnapshot);
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({
-      draft: packSnapshot,
-      cached: false,
-      persisted: true,
-      regenerated: forceGenerate,
-      source: "country_pack"
-    }));
-    return;
-  }
-
-  if (!forceGenerate) {
-    const cachedDraft = countryDraftCache.get(country.slug);
-    if (cachedDraft) {
-      const draft = withFreshPackThemes(cachedDraft, country);
-      countryDraftCache.set(country.slug, draft);
-      response.end(JSON.stringify({ draft, cached: true }));
-      return;
-    }
-
-    const storedDraft = await readStoredCountryDraft(country);
-    if (storedDraft) {
-      const draft = withFreshPackThemes(storedDraft, country);
-      countryDraftCache.set(country.slug, draft);
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ draft, cached: true, persisted: true }));
-      return;
-    }
-  }
-
-  if (!shouldGenerate) {
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ draft: null, cached: false, persisted: false }));
-    return;
-  }
-
-  const draft = await generateCountryDraft(country);
-  if (draft.generationStatus === "ready") {
-    countryDraftCache.set(country.slug, draft);
-    await writeStoredCountryDraft(country, draft);
-  }
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({ draft, cached: false, regenerated: forceGenerate }));
-}
-
-async function handleCountryDraftInfluenceRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  const countryPack = getCountryPack(country.slug);
-  const target = String(body.target ?? "starter-map").trim();
-  if (isSourceReviewedCountryPack(countryPack)) {
-    const parsedTarget = parseDraftReviewTarget(target);
-    if (parsedTarget?.kind !== "region") {
-      response.writeHead(409, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({
-        error: `${country.name} only supports append-only GenAI candidates within a selected region. Source-reviewed facts cannot be edited here.`
-      }));
-      return;
-    }
-
-    const currentDraft =
-      normalizeCurrentCountryDraft(body.currentDraft, country) ??
-      countryDraftCache.get(country.slug) ??
-      (await readStoredCountryDraft(country)) ??
-      createCountryPackStarterMap(countryPack);
-    const proposedDraft = await generateCountryDraft(country, {
-      instruction: normalizeCountryDraftInstruction(body.instruction),
-      currentDraft,
-      appendOnlyRegionName: parsedTarget.name
-    });
-    const appended = appendUnconfirmedRegionCandidates(currentDraft, parsedTarget.name, proposedDraft);
-    if (!appended.changed) {
-      response.writeHead(422, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ error: appended.error }));
-      return;
-    }
-
-    countryDraftCache.set(country.slug, currentDraft);
-    await writeStoredCountryDraft(country, currentDraft);
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({
-      draft: currentDraft,
-      message: {
-        role: "assistant",
-        text: `${appended.additions.length} unconfirmed candidate${appended.additions.length === 1 ? "" : "s"} added to ${parsedTarget.name}.`
-      }
-    }));
-    return;
-  }
-
-  const instruction = normalizeCountryDraftInstruction(body.instruction);
-  if (!instruction) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "Starter map instruction is required." }));
-    return;
-  }
-
-  const storedDraft = await readStoredCountryDraft(country);
-  const currentDraft =
-    normalizeCurrentCountryDraft(body.currentDraft, country) ??
-    countryDraftCache.get(country.slug) ??
-    storedDraft ??
-    null;
-  const draft = await generateCountryDraft(country, { instruction, currentDraft });
-  if (draft.generationStatus === "ready") {
-    countryDraftCache.set(country.slug, draft);
-    await writeStoredCountryDraft(country, draft);
-  }
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    draft,
-    message: {
-      role: "assistant",
-      text: draft.changeNote || "Starter map updated. All candidates remain unconfirmed."
-    }
-  }));
-}
-
-function isSourceReviewedCountryPack(countryPack) {
-  return isSourceControlledCountryPack(countryPack) && countryPack.confidence !== "unconfirmed";
-}
-
-async function handleCountryDraftApproveRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const target = String(body.target ?? "").trim();
-  const approved = body.approved !== false;
-  const recursive = body.recursive === true;
-  const sourceUrl = String(body.sourceUrl ?? "").trim() || null;
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  const storedDraft = await readStoredCountryDraft(country);
-  const currentDraft =
-    normalizeCurrentCountryDraft(body.currentDraft, country) ??
-    countryDraftCache.get(country.slug) ??
-    storedDraft ??
-    null;
-  if (!currentDraft) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "Build a starter map before approving items." }));
-    return;
-  }
-
-  const result = approved
-    ? approveDraftItem(currentDraft, target, { sourceUrl, recursive })
-    : unapproveDraftItem(currentDraft, target, { recursive });
-  if (!result.changed) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: result.error ?? "Approval update failed." }));
-    return;
-  }
-
-  countryDraftCache.set(country.slug, result.draft);
-  await writeStoredCountryDraft(country, result.draft);
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    draft: result.draft,
-    target,
-    approved,
-    confidence: result.confidence,
-    message: {
-      role: "assistant",
-      text: approved
-        ? result.confidence === "confirmed"
-          ? `${target.split(":")[1] ?? "Item"} marked as curated in the starter map. Update the country pack source file to make it permanent.`
-          : `${target.split(":")[1] ?? "Item"} approved for map preview. Add a source URL to mark it as curated.`
-        : `${target.split(":")[1] ?? "Item"} returned to needs-review status.`
-    }
-  }));
-}
-
-async function handleCountryDraftReorderRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  const draft = normalizeCurrentCountryDraft(body.currentDraft, country);
-  if (!draft) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "Build a starter map before sorting records." }));
-    return;
-  }
-
-  countryDraftCache.set(country.slug, draft);
-  await writeStoredCountryDraft(country, draft);
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    draft,
-    message: {
-      role: "assistant",
-      text: "Starter map order saved. Records still need source review before promotion."
-    }
-  }));
-}
-
-async function handleCountryDraftConfirmRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  if (isSourceControlledCountryPack(country.slug)) {
-    response.writeHead(409, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({
-      error: `${country.name} is already registered as a country pack. Confirm-for-curation only creates draft artifacts for countries that are not registered yet. For ${country.name}, move reviewed changes into the source-controlled country pack instead.`
-    }));
-    return;
-  }
-
-  const storedDraft = await readStoredCountryDraft(country);
-  const currentDraft =
-    normalizeCurrentCountryDraft(body.currentDraft, country) ??
-    countryDraftCache.get(country.slug) ??
-    storedDraft ??
-    null;
-  if (!currentDraft) {
-    response.writeHead(400, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: "Build a starter map before confirming it for curation." }));
-    return;
-  }
-
-  const confirmation = createStarterMapConfirmation(country, currentDraft);
-  const countryPackDraft = createCountryPackDraftFromStarterMap(currentDraft);
-  const paths = await writeStoredCountryPromotion({
-    country,
-    confirmation,
-    countryPackDraft
-  });
-
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    confirmation,
-    countryPackDraft,
-    paths: {
-      confirmationUrl: paths.starterMapConfirmationUrl,
-      countryPackDraftUrl: paths.countryPackDraftUrl
-    }
-  }));
-}
-
-async function handleRuntimeCacheFlushRequest(request, response) {
-  const body = await readJson(request);
-  const countrySlug = String(body.countrySlug ?? "").trim().toLowerCase();
-  const scope = body.scope === "visuals" ? "visuals" : "all";
-  const country = getCountryBySlug(countrySlug);
-  if (!country) {
-    response.writeHead(404, { "Content-Type": "application/json" });
-    response.end(JSON.stringify({ error: `Unknown country: ${countrySlug}` }));
-    return;
-  }
-
-  const result = scope === "visuals"
-    ? await flushCountryGeneratedVisualCache(country.slug)
-    : await flushCountryGeneratedRuntimeCache(country.slug);
-  response.writeHead(200, { "Content-Type": "application/json" });
-  response.end(JSON.stringify({
-    countrySlug: country.slug,
-    countryName: country.name,
-    scope,
-    ...result
-  }));
 }
 
 async function flushCountryGeneratedVisualCache(countrySlug) {
@@ -4965,7 +4264,9 @@ function loadLocalEnv(filePath) {
     const index = line.indexOf("=");
     const key = line.slice(0, index).trim();
     const value = line.slice(index + 1).trim().replace(/^["']|["']$/g, "");
-    if (!process.env[key]) {
+    // Preserve intentionally blank values. Playwright sets provider credentials
+    // to an empty string so a developer's local .env cannot enable live calls.
+    if (!Object.hasOwn(process.env, key)) {
       process.env[key] = value;
     }
   }

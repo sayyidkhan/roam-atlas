@@ -186,7 +186,7 @@ export function buildCountryDraftInfluencePrompt({ country, instruction, current
     "- Return JSON only.",
     ...(appendOnlyRegionName
       ? [
-          `- Append-only mode: return exactly one region named \"${appendOnlyRegionName}\".`,
+          `- Append-only mode: return exactly one region named "${appendOnlyRegionName}".`,
           "- Keep the existing region details unchanged and put only proposed new candidate places in that region's children array.",
           "- Do not rename, remove, or edit any existing region, child, theme, summary, or confirmed fact."
         ]

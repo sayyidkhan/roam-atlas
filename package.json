@@ -4,7 +4,46 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test",
-    "dev": "node scripts/dev-server.js"
+    "test": "npm run test:unit",
+    "test:unit": "node --test test/*.test.js",
+    "test:react": "vitest run test/components",
+    "test:contract": "vitest run test/contracts",
+    "test:browser": "playwright test",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint . && npm run lint:css",
+    "lint:css": "stylelint \"src/**/*.css\"",
+    "lint:css:fix": "stylelint \"src/**/*.css\" --fix",
+    "dev": "concurrently --kill-others --success first npm:dev:api npm:dev:web",
+    "dev:api": "cross-env PORT=4151 node scripts/dev-server.js",
+    "dev:web": "vite --host 127.0.0.1 --port 4150 --strictPort",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "eslint": "^10.7.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "jsdom": "^29.1.1",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.64.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router": "^7.18.1",
+    "zod": "^4.4.3"
   }
 }

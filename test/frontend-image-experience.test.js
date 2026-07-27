@@ -2,8 +2,40 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const appSource = readFileSync(new URL("../src/ui/app.js", import.meta.url), "utf8");
-const styleSource = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+import { APP_CONFIG } from "../src/config/appConfig.js";
+import { readFrontendRuntimeSource } from "./support/frontend-runtime-source.js";
+import { readFrontendStylesSource } from "./support/frontend-styles-source.js";
+
+const appSource = readFrontendRuntimeSource();
+const styleSource = readFrontendStylesSource();
+const explorerClientSource = readFileSync(
+  new URL("../src/features/explorer/explorerClient.js", import.meta.url),
+  "utf8"
+);
+const countrySetupViewSource = readFileSync(
+  new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url),
+  "utf8"
+);
+const environmentLayerSource = readFileSync(
+  new URL("../src/features/explorer/environmentLayerRenderer.js", import.meta.url),
+  "utf8"
+);
+const destinationNavigationSource = readFileSync(
+  new URL("../src/features/explorer/destinationNavigationView.js", import.meta.url),
+  "utf8"
+);
+const artworkJobPolicySource = readFileSync(
+  new URL("../src/features/artwork/artworkJobPolicy.ts", import.meta.url),
+  "utf8"
+);
+const sceneGeometrySource = readFileSync(
+  new URL("../src/features/explorer/sceneGeometry.ts", import.meta.url),
+  "utf8"
+);
+const environmentPlanPolicySource = readFileSync(
+  new URL("../src/features/explorer/environmentPlanPolicy.ts", import.meta.url),
+  "utf8"
+);
 
 function sourceBetween(start, end) {
   const startIndex = appSource.indexOf(start);
@@ -42,9 +74,9 @@ test("current artwork polling copies server state and has terminal cleanup", () 
   assert.match(appSource, /markArtworkJobFailed/);
   assert.match(appSource, /function retryArtwork/);
   assert.match(appSource, /function fetchArtworkResource/);
-  assert.match(appSource, /data-artwork-retry/);
-  assert.match(appSource, /function getArtworkFailureMessage/);
-  assert.match(appSource, /The factual page remains available/);
+  assert.match(destinationNavigationSource, /data-artwork-retry/);
+  assert.match(artworkJobPolicySource, /function getArtworkFailureMessage/);
+  assert.match(artworkJobPolicySource, /The factual page remains available/);
   assert.doesNotMatch(appSource, /escapeHtml\(job\.error \?\?/);
   assert.match(scenePoll, /job\.status === "ready" && !job\.imageUrl/);
   assert.match(pagePoll, /job\.status === "ready" && !job\.imageUrl/);
@@ -72,12 +104,14 @@ test("stale navigation and prefetch responses are invalidated", () => {
 test("runtime cache flush clears every in-memory artwork tier", () => {
   const clearCache = sourceBetween("function clearCountryGeneratedState", "function enterMappedCountry");
   const clearPrefetch = sourceBetween("function invalidatePrefetchState", "function isArtworkTargetReady");
+  const clearEnvironment = sourceBetween("function clearEnvironmentState", "return {");
   assert.match(clearCache, /state\.artworkJobs\.clear\(\)/);
   assert.match(clearCache, /state\.artworkByScene\.clear\(\)/);
   assert.match(clearCache, /state\.artworkByPage\.clear\(\)/);
   assert.match(clearCache, /state\.artworkImageLoads\.clear\(\)/);
   assert.match(clearCache, /invalidatePrefetchState\(\)/);
-  assert.match(clearCache, /environmentPlanEpoch \+= 1/);
+  assert.match(clearCache, /clearEnvironmentState\(countrySlug\)/);
+  assert.match(clearEnvironment, /environmentPlanEpoch \+= 1/);
   assert.match(clearPrefetch, /state\.prefetchJobs\.clear\(\)/);
 });
 
@@ -93,7 +127,7 @@ test("pending destinations open before their background artwork poll starts", ()
 });
 
 test("artwork becomes ready only after browser preload and decode", () => {
-  const preload = sourceBetween("function preloadArtworkImage", "function renderEnvironmentLayerNodes");
+  const preload = sourceBetween("function preloadArtworkImage", "function bindPageClick");
   const sceneCompletion = sourceBetween("async function completeSceneArtwork", "async function completeCurrentPageArtwork");
   const pageCompletion = sourceBetween("async function completeCurrentPageArtwork", "async function preparePartialArtwork");
 
@@ -113,7 +147,10 @@ test("artwork becomes ready only after browser preload and decode", () => {
 test("responsive image overlays use the rendered artwork bounds", () => {
   const sceneRender = sourceBetween("function renderScene", "function applySceneLayout");
   const overlayLayout = sourceBetween("function renderSceneImageOverlayFrame", "function toScenePercent");
-  const targetRender = sourceBetween("function renderImageTargetHotspots", "function normalizeEnvironmentPlanBounds");
+  const targetRender = sourceBetween(
+    "function renderImageTargetHotspots",
+    "function createMapHotspotPhotoFallback"
+  );
 
   assert.match(sceneRender, /renderSceneImageOverlayFrame/);
   assert.match(sceneRender, /renderEnvironmentLayerNodes/);
@@ -139,7 +176,7 @@ test("responsive image overlays use the rendered artwork bounds", () => {
 
 test("missing artwork keeps an accessible, honest, low-motion blueprint", () => {
   assert.match(appSource, /setAttribute\("aria-busy", isArtworkPending \? "true" : "false"\)/);
-  assert.match(appSource, /loading-scene-progress--indeterminate/);
+  assert.match(destinationNavigationSource, /loading-scene-progress--indeterminate/);
   assert.match(appSource, /loading-panel-progress--indeterminate/);
   assert.match(appSource, /captureExplorerFocusKey/);
   assert.match(appSource, /dataset\.roamFocusKey/);
@@ -149,12 +186,17 @@ test("missing artwork keeps an accessible, honest, low-motion blueprint", () => 
 });
 
 test("environment enhancement retries pending responses without gating artwork", () => {
-  const environmentRequest = sourceBetween("async function requestEnvironmentPlan", "function normalizeEnvironmentPlan");
+  const environmentRequest = sourceBetween(
+    "async function requestEnvironmentPlan",
+    "function renderImageTargetHotspots"
+  );
   const environmentLookup = sourceBetween("function getSceneEnvironmentUrl", "function getPageEnvironmentUrl");
 
   assert.match(appSource, /ENVIRONMENT_PLAN_RETRY_DELAYS_MS/);
-  assert.match(environmentRequest, /response\.status === 202/);
-  assert.match(environmentRequest, /response\.status === 404/);
+  assert.match(environmentRequest, /Number\(error\?\.status\)/);
+  assert.match(environmentRequest, /status === 202/);
+  assert.match(environmentRequest, /status === 404/);
+  assert.match(explorerClientSource, /error\.status = response\.status/);
   assert.match(environmentRequest, /\["pending", "queued", "processing"\]/);
   assert.match(environmentRequest, /return null/);
   assert.match(appSource, /status === "deferred"/);
@@ -191,13 +233,10 @@ test("VLM mappings provide responsive visual and label targets without giant box
     "async function requestEnvironmentPlan",
     "async function promoteCurrentPageEnvironmentPlan"
   );
-  const environmentNormalization = sourceBetween(
-    "function normalizeEnvironmentPlan",
-    "function renderMapHotspotLabels"
-  );
+  const environmentNormalization = environmentPlanPolicySource;
 
-  assert.match(appSource, /ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v4"/);
-  assert.match(appSource, /ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v7"/);
+  assert.equal(APP_CONFIG.environmentPlan.schemaVersion, "environment-plan-v4");
+  assert.equal(APP_CONFIG.environmentPlan.promptVersion, "environment-plan-v7");
   assert.match(environmentRequest, /!isCurrentEnvironmentPlan\(plan\)/);
   assert.match(
     environmentRequest,
@@ -209,7 +248,7 @@ test("VLM mappings provide responsive visual and label targets without giant box
   assert.match(environmentNormalization, /maxHeight: 0\.52/);
   assert.match(environmentNormalization, /maxWidth: 0\.24/);
   assert.match(environmentNormalization, /maxHeight: 0\.12/);
-  assert.match(environmentNormalization, /centerX - width \/ 2/);
+  assert.match(sceneGeometrySource, /centerX - width \/ 2/);
 });
 
 test("empty fallback target maps recover instead of disabling every selection box", () => {
@@ -218,24 +257,18 @@ test("empty fallback target maps recover instead of disabling every selection bo
     "async function requestEnvironmentPlan",
     "async function promoteCurrentPageEnvironmentPlan"
   );
-  const planRecovery = sourceBetween(
-    "function isCurrentEnvironmentPlan",
-    "function renderImageTargetHotspots"
-  );
+  const planRecovery = environmentPlanPolicySource;
 
-  assert.match(sceneRender, /environmentPlanNeedsTargetRecovery\(environmentPlan\)/);
-  assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(cachedPlan\)/);
-  assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(normalizedPlan\)/);
+  assert.match(sceneRender, /environmentPlanNeedsTargetRecovery\(\s*environmentPlan,/);
+  assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(\s*cachedPlan,/);
+  assert.match(environmentRequest, /environmentPlanNeedsTargetRecovery\(\s*normalizedPlan,/);
   assert.match(environmentRequest, /Environment plan has no destination targets/);
-  assert.match(planRecovery, /plan\.targets\.length > 0/);
-  assert.match(planRecovery, /node\?\.childIds\?\.length/);
+  assert.match(planRecovery, /source\.targets\.length > 0/);
+  assert.match(planRecovery, /nodes\?\.\[nodeId\]\?\.childIds\?\.length/);
 });
 
 test("image quality selection is accessible, persistent, and reaches artwork requests", () => {
-  const qualitySetting = sourceBetween(
-    "function renderImageQualitySetting",
-    "function normalizeImageQuality"
-  );
+  const qualitySetting = countrySetupViewSource;
   const sceneRequest = sourceBetween(
     "async function requestSceneArtwork",
     "async function requestCurrentPageArtwork"
@@ -250,9 +283,14 @@ test("image quality selection is accessible, persistent, and reaches artwork req
   );
 
   assert.match(appSource, /IMAGE_QUALITY_STORAGE_KEY/);
-  assert.match(appSource, /value: "low"/);
-  assert.match(appSource, /value: "medium"/);
-  assert.match(appSource, /value: "high"[\s\S]*recommended: true/);
+  assert.deepEqual(
+    APP_CONFIG.imageQuality.options.map(({ value }) => value),
+    ["low", "medium", "high"]
+  );
+  assert.equal(
+    APP_CONFIG.imageQuality.options.find(({ value }) => value === "high")?.recommended,
+    true
+  );
   assert.match(qualitySetting, /role="radiogroup"/);
   assert.match(qualitySetting, /role="radio"/);
   assert.match(qualitySetting, /aria-checked/);
@@ -265,5 +303,5 @@ test("image quality selection is accessible, persistent, and reaches artwork req
 });
 
 test("the artwork poll budget covers high-quality provider generation", () => {
-  assert.match(appSource, /ARTWORK_POLL_TIMEOUT_MS = 10 \* 60 \* 1000/);
+  assert.ok(APP_CONFIG.artwork.pollTimeoutMs >= 10 * 60 * 1_000);
 });
