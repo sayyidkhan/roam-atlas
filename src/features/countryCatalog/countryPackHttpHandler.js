@@ -2,24 +2,49 @@ import {
   CountryPackRegistryResponseSchema,
   CountryPackResponseSchema
 } from "./countryPackContract.js";
+import { jsonResponse } from "../../platform/http/fetchResponses.js";
+import { registerHonoRoute } from "../../platform/http/honoRoutes.ts";
+
+export function createCountryPackRoutes(dependencies) {
+  return (app) => {
+    registerHonoRoute(app, "GET", "/api/country-packs", (context) =>
+      handleCountryPackHttpRequest({
+        ...dependencies,
+        url: new URL(context.req.url)
+      })
+    );
+  };
+}
 
 /**
  * Serves curated country-pack data. Runtime drafts are intentionally excluded:
  * this endpoint is the read boundary for source-controlled travel facts.
  */
-export function handleCountryPackHttpRequest({ url, response, countryPacks, defaultCountrySlug }) {
+export function handleCountryPackHttpRequest({
+  url,
+  countryPacks,
+  defaultCountrySlug
+}) {
   const countrySlug = String(url.searchParams.get("slug") ?? "").trim().toLowerCase();
   const scope = url.searchParams.get("scope") ?? (countrySlug ? "full" : "summary");
 
   if (countrySlug) {
     const pack = countryPacks[countrySlug];
     if (!pack) {
-      sendJson(response, 404, { error: `Unknown country pack: ${countrySlug}` });
-      return;
+      return jsonResponse(
+        { error: `Unknown country pack: ${countrySlug}` },
+        404
+      );
     }
 
-    sendJson(response, 200, CountryPackResponseSchema.parse({ countrySlug, countryPack: pack }));
-    return;
+    return jsonResponse(
+      CountryPackResponseSchema.parse({
+        countrySlug,
+        countryPack: pack
+      }),
+      200,
+      { "Cache-Control": "no-cache" }
+    );
   }
 
   const payload = scope === "full"
@@ -28,7 +53,11 @@ export function handleCountryPackHttpRequest({ url, response, countryPacks, defa
         defaultCountrySlug,
         countryPacks: summarizeCountryPackRegistry(countryPacks)
       };
-  sendJson(response, 200, CountryPackRegistryResponseSchema.parse(payload));
+  return jsonResponse(
+    CountryPackRegistryResponseSchema.parse(payload),
+    200,
+    { "Cache-Control": "no-cache" }
+  );
 }
 
 function summarizeCountryPackRegistry(packs) {
@@ -47,12 +76,4 @@ function summarizeCountryPack(pack) {
     confidence: pack.confidence,
     registration: pack.registration
   };
-}
-
-function sendJson(response, status, payload) {
-  response.writeHead(status, {
-    "Content-Type": "application/json",
-    "Cache-Control": "no-cache"
-  });
-  response.end(JSON.stringify(payload));
 }

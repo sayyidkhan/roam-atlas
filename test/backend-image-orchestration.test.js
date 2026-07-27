@@ -125,13 +125,17 @@ test("processing and partial jobs become recoverable only after their lease expi
 });
 
 test("server publishes final readiness before queuing environment analysis", async () => {
-  const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  const workerStart = source.indexOf("async function processCodexImageJob");
-  const workerEnd = source.indexOf("function isTransientImageGenerationError", workerStart);
-  const worker = source.slice(workerStart, workerEnd);
+  const source = await readFile(
+    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    "utf8"
+  );
+  const workerStart = source.indexOf("async function processJob");
+  const worker = source.slice(workerStart);
 
   const readyWrite = worker.indexOf('status: "ready"');
-  const environmentQueue = worker.indexOf("queueEnvironmentPlan({ page: readyPage");
+  const environmentQueue = worker.indexOf(
+    "environmentPlanQueue.queuePlan({ page: readyPage"
+  );
   assert.ok(readyWrite >= 0);
   assert.ok(environmentQueue > readyWrite);
   assert.doesNotMatch(worker, /await ensureEnvironmentPlanForPage/);
@@ -142,59 +146,108 @@ test("server publishes final readiness before queuing environment analysis", asy
 });
 
 test("finished pages map their targets while unrelated image jobs continue", async () => {
-  const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  const workerStart = source.indexOf("async function processNextEnvironmentPlan");
-  const workerEnd = source.indexOf("async function updateReadyJobForImage", workerStart);
-  const worker = source.slice(workerStart, workerEnd);
+  const worker = await readFile(
+    new URL(
+      "../src/features/artwork/environmentPlanQueue.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
 
-  assert.match(worker, /pendingEnvironmentPlans\.size === 0/);
-  assert.match(worker, /ensureEnvironmentPlanForPage\(task\.page/);
+  assert.match(worker, /pendingPlans\.size === 0/);
+  assert.match(worker, /ensurePlan\(task\.page/);
   assert.doesNotMatch(worker, /processingJobs/);
-  assert.doesNotMatch(worker, /scheduleEnvironmentPlanProcessing\(1000\)/);
+  assert.doesNotMatch(worker, /scheduleProcessing\(1000\)/);
 });
 
 test("server forwards optimized image options and stores versioned partial assets", async () => {
-  const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
-  assert.match(source, /createImageVariantKey/);
-  assert.match(source, /variantKey: job\.assetVersion/);
-  assert.match(source, /paths\.partialImagePath/);
-  assert.match(source, /partialImages: appConfig\.image\.partialImages/);
-  assert.match(source, /outputCompression: appConfig\.image\.outputCompression/);
-  assert.match(source, /for \(const jobPath of processingJobs\.keys\(\)\)/);
-  assert.match(source, /terminalImageJobs\.has\(jobPath\)/);
-  assert.match(source, /cachedImageAvailable/);
-  assert.match(source, /await stat\(filePath\)/);
-  assert.match(source, /No marker was drawn on this image/);
-  assert.match(source, /const markerInstruction = markedImage/);
-  assert.match(source, /const targetInstruction = markedImage/);
-  assert.match(source, /processingJobAbortControllers/);
-  assert.match(source, /Promise\.allSettled/);
-  assert.match(source, /cancelEnvironmentPlansForCountry/);
-  assert.match(source, /error\?\.retryAfterMs/);
-  assert.match(source, /countryCacheFlushRuns/);
-  assert.match(source, /beginCountryImageJobCreation/);
-  assert.match(source, /await rename\(tempPath, jobPath\)/);
+  const source = await readFile(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const jobService = await readFile(
+    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    "utf8"
+  );
+  const jobCreationService = await readFile(
+    new URL(
+      "../src/features/artwork/artworkJobCreationService.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const configuredProvider = await readFile(
+    new URL("../src/features/artwork/configuredImageProvider.js", import.meta.url),
+    "utf8"
+  );
+  const jobRepository = await readFile(
+    new URL("../src/features/artwork/artworkJobRepository.js", import.meta.url),
+    "utf8"
+  );
+  const jobPolicy = await readFile(
+    new URL(
+      "../src/features/artwork/artworkJobProcessingPolicy.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const clickResolver = await readFile(
+    new URL("../src/features/explorer/openAIClickResolver.js", import.meta.url),
+    "utf8"
+  );
+  const runtimeCacheService = await readFile(
+    new URL(
+      "../src/features/runtimeCache/runtimeCacheService.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  assert.match(jobPolicy, /createImageVariantKey/);
+  assert.match(jobService, /variantKey: job\.assetVersion/);
+  assert.match(jobService, /paths\.partialImagePath/);
+  assert.match(configuredProvider, /partialImages: imageConfig\.partialImages/);
+  assert.match(configuredProvider, /outputCompression: imageConfig\.outputCompression/);
+  assert.match(jobService, /for \(const jobPath of processingJobs\.keys\(\)\)/);
+  assert.match(jobService, /jobRepository\.isTerminal\(jobPath\)/);
+  assert.match(jobCreationService, /cachedImageAvailable/);
+  assert.match(jobRepository, /await stat\(filePath\)/);
+  assert.match(clickResolver, /No marker was drawn on this image/);
+  assert.match(clickResolver, /const markerInstruction = imageMarked/);
+  assert.match(clickResolver, /const targetInstruction = imageMarked/);
+  assert.match(jobService, /processingJobAbortControllers/);
+  assert.match(jobCreationService, /Promise\.allSettled/);
+  assert.match(runtimeCacheService, /cancelEnvironmentForCountry/);
+  assert.match(jobService, /error\?\.retryAfterMs/);
+  assert.match(runtimeCacheService, /countryCacheFlushRuns/);
+  assert.match(jobCreationService, /beginCountryJobCreation/);
+  assert.match(jobRepository, /await rename\(temporaryPath, jobPath\)/);
 });
 
 test("selected image quality controls provider generation and cache identity", async () => {
-  const source = await readFile(new URL("../scripts/dev-server.js", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const jobService = await readFile(
+    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    "utf8"
+  );
+  const provider = await readFile(
+    new URL("../src/features/artwork/configuredImageProvider.js", import.meta.url),
+    "utf8"
+  );
   const artworkHandler = await readFile(
     new URL("../src/features/artwork/artworkHttpHandler.js", import.meta.url),
     "utf8"
   );
-  const assetVersionStart = source.indexOf("function createAssetVersionForPage");
-  const assetVersionEnd = source.indexOf("function getCountryPackForPage", assetVersionStart);
-  const assetVersion = source.slice(assetVersionStart, assetVersionEnd);
-  const providerStart = source.indexOf("async function generateConfiguredImage");
-  const providerEnd = source.indexOf("async function resolveClickPhraseWithOpenAI", providerStart);
-  const provider = source.slice(providerStart, providerEnd);
-
+  const assetVersion = await readFile(
+    new URL(
+      "../src/features/artwork/artworkJobProcessingPolicy.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
   assert.match(source, /defaultImageQuality: appConfig\.image\.quality/);
-  assert.match(source, /handleArtworkHttpRequest/);
+  assert.match(source, /createArtworkRoutes/);
+  assert.match(artworkHandler, /handleArtworkHttpRequest/);
   assert.match(artworkHandler, /url\.searchParams\.get\("quality"\)/);
   assert.match(artworkHandler, /imageQuality: normalizeImageQuality\(query\.quality\)/);
-  assert.match(assetVersion, /quality: normalizeRequestedImageQuality\(imageQuality\)/);
-  assert.match(source, /quality: job\.imageQuality/);
-  assert.match(provider, /quality: normalizeRequestedImageQuality\(quality\)/);
+  assert.match(assetVersion, /quality: normalizeImageQuality\(imageQuality\)/);
+  assert.match(jobService, /quality: job\.imageQuality/);
+  assert.match(provider, /quality: normalizeQuality\(quality\)/);
   assert.match(provider, /\["low", "medium", "high"\]\.includes\(normalized\)/);
 });

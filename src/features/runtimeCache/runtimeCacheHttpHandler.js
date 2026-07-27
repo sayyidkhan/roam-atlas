@@ -2,6 +2,20 @@ import {
   RuntimeCacheFlushRequestSchema,
   RuntimeCacheFlushResponseSchema
 } from "./runtimeCacheContract.js";
+import { jsonResponse } from "../../platform/http/fetchResponses.js";
+import { registerHonoRoute } from "../../platform/http/honoRoutes.ts";
+import { readJsonRequest } from "../../platform/http/readJsonRequest.js";
+
+export function createRuntimeCacheRoutes(dependencies) {
+  return (app) => {
+    registerHonoRoute(app, "POST", "/api/runtime-cache/flush", (context) =>
+      handleRuntimeCacheFlushHttpRequest({
+        ...dependencies,
+        request: context.req.raw
+      })
+    );
+  };
+}
 
 /**
  * Transport boundary for country-scoped runtime artifact cleanup. The runtime
@@ -10,37 +24,36 @@ import {
  */
 export async function handleRuntimeCacheFlushHttpRequest({
   request,
-  response,
-  readJson,
   getCountryBySlug,
   flushVisualCache,
   flushRuntimeCache
 }) {
-  const parsed = RuntimeCacheFlushRequestSchema.safeParse(await readJson(request));
+  const parsed = RuntimeCacheFlushRequestSchema.safeParse(
+    await readJsonRequest(request)
+  );
   if (!parsed.success) {
-    sendJson(response, 400, { error: "A country slug is required and scope must be visuals or all." });
-    return;
+    return jsonResponse({
+      error:
+        "A country slug is required and scope must be visuals or all."
+    }, 400);
   }
   const countrySlug = parsed.data.countrySlug.toLowerCase();
   const scope = parsed.data.scope ?? "all";
   const country = getCountryBySlug(countrySlug);
   if (!country) {
-    sendJson(response, 404, { error: `Unknown country: ${countrySlug}` });
-    return;
+    return jsonResponse(
+      { error: `Unknown country: ${countrySlug}` },
+      404
+    );
   }
 
   const result = scope === "visuals"
     ? await flushVisualCache(country.slug)
     : await flushRuntimeCache(country.slug);
-  sendJson(response, 200, RuntimeCacheFlushResponseSchema.parse({
+  return jsonResponse(RuntimeCacheFlushResponseSchema.parse({
     countrySlug: country.slug,
     countryName: country.name,
     scope,
     ...result
   }));
-}
-
-function sendJson(response, status, payload) {
-  response.writeHead(status, { "Content-Type": "application/json" });
-  response.end(JSON.stringify(payload));
 }

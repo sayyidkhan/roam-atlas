@@ -14,7 +14,7 @@
     "lint:css": "stylelint \"src/**/*.css\"",
     "lint:css:fix": "stylelint \"src/**/*.css\" --fix",
     "dev": "concurrently --kill-others --success first npm:dev:api npm:dev:web",
-    "dev:api": "cross-env PORT=4151 node scripts/dev-server.js",
+    "dev:api": "cross-env PORT=4151 node src/server/roamAtlasDevServer.ts",
     "dev:web": "vite --host 127.0.0.1 --port 4150 --strictPort",
     "build": "vite build"
   },
@@ -23,6 +23,7 @@
     "@playwright/test": "^1.61.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
@@ -40,7 +41,9 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.12",
     "@tanstack/react-query": "^5.101.2",
+    "hono": "^4.12.32",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router": "^7.18.1",

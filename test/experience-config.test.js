@@ -4,31 +4,18 @@ import test from "node:test";
 import { fetchExperienceConfig } from "../src/features/experience/experienceConfigClient.js";
 import { handleExperienceConfigHttpRequest } from "../src/features/experience/experienceConfigHttpHandler.js";
 
-test("experience config publishes only browser-safe image settings", () => {
-  const response = {
-    status: null,
-    headers: null,
-    body: null,
-    writeHead(status, headers) {
-      this.status = status;
-      this.headers = headers;
-    },
-    end(body) {
-      this.body = JSON.parse(body);
-    }
-  };
-
-  handleExperienceConfigHttpRequest({
-    response,
+test("experience config publishes only browser-safe image settings", async () => {
+  const response = handleExperienceConfigHttpRequest({
     experienceConfig: { maxParallelImageJobs: 2, providerApiKey: "must-not-be-here" },
     defaultImageQuality: "high"
   });
+  const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.equal(response.headers["Cache-Control"], "no-cache");
-  assert.equal(response.body.defaultImageQuality, "high");
-  assert.deepEqual(response.body.imageQualityOptions, ["low", "medium", "high"]);
-  assert.equal(response.body.providerApiKey, undefined);
+  assert.equal(response.headers.get("Cache-Control"), "no-cache");
+  assert.equal(body.defaultImageQuality, "high");
+  assert.deepEqual(body.imageQualityOptions, ["low", "medium", "high"]);
+  assert.equal(body.providerApiKey, undefined);
 });
 
 test("experience config client uses a no-store request and exposes request errors", async () => {

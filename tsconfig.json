@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "allowJs": true,
+    "allowImportingTsExtensions": true,
     "checkJs": false,
     "isolatedModules": true,
     "jsx": "react-jsx",
@@ -10,7 +11,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "types": ["node"]
   },
   "include": [
     "src/**/*.js",

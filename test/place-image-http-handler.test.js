@@ -3,28 +3,21 @@ import test from "node:test";
 
 import { createPlaceImageHttpHandlers } from "../src/features/placeImages/placeImageHttpHandler.js";
 
-function createResponse() {
-  return {
-    status: null,
-    body: null,
-    writeHead(status) {
-      this.status = status;
-    },
-    end(body) {
-      this.body = body ? JSON.parse(body) : null;
-    }
-  };
+function createJsonRequest(body) {
+  return new Request("http://localhost/api/place-image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
 }
 
-function createHandlers(body) {
+function createHandlers() {
   return createPlaceImageHttpHandlers({
-    readJson: async () => body,
     getCountryBySlug: (slug) => slug === "singapore" ? { slug, name: "Singapore" } : null,
     normalizeFeedback: (value) => String(value ?? "").trim(),
     respondNotFound: () => {},
     resolveImage: async () => null,
-    getImagePathFromUrl: () => null,
-    readFile: async () => null,
+    readCachedImage: async () => null,
     mimeTypeForImagePath: () => "image/jpeg",
     toSafeHeaderValue: (value) => value,
     resetPlaceImage: async () => ({ reset: true }),
@@ -40,20 +33,25 @@ function createHandlers(body) {
 }
 
 test("place-image feedback requires a country, place, and normalized feedback", async () => {
-  const response = createResponse();
-  await createHandlers({ countrySlug: "singapore", place: "Marina Bay", feedback: "" })
-    .handleFeedbackRequest({}, response);
+  const response = await createHandlers().handleFeedbackRequest(createJsonRequest({
+    countrySlug: "singapore",
+    place: "Marina Bay",
+    feedback: ""
+  }));
+  const body = await response.json();
 
   assert.equal(response.status, 400);
-  assert.match(response.body.error, /country, place, and photo feedback/);
+  assert.match(body.error, /country, place, and photo feedback/);
 });
 
 test("place-image suggestions explicitly label external search output as non-factual", async () => {
-  const response = createResponse();
-  await createHandlers({ countrySlug: "singapore", place: "Marina Bay" })
-    .handleSuggestionsRequest({}, response);
+  const response = await createHandlers().handleSuggestionsRequest(createJsonRequest({
+    countrySlug: "singapore",
+    place: "Marina Bay"
+  }));
+  const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.match(response.body.factBoundary, /not travel facts/);
-  assert.deepEqual(response.body.suggestions, ["More greenery"]);
+  assert.match(body.factBoundary, /not travel facts/);
+  assert.deepEqual(body.suggestions, ["More greenery"]);
 });

@@ -3,17 +3,12 @@ import test from "node:test";
 
 import { handleFlipbookClickHttpRequest } from "../src/features/explorer/clickResolutionHttpHandler.js";
 
-function createResponse() {
-  return {
-    status: null,
-    body: null,
-    writeHead(status) {
-      this.status = status;
-    },
-    end(body) {
-      this.body = JSON.parse(body);
-    }
-  };
+function createJsonRequest(body) {
+  return new Request("http://localhost/api/flipbook/click", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
 }
 
 function createDependencies(overrides = {}) {
@@ -28,10 +23,6 @@ function createDependencies(overrides = {}) {
   return {
     calls,
     dependencies: {
-      readJson: async () => ({
-        currentPage: { id: "page", sceneId: "scene", nodeId: "root", imageUrl: "/art.png" },
-        normalizedClick: { x: 0.4, y: 0.5 }
-      }),
       getCountryPackForPage: () => pack,
       getCountrySlugForPage: () => "singapore",
       sceneArtwork: {},
@@ -54,27 +45,27 @@ function createDependencies(overrides = {}) {
 }
 
 test("click HTTP handler only turns reliable VLM output into a curated matched node", async () => {
-  const response = createResponse();
   const { dependencies, calls } = createDependencies();
 
-  await handleFlipbookClickHttpRequest({ request: {}, response, ...dependencies });
+  const response = await handleFlipbookClickHttpRequest({
+    request: createJsonRequest({
+      currentPage: { id: "page", sceneId: "scene", nodeId: "root", imageUrl: "/art.png" },
+      normalizedClick: { x: 0.4, y: 0.5 }
+    }),
+    ...dependencies
+  });
+  const body = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].targetNodeId, "gardens");
-  assert.equal(response.body.vlm.matchedNodeId, "gardens");
+  assert.equal(body.vlm.matchedNodeId, "gardens");
 });
 
 test("click HTTP handler preserves explicit overlay navigation without VLM or semantic resolution", async () => {
-  const response = createResponse();
   let semanticCalls = 0;
   let vlmCalls = 0;
   const { dependencies, calls } = createDependencies({
-    readJson: async () => ({
-      currentPage: { id: "page", sceneId: "scene", nodeId: "root" },
-      normalizedClick: { x: 0.4, y: 0.5 },
-      targetNodeId: "marina-bay-sands"
-    }),
     resolveSemanticRegionHit: async () => {
       semanticCalls += 1;
       return null;
@@ -85,17 +76,24 @@ test("click HTTP handler preserves explicit overlay navigation without VLM or se
     }
   });
 
-  await handleFlipbookClickHttpRequest({ request: {}, response, ...dependencies });
+  const response = await handleFlipbookClickHttpRequest({
+    request: createJsonRequest({
+      currentPage: { id: "page", sceneId: "scene", nodeId: "root" },
+      normalizedClick: { x: 0.4, y: 0.5 },
+      targetNodeId: "marina-bay-sands"
+    }),
+    ...dependencies
+  });
+  const body = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(calls[0].targetNodeId, "marina-bay-sands");
   assert.equal(semanticCalls, 0);
   assert.equal(vlmCalls, 0);
-  assert.equal(response.body.vlm, undefined);
+  assert.equal(body.vlm, undefined);
 });
 
 test("runtime pages reject non-confirmed VLM matches as an unverified detour", async () => {
-  const response = createResponse();
   let cachedResult = null;
   const { dependencies, calls } = createDependencies({
     hasRuntimeGeneratedPage: () => true,
@@ -113,10 +111,17 @@ test("runtime pages reject non-confirmed VLM matches as an unverified detour", a
     }
   });
 
-  await handleFlipbookClickHttpRequest({ request: {}, response, ...dependencies });
+  const response = await handleFlipbookClickHttpRequest({
+    request: createJsonRequest({
+      currentPage: { id: "page", sceneId: "scene", nodeId: "root", imageUrl: "/art.png" },
+      normalizedClick: { x: 0.4, y: 0.5 }
+    }),
+    ...dependencies
+  });
+  const body = await response.json();
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].detourPhrase, "Gardens");
-  assert.equal(response.body.click.status, "matched");
+  assert.equal(body.click.status, "matched");
   assert.equal(cachedResult?.result.click.status, "matched");
 });

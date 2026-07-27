@@ -4,26 +4,18 @@ import test from "node:test";
 import { flushCountryRuntimeCache } from "../src/features/runtimeCache/runtimeCacheClient.js";
 import { handleRuntimeCacheFlushHttpRequest } from "../src/features/runtimeCache/runtimeCacheHttpHandler.js";
 
-function createResponse() {
-  return {
-    status: null,
-    body: null,
-    writeHead(status) {
-      this.status = status;
-    },
-    end(body) {
-      this.body = JSON.parse(body);
-    }
-  };
+function createJsonRequest(body) {
+  return new Request("http://localhost/api/runtime-cache/flush", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
 }
 
 test("runtime cache handler restricts visual flushes to known countries", async () => {
-  const response = createResponse();
   let flushedSlug = null;
-  await handleRuntimeCacheFlushHttpRequest({
-    request: {},
-    response,
-    readJson: async () => ({ countrySlug: "Singapore", scope: "visuals" }),
+  const response = await handleRuntimeCacheFlushHttpRequest({
+    request: createJsonRequest({ countrySlug: "Singapore", scope: "visuals" }),
     getCountryBySlug: (slug) => slug === "singapore" ? { slug, name: "Singapore" } : null,
     flushVisualCache: async (slug) => {
       flushedSlug = slug;
@@ -33,11 +25,12 @@ test("runtime cache handler restricts visual flushes to known countries", async 
       throw new Error("full flush should not run");
     }
   });
+  const body = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(flushedSlug, "singapore");
-  assert.equal(response.body.scope, "visuals");
-  assert.deepEqual(response.body.preservedFolders, ["starter-map"]);
+  assert.equal(body.scope, "visuals");
+  assert.deepEqual(body.preservedFolders, ["starter-map"]);
 });
 
 test("runtime cache client posts an explicit country and scope", async () => {
@@ -57,12 +50,9 @@ test("runtime cache client posts an explicit country and scope", async () => {
 });
 
 test("runtime cache handler rejects an empty country before invoking a flush adapter", async () => {
-  const response = createResponse();
   let invoked = false;
-  await handleRuntimeCacheFlushHttpRequest({
-    request: {},
-    response,
-    readJson: async () => ({ countrySlug: "", scope: "dangerous" }),
+  const response = await handleRuntimeCacheFlushHttpRequest({
+    request: createJsonRequest({ countrySlug: "", scope: "dangerous" }),
     getCountryBySlug: () => null,
     flushVisualCache: async () => { invoked = true; },
     flushRuntimeCache: async () => { invoked = true; }

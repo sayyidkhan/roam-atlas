@@ -1,3 +1,21 @@
+import { jsonResponse } from "../../platform/http/fetchResponses.js";
+import { registerHonoRoute } from "../../platform/http/honoRoutes.ts";
+import { readJsonRequest } from "../../platform/http/readJsonRequest.js";
+
+export function createClickResolutionRoutes({
+  handleResolveClick,
+  handleFlipbookClick
+}) {
+  return (app) => {
+    registerHonoRoute(app, "POST", "/api/resolve-click", (context) =>
+      handleResolveClick(context.req.raw)
+    );
+    registerHonoRoute(app, "POST", "/api/flipbook/click", (context) =>
+      handleFlipbookClick(context.req.raw)
+    );
+  };
+}
+
 /**
  * Feature-owned HTTP orchestration for explorer clicks.
  *
@@ -8,12 +26,10 @@
  */
 export async function handleResolveClickHttpRequest({
   request,
-  response,
   defaultCountrySlug,
-  readJson,
   resolveClickPhrase
 }) {
-  const body = await readJson(request);
+  const body = await readJsonRequest(request);
   const result = await resolveClickPhrase({
     sceneId: body.sceneId,
     countrySlug: body.countrySlug ?? defaultCountrySlug,
@@ -22,13 +38,14 @@ export async function handleResolveClickHttpRequest({
     point: body.point
   });
 
-  sendJson(response, result.status === "vlm_error" ? 502 : 200, result);
+  return jsonResponse(
+    result,
+    result.status === "vlm_error" ? 502 : 200
+  );
 }
 
 export async function handleFlipbookClickHttpRequest({
   request,
-  response,
-  readJson,
   getCountryPackForPage,
   getCountrySlugForPage,
   sceneArtwork,
@@ -43,7 +60,7 @@ export async function handleFlipbookClickHttpRequest({
   centerOfBox,
   attachArtwork
 }) {
-  const body = await readJson(request);
+  const body = await readJsonRequest(request);
   const pack = getCountryPackForPage(body.currentPage);
   const normalizedClick = body.imageClick?.normalizedImage ?? body.normalizedClick;
   const currentScene = pack.scenes[body.currentPage?.sceneId];
@@ -72,8 +89,7 @@ export async function handleFlipbookClickHttpRequest({
       resolveFlipbookClick
     });
     await attachArtworkIfRequired({ result, pack, imageQuality: body.imageQuality, attachArtwork });
-    sendJson(response, 200, result);
-    return;
+    return jsonResponse(result);
   }
 
   if (semanticHit) {
@@ -87,8 +103,7 @@ export async function handleFlipbookClickHttpRequest({
     });
     result.semanticCache = semanticHit;
     await attachArtworkIfRequired({ result, pack, imageQuality: body.imageQuality, attachArtwork });
-    sendJson(response, 200, result);
-    return;
+    return jsonResponse(result);
   }
 
   const vlm = await resolveClickPhrase({
@@ -161,7 +176,7 @@ export async function handleFlipbookClickHttpRequest({
       : null
   };
   await attachArtworkIfRequired({ result, pack, imageQuality: body.imageQuality, attachArtwork });
-  sendJson(response, 200, result);
+  return jsonResponse(result);
 }
 
 function resolvePageClick({ body, pack, sceneArtwork, normalizedClick, resolveFlipbookClick }) {
@@ -181,9 +196,4 @@ async function attachArtworkIfRequired({ result, pack, imageQuality, attachArtwo
   if (result.page.status === "generation_required") {
     result.page = await attachArtwork(result.page, pack, imageQuality);
   }
-}
-
-function sendJson(response, status, payload) {
-  response.writeHead(status, { "Content-Type": "application/json" });
-  response.end(JSON.stringify(payload));
 }

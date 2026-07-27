@@ -102,26 +102,111 @@ policy. Avoid generic `helpers`, `utils`, or `common` directories.
 The current baseline includes a React 19 composition root, React Router,
 TanStack Query, Vite, strict TypeScript checking, React-aware ESLint, Zod
 validation for artwork and country-pack APIs, Vitest component/contract tests,
-and Playwright fixture isolation. The React runtime composes feature-owned
+Playwright fixture isolation, and a typed Hono API composition root on Node.js.
+The React runtime composes feature-owned
 country, explorer, artwork, and browser-feedback controllers; the former
-`src/ui/app.js` monolith and temporary legacy bridge have been removed. Hono,
-PostgreSQL, and Drizzle remain deliberate later migrations, introduced only
-when their feature boundary is ready.
+`src/ui/app.js` monolith and temporary legacy bridge have been removed. Hono
+is active for route composition; PostgreSQL and Drizzle remain deliberate later
+migrations, introduced only when their persistence boundary is ready.
 
 ### Current Feature Boundaries
 
-The transitional vanilla UI and Node server remain in place, but these features
-already own their public HTTP clients and/or handlers:
+The React frontend is now the active browser composition. The Node API remains
+an incremental migration target, while these features already own their public
+clients, handlers, policies, and adapters:
 
 - `artwork`: validated artwork request handler.
 - `countryCatalog`: country-pack client, registry contract, and API handler.
-- `countryDraft`: browser client, server guardrail handler, and a complete starter-map panel composed from focused chat, review-status, metadata, and non-factual reference-photo views.
+- `countryDraft`: browser client, server guardrail handler, country-scoped
+  repository, draft policy, guarded generator, Exa grounding provider, and a
+  complete starter-map panel composed from focused chat, review-status,
+  metadata, and non-factual reference-photo views.
 - `countrySetup`: country configuration shell view and DOM event controller.
 - `explorer`: detail panel, destination-navigation view, environment renderer,
-  click-resolution handler, and explorer client.
+  click-resolution handler, semantic guardrails, click-marker codec, injected
+  click VLM provider, environment-plan policy/provider, and explorer client.
 - `experience`: public browser-safe runtime configuration endpoint/client.
-- `placeImages`: reference-photo browser client and factual-boundary API handler.
+- `countryImages`: decorative country-card selection policy, Wikimedia
+  provider, local artifact repository, application service, and HTTP handler.
+- `placeImages`: reference-photo browser client, factual-boundary HTTP handler,
+  application service, local artifact/history repository, prompt policy, and
+  isolated Exa, OpenAI, and Wikipedia providers.
 - `runtimeCache`: country-scoped cleanup endpoint/client.
+
+### Backend Platform Boundaries
+
+The typed development composition root wires platform adapters instead of
+implementing generic infrastructure inline:
+
+- `src/platform/env/loadLocalEnv.js` owns local environment-file loading and
+  preserves explicit blank test overrides.
+- `src/platform/http/readJsonRequest.js` owns bounded Fetch request-body
+  decoding.
+- `src/platform/http/fetchResponses.js` owns framework-neutral Fetch response
+  construction.
+- `src/platform/http/honoRoutes.ts` owns typed Hono route registration.
+- `src/platform/http/mediaTypes.js` owns static and image MIME resolution.
+- `src/platform/http/safeHeaderValue.js` owns safe external metadata encoding
+  for response headers.
+- `src/platform/http/staticAssetServer.js` owns app-shell fallback and
+  cache-safe static/runtime artifact delivery.
+- `src/platform/media/mediaFetch.js` owns browser-like media download options
+  and content-type extension mapping.
+- `src/platform/runtime/runtimeCacheFiles.js` owns runtime artifact path
+  compatibility and traversal-safe path resolution.
+- `src/platform/dev/liveReloadServer.js` owns development-only file watching
+  and server-sent reload events.
+
+These modules contain infrastructure only. Country facts, generated media
+policy, provider selection, and cache-flush policy remain in their owning
+features. Future backend extractions should inject these adapters rather than
+reintroducing filesystem, HTTP, or environment concerns into feature policy.
+
+The API entry now composes `countryImages` and `placeImages` instead of
+implementing their workflows inline. In particular, reference-photo provider
+traffic, prompt suggestions, cache history, claim deduplication, image
+validation, and persistence do not live in the startup script or composition
+root. Provider tests inject mock transports; they do not use live credentials
+or network traffic.
+
+Country-draft runtime storage, promotion artifacts, source-refresh policy,
+grounding search, and OpenAI generation are likewise feature-owned. The server
+only supplies configuration and registry adapters.
+`openAICountryDraftProvider.js` owns provider transport and response parsing;
+`countryDraftGenerator.js` owns prompting, fallback behavior, and enforcement
+of the unconfirmed review state. Generated starter maps remain unconfirmed
+review artifacts, and provider failures retain that status.
+
+Artwork provider configuration is feature-owned, including model
+normalization, quality policy, provider readiness, and the OpenAI image adapter.
+Click and environment VLMs accept injected transports, read only local
+artifacts, and pass output through deterministic policy before it can affect
+navigation. Environment output remains decorative and click output can only
+match curated candidates or become an unverified detour.
+
+Artwork jobs are likewise feature-owned. `artworkJobProcessingPolicy.js` owns cache
+identity, priority, retry eligibility, and environment scheduling;
+`artworkJobRepository.js` owns atomic job persistence, generated binary/JSON
+artifact writes, path validation, and terminal indexing;
+`artworkJobCreationService.js` owns cache reuse, pending-job creation, and
+country-flush coordination; and `artworkJobService.js` owns background scans,
+provider execution, partial artifacts, retry state, and cancellation.
+`environmentPlanQueue.js` runs decorative environment analysis independently
+after final artwork readiness. The server entry composes these boundaries and
+does not implement the worker lifecycle.
+
+`runtimeCacheService.js` owns country-scoped flush locking, in-flight job
+cancellation, factual-cache scope policy, and feature-memory invalidation.
+`runtimeCacheRepository.js` owns traversal-safe filesystem deletion. The typed
+`src/server/createRoamAtlasApi.ts` root composes feature route registrars and
+owns only the HTTP error boundary, live-reload route, and static fallback.
+Endpoint paths and methods live in the owning feature HTTP modules rather than
+the bootstrap or API root. `runtimeArtworkContext.js` owns runtime country and
+asset-version resolution. `src/server/roamAtlasDevServer.ts` is the typed
+dependency-composition and process-lifecycle entry executed directly by the
+`dev:api` command. Every feature HTTP handler accepts Fetch requests where
+needed and returns native responses; raw Node request/response bindings are not
+part of feature contracts.
 
 Browser-wide tunable policy lives in `src/config/appConfig.js`: storage keys,
 quality choices, polling and retry budgets, version gates, input limits, and

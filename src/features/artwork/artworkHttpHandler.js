@@ -1,4 +1,17 @@
 import { ArtworkRequestQuerySchema, ArtworkResponseSchema } from "./artworkContract.js";
+import { jsonResponse } from "../../platform/http/fetchResponses.js";
+import { registerHonoRoute } from "../../platform/http/honoRoutes.ts";
+
+export function createArtworkRoutes(dependencies) {
+  return (app) => {
+    registerHonoRoute(app, "GET", "/api/artwork", (context) =>
+      handleArtworkHttpRequest({
+        ...dependencies,
+        url: new URL(context.req.url)
+      })
+    );
+  };
+}
 
 /**
  * Feature-owned HTTP boundary for requesting page artwork. The injected
@@ -7,7 +20,6 @@ import { ArtworkRequestQuerySchema, ArtworkResponseSchema } from "./artworkContr
  */
 export async function handleArtworkHttpRequest({
   url,
-  response,
   defaultCountrySlug,
   getCountryPack,
   getDefaultArtworkPageForNode,
@@ -28,18 +40,21 @@ export async function handleArtworkHttpRequest({
   const countrySlug = query.countrySlug ?? defaultCountrySlug;
   const pack = getCountryPack(countrySlug);
   if (!pack) {
-    sendJson(response, 404, { error: `Unknown country pack: ${countrySlug}` });
-    return;
+    return jsonResponse(
+      { error: `Unknown country pack: ${countrySlug}` },
+      404
+    );
   }
 
   const page = nodeId
     ? getDefaultArtworkPageForNode(nodeId, sceneId, pack.scenes, pack.nodes, pack.countrySlug, pack.title)
     : getDefaultArtworkPageForScene(sceneId, pack.scenes, pack.nodes, pack.countrySlug, pack.title);
   if (!page) {
-    sendJson(response, 404, {
-      error: nodeId ? `Unknown artwork node: ${nodeId}` : `Unknown artwork scene: ${sceneId}`
-    });
-    return;
+    return jsonResponse({
+      error: nodeId
+        ? `Unknown artwork node: ${nodeId}`
+        : `Unknown artwork scene: ${sceneId}`
+    }, 404);
   }
 
   const isPrefetch = query.prefetch === "true" || query.prefetch === "priority";
@@ -57,10 +72,7 @@ export async function handleArtworkHttpRequest({
     jobKind,
     imageQuality: normalizeImageQuality(query.quality)
   });
-  sendJson(response, 200, ArtworkResponseSchema.parse({ page: artworkPage }));
-}
-
-function sendJson(response, status, payload) {
-  response.writeHead(status, { "Content-Type": "application/json" });
-  response.end(JSON.stringify(payload));
+  return jsonResponse(
+    ArtworkResponseSchema.parse({ page: artworkPage })
+  );
 }
