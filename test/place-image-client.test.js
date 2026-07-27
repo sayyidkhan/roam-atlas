@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPlaceImageClient } from "../src/features/placeImages/placeImageClient.js";
+import { createPlaceImageClient } from "../apps/web/src/features/placeImages/placeImageClient.js";
 
 test("place-image client owns all mutable reference-photo API requests", async () => {
   const requests = [];

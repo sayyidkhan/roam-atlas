@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   createRuntimeArtworkContext,
   extractAssetVersionFromRuntimeUrl
-} from "../src/features/artwork/runtimeArtworkContext.js";
+} from "../apps/api/src/features/artwork/runtimeArtworkContext.js";
 
 const packs = {
   singapore: { countrySlug: "singapore" },

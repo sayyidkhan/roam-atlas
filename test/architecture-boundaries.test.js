@@ -1,15 +1,29 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-const appSource = readFileSync(new URL("../src/app/applicationRuntime.ts", import.meta.url), "utf8");
-const featureRoot = new URL("../src/features/", import.meta.url);
+const appSource = readFileSync(new URL("../apps/web/src/app/applicationRuntime.ts", import.meta.url), "utf8");
+const featureRoot = new URL("../apps/web/src/features/", import.meta.url);
+
+function readSourceTree(root) {
+  return readdirSync(root, { withFileTypes: true })
+    .flatMap((entry) => {
+      const entryUrl = new URL(entry.name + (entry.isDirectory() ? "/" : ""), root);
+      if (entry.isDirectory()) return readSourceTree(entryUrl);
+      if (!/\.(?:js|jsx|ts|tsx)$/.test(entry.name)) return [];
+      return [readFileSync(entryUrl, "utf8")];
+    })
+    .join("\n");
+}
 
 test("React composition root owns the frontend entry without an app monolith bridge", () => {
-  const htmlSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
-  const appComposition = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+  const htmlSource = readFileSync(
+    new URL("../apps/web/index.html", import.meta.url),
+    "utf8"
+  );
+  const appComposition = readFileSync(new URL("../apps/web/src/app/App.tsx", import.meta.url), "utf8");
   const runtimeHost = readFileSync(
-    new URL("../src/app/ApplicationRuntimeHost.tsx", import.meta.url),
+    new URL("../apps/web/src/app/ApplicationRuntimeHost.tsx", import.meta.url),
     "utf8"
   );
 
@@ -18,13 +32,13 @@ test("React composition root owns the frontend entry without an app monolith bri
   assert.match(appComposition, /<Routes>/);
   assert.doesNotMatch(appComposition, /ui\/app\.js/);
   assert.match(runtimeHost, /import\("\.\/applicationRuntime"\)/);
-  assert.equal(existsSync(new URL("../src/ui/app.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../src/app/applicationRuntime.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../src/app/browserRuntime.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../src/app/applicationRuntime.ts", import.meta.url)), true);
-  assert.equal(existsSync(new URL("../src/app/browserRuntime.ts", import.meta.url)), true);
-  assert.equal(existsSync(new URL("../src/features/countrySetup/countryShellView.js", import.meta.url)), false);
-  assert.equal(existsSync(new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url)), true);
+  assert.equal(existsSync(new URL("../apps/web/src/ui/app.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../apps/web/src/app/applicationRuntime.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../apps/web/src/app/browserRuntime.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../apps/web/src/app/applicationRuntime.ts", import.meta.url)), true);
+  assert.equal(existsSync(new URL("../apps/web/src/app/browserRuntime.ts", import.meta.url)), true);
+  assert.equal(existsSync(new URL("../apps/web/src/features/countrySetup/countryShellView.js", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../apps/web/src/features/countrySetup/countryShellView.ts", import.meta.url)), true);
 });
 
 test("application runtime delegates mutable feature API calls to feature clients", () => {
@@ -120,7 +134,7 @@ test("stateless feature policy does not remain embedded in the application runti
 });
 
 test("CSS entry is an import manifest and React catalog styles are locally owned", () => {
-  const styleEntry = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+  const styleEntry = readFileSync(new URL("../apps/web/src/styles.css", import.meta.url), "utf8");
   const catalogView = readFileSync(
     new URL("countryCatalog/CountryCatalogView.tsx", featureRoot),
     "utf8"
@@ -138,30 +152,63 @@ test("CSS entry is an import manifest and React catalog styles are locally owned
   );
 });
 
-test("development command executes the typed server composition root directly", () => {
+test("workspace commands keep web and API deployment entry points separate", () => {
   const packageJson = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8")
+  );
+  const apiPackage = JSON.parse(
+    readFileSync(new URL("../apps/api/package.json", import.meta.url), "utf8")
+  );
+  const webPackage = JSON.parse(
+    readFileSync(new URL("../apps/web/package.json", import.meta.url), "utf8")
   );
 
   assert.equal(
     packageJson.scripts["dev:api"],
-    "cross-env PORT=4151 node src/server/roamAtlasDevServer.ts"
+    "npm run dev --workspace @roamatlas/api"
   );
-  assert.equal(
-    existsSync(new URL("../scripts/dev-server.js", import.meta.url)),
-    false
+  assert.equal(packageJson.scripts["build:web"], "npm run build --workspace @roamatlas/web");
+  assert.equal(apiPackage.scripts.start, "node src/main.ts");
+  assert.equal(apiPackage.scripts.check, "node --check src/main.ts");
+  assert.equal(webPackage.scripts.build, "vite build");
+  assert.equal(packageJson.dependencies, undefined);
+});
+
+test("deployable applications communicate through packages and HTTP only", () => {
+  const webSource = readSourceTree(
+    new URL("../apps/web/src/", import.meta.url)
   );
+  const apiSource = readSourceTree(
+    new URL("../apps/api/src/", import.meta.url)
+  );
+  const packageSource = readSourceTree(
+    new URL("../packages/", import.meta.url)
+  );
+
+  assert.doesNotMatch(webSource, /@roamatlas\/api|apps\/api|from ["']node:/);
+  assert.doesNotMatch(apiSource, /@roamatlas\/web|apps\/web|from ["']react(?:-dom)?/);
+  assert.doesNotMatch(packageSource, /apps\/(?:web|api)|@roamatlas\/(?:web|api)/);
+});
+
+test("API runtime artifacts do not write into the web deployment", () => {
+  const serverSource = readFileSync(
+    new URL("../apps/api/src/main.ts", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(serverSource, /path\.join\(runtimeCacheRoot, "country-cards"\)/);
+  assert.doesNotMatch(serverSource, /path\.join\(root, "public"/);
 });
 
 test("platform concerns stay outside the backend composition entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
 
   assert.match(serverSource, /platform\/env\/loadLocalEnv/);
-  assert.match(serverSource, /platform\/http\/staticAssetServer/);
-  assert.match(serverSource, /platform\/dev\/liveReloadServer/);
+  assert.match(serverSource, /createRuntimeArtifactRoutes/);
+  assert.doesNotMatch(serverSource, /staticAssetServer|liveReloadServer|index\.html/);
   assert.doesNotMatch(serverSource, /function loadLocalEnv\(/);
   assert.doesNotMatch(serverSource, /readJsonBody|function readJson\(/);
   assert.doesNotMatch(serverSource, /function serveStatic\(/);
@@ -170,19 +217,19 @@ test("platform concerns stay outside the backend composition entry", () => {
 
 test("country and Wikipedia media ownership stays outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const serviceSource = readFileSync(
     new URL(
-      "../src/features/countryImages/countryImageService.js",
+      "../apps/api/src/features/countryImages/countryImageService.js",
       import.meta.url
     ),
     "utf8"
   );
   const repositorySource = readFileSync(
     new URL(
-      "../src/features/countryImages/countryImageRepository.js",
+      "../apps/api/src/features/countryImages/countryImageRepository.js",
       import.meta.url
     ),
     "utf8"
@@ -203,23 +250,23 @@ test("country and Wikipedia media ownership stays outside the server entry", () 
 
 test("place-image policy, persistence, and providers stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const featureSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageFeature.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageFeature.js", import.meta.url),
     "utf8"
   );
   const serviceSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageService.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageService.js", import.meta.url),
     "utf8"
   );
   const repositorySource = readFileSync(
-    new URL("../src/features/placeImages/placeImageRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageRepository.js", import.meta.url),
     "utf8"
   );
   const providerSource = readFileSync(
-    new URL("../src/features/placeImages/exaPlaceImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/exaPlaceImageProvider.js", import.meta.url),
     "utf8"
   );
 
@@ -240,30 +287,30 @@ test("place-image policy, persistence, and providers stay outside the server ent
 
 test("country-draft generation and persistence stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const featureSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftFeature.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftFeature.js", import.meta.url),
     "utf8"
   );
   const generatorSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftGenerator.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftGenerator.js", import.meta.url),
     "utf8"
   );
   const openAIProviderSource = readFileSync(
     new URL(
-      "../src/features/countryDraft/openAICountryDraftProvider.js",
+      "../apps/api/src/features/countryDraft/openAICountryDraftProvider.js",
       import.meta.url
     ),
     "utf8"
   );
   const repositorySource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftRepository.js", import.meta.url),
     "utf8"
   );
   const groundingSource = readFileSync(
-    new URL("../src/features/countryDraft/exaCountryGroundingProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/exaCountryGroundingProvider.js", import.meta.url),
     "utf8"
   );
 
@@ -284,15 +331,15 @@ test("country-draft generation and persistence stay outside the server entry", (
 
 test("click VLM provider and PNG annotation stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const resolverSource = readFileSync(
-    new URL("../src/features/explorer/openAIClickResolver.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIClickResolver.js", import.meta.url),
     "utf8"
   );
   const markerSource = readFileSync(
-    new URL("../src/features/explorer/clickMarkerPng.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickMarkerPng.js", import.meta.url),
     "utf8"
   );
 
@@ -306,19 +353,19 @@ test("click VLM provider and PNG annotation stay outside the server entry", () =
 
 test("environment provider and normalization policy stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const providerSource = readFileSync(
-    new URL("../src/features/explorer/openAIEnvironmentPlanner.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIEnvironmentPlanner.js", import.meta.url),
     "utf8"
   );
   const policySource = readFileSync(
-    new URL("../src/features/explorer/environmentPlanServerPolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/environmentPlanServerPolicy.js", import.meta.url),
     "utf8"
   );
   const queueSource = readFileSync(
-    new URL("../src/features/artwork/environmentPlanQueue.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/environmentPlanQueue.js", import.meta.url),
     "utf8"
   );
 
@@ -337,11 +384,11 @@ test("environment provider and normalization policy stay outside the server entr
 
 test("configured image provider stays outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const providerSource = readFileSync(
-    new URL("../src/features/artwork/configuredImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/configuredImageProvider.js", import.meta.url),
     "utf8"
   );
 
@@ -354,19 +401,19 @@ test("configured image provider stays outside the server entry", () => {
 
 test("semantic click policy and persistence stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const featureSource = readFileSync(
-    new URL("../src/features/explorer/clickResolutionFeature.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickResolutionFeature.js", import.meta.url),
     "utf8"
   );
   const repositorySource = readFileSync(
-    new URL("../src/features/explorer/pageUnderstandingRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/pageUnderstandingRepository.js", import.meta.url),
     "utf8"
   );
   const policySource = readFileSync(
-    new URL("../src/features/explorer/semanticRegionPolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/semanticRegionPolicy.js", import.meta.url),
     "utf8"
   );
 
@@ -381,11 +428,11 @@ test("semantic click policy and persistence stay outside the server entry", () =
 
 test("artwork job files and terminal-state indexing stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const repositorySource = readFileSync(
-    new URL("../src/features/artwork/artworkJobRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobRepository.js", import.meta.url),
     "utf8"
   );
 
@@ -402,12 +449,12 @@ test("artwork job files and terminal-state indexing stay outside the server entr
 
 test("artwork job eligibility and cache identity stay outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const policySource = readFileSync(
     new URL(
-      "../src/features/artwork/artworkJobProcessingPolicy.js",
+      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js",
       import.meta.url
     ),
     "utf8"
@@ -424,16 +471,16 @@ test("artwork job eligibility and cache identity stay outside the server entry",
 
 test("artwork job lifecycle stays outside the server composition entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const serviceSource = readFileSync(
-    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
     "utf8"
   );
   const creationSource = readFileSync(
     new URL(
-      "../src/features/artwork/artworkJobCreationService.js",
+      "../apps/api/src/features/artwork/artworkJobCreationService.js",
       import.meta.url
     ),
     "utf8"
@@ -455,19 +502,19 @@ test("artwork job lifecycle stays outside the server composition entry", () => {
 
 test("country runtime cache coordination stays outside the server entry", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const serviceSource = readFileSync(
     new URL(
-      "../src/features/runtimeCache/runtimeCacheService.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheService.js",
       import.meta.url
     ),
     "utf8"
   );
   const repositorySource = readFileSync(
     new URL(
-      "../src/features/runtimeCache/runtimeCacheRepository.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheRepository.js",
       import.meta.url
     ),
     "utf8"
@@ -487,23 +534,23 @@ test("country runtime cache coordination stays outside the server entry", () => 
 
 test("typed Hono API composes feature-owned routes outside the dev bootstrap", () => {
   const serverSource = readFileSync(
-    new URL("../src/server/roamAtlasDevServer.ts", import.meta.url),
+    new URL("../apps/api/src/main.ts", import.meta.url),
     "utf8"
   );
   const apiSource = readFileSync(
-    new URL("../src/server/createRoamAtlasApi.ts", import.meta.url),
+    new URL("../apps/api/src/server/createRoamAtlasApi.ts", import.meta.url),
     "utf8"
   );
   const runtimeCacheHttpSource = readFileSync(
     new URL(
-      "../src/features/runtimeCache/runtimeCacheHttpHandler.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheHttpHandler.js",
       import.meta.url
     ),
     "utf8"
   );
   const honoRoutesSource = readFileSync(
     new URL(
-      "../src/platform/http/honoRoutes.ts",
+      "../apps/api/src/platform/http/honoRoutes.ts",
       import.meta.url
     ),
     "utf8"

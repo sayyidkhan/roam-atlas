@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ROAMATLAS_CONFIG } from "../src/config/roamAtlasConfig.js";
+import { ROAMATLAS_CONFIG } from "../apps/api/src/config/roamAtlasConfig.js";
 import {
   createImageRequestAbortContext,
   generateTileImageWithOpenAI,
@@ -11,11 +11,11 @@ import {
   normalizeImageRequestTimeout,
   parseRetryAfterMs,
   resolveImageRequestTimeoutMs
-} from "../src/domain/imageProvider.js";
+} from "../apps/api/src/domain/imageProvider.js";
 import {
   createImageVariantKey,
   createRuntimeCachePaths
-} from "../src/domain/runtimeCache.js";
+} from "../apps/api/src/domain/runtimeCache.js";
 
 test("image defaults use the recommended high-quality output profile", () => {
   assert.deepEqual(ROAMATLAS_CONFIG.image, {

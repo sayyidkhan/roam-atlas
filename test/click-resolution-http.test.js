@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handleFlipbookClickHttpRequest } from "../src/features/explorer/clickResolutionHttpHandler.js";
+import { handleFlipbookClickHttpRequest } from "../apps/api/src/features/explorer/clickResolutionHttpHandler.js";
 
 function createJsonRequest(body) {
   return new Request("http://localhost/api/flipbook/click", {

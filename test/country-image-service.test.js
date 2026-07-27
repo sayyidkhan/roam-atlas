@@ -4,17 +4,17 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createCountryImageService } from "../src/features/countryImages/countryImageService.js";
-import { handleCountryImageHttpRequest } from "../src/features/countryImages/countryImageHttpHandler.js";
-import { createCountryImageRepository } from "../src/features/countryImages/countryImageRepository.js";
+import { createCountryImageService } from "../apps/api/src/features/countryImages/countryImageService.js";
+import { handleCountryImageHttpRequest } from "../apps/api/src/features/countryImages/countryImageHttpHandler.js";
+import { createCountryImageRepository } from "../apps/api/src/features/countryImages/countryImageRepository.js";
 import {
   selectCountryArticleImage,
   selectCountrySearchImage
-} from "../src/features/countryImages/countryImageSelection.js";
+} from "../apps/api/src/features/countryImages/countryImageSelection.js";
 import {
   getPlaceWikipediaArticleCandidates,
   resolvePlaceWikipediaImage
-} from "../src/features/placeImages/wikipediaPlaceImageProvider.js";
+} from "../apps/api/src/features/placeImages/wikipediaPlaceImageProvider.js";
 
 const singapore = {
   code: "SG",
@@ -26,10 +26,10 @@ test("country-image service prefers a local decorative card without provider tra
   const temporaryRoot = await mkdtemp(
     path.join(os.tmpdir(), "roamatlas-country-card-")
   );
-  const publicDirectory = path.join(temporaryRoot, "country-cards");
-  await mkdir(publicDirectory, { recursive: true });
+  const storageDirectory = path.join(temporaryRoot, "country-cards");
+  await mkdir(storageDirectory, { recursive: true });
   await writeFile(
-    path.join(publicDirectory, "singapore.jpg"),
+    path.join(storageDirectory, "singapore.jpg"),
     Buffer.from("fixture")
   );
 
@@ -37,8 +37,8 @@ test("country-image service prefers a local decorative card without provider tra
   try {
     const service = createCountryImageService({
       repository: createCountryImageRepository({
-        publicDirectory,
-        publicUrlPrefix: "/public/country-cards"
+        storageDirectory,
+        urlPrefix: "/runtime-cache/country-cards"
       }),
       fetchFn: async () => {
         providerCalled = true;
@@ -58,7 +58,7 @@ test("country-image service prefers a local decorative card without provider tra
     assert.equal(response.status, 302);
     assert.equal(
       response.headers.get("Location"),
-      "/public/country-cards/singapore.jpg?v=test-version"
+      "/runtime-cache/country-cards/singapore.jpg?v=test-version"
     );
     assert.equal(response.headers.get("X-RoamAtlas-Image-Source"), "local-country-card");
     assert.equal(providerCalled, false);

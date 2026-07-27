@@ -59,13 +59,15 @@ timeouts, retryable failures, and permanent failures.
 
 Before merging a migration change, run:
 
-```text
-typecheck
-lint
-unit tests
-contract tests
-Playwright browser tests with network lockdown
-production build
+```bash
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:react
+npm run test:contract
+npm run test:browser
+npm run check:api
+npm run build:web
 ```
 
 The existing Node test suite remains the baseline until equivalent Vitest and

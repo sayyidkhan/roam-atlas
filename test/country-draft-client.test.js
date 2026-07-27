@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCountryDraftClient } from "../src/features/countryDraft/countryDraftClient.js";
+import { createCountryDraftClient } from "../apps/web/src/features/countryDraft/countryDraftClient.js";
 
 test("country draft client centralizes draft API paths and payloads", async () => {
   const requests = [];

@@ -15,11 +15,12 @@
     "types": ["node"]
   },
   "include": [
-    "src/**/*.js",
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "scripts/**/*.js",
-    "scripts/**/*.ts",
+    "apps/**/*.js",
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.js",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
     "test/**/*.ts",
     "test/**/*.tsx"
   ]

@@ -32,7 +32,14 @@ export default [
   },
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
+    files: [
+      "apps/**/*.ts",
+      "apps/**/*.tsx",
+      "packages/**/*.ts",
+      "packages/**/*.tsx",
+      "test/**/*.ts",
+      "test/**/*.tsx"
+    ],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -42,7 +49,7 @@ export default [
   },
   {
     ...reactHooks.configs.flat["recommended-latest"],
-    files: ["src/**/*.tsx"]
+    files: ["apps/web/src/**/*.tsx"]
   },
   {
     files: ["**/*.js"],

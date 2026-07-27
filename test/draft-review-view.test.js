@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createDraftReviewView } from "../src/features/countryDraft/draftReviewView.js";
+import { createDraftReviewView } from "../apps/web/src/features/countryDraft/draftReviewView.js";
 
 const escapeHtml = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")

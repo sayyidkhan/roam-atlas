@@ -2,7 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { ApplicationShell } from "../../src/app/ApplicationShell";
+import { ApplicationShell } from "../../apps/web/src/app/ApplicationShell";
 
 describe("ApplicationShell", () => {
   it("provides accessible mount points for each migrating frontend feature", () => {

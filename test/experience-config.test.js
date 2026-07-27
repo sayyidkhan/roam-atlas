@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fetchExperienceConfig } from "../src/features/experience/experienceConfigClient.js";
-import { handleExperienceConfigHttpRequest } from "../src/features/experience/experienceConfigHttpHandler.js";
+import { fetchExperienceConfig } from "../apps/web/src/features/experience/experienceConfigClient.js";
+import { handleExperienceConfigHttpRequest } from "../apps/api/src/features/experience/experienceConfigHttpHandler.js";
 
 test("experience config publishes only browser-safe image settings", async () => {
   const response = handleExperienceConfigHttpRequest({

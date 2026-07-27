@@ -4,15 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { shouldIgnoreLiveReloadPath } from "../src/platform/dev/liveReloadServer.js";
-import { loadLocalEnv } from "../src/platform/env/loadLocalEnv.js";
-import { readJsonRequest } from "../src/platform/http/readJsonRequest.js";
-import { createStaticAssetServer } from "../src/platform/http/staticAssetServer.js";
+import { loadLocalEnv } from "../apps/api/src/platform/env/loadLocalEnv.js";
+import { readJsonRequest } from "../apps/api/src/platform/http/readJsonRequest.js";
+import { serveRuntimeArtifact } from "../apps/api/src/features/runtimeCache/runtimeArtifactHttpHandler.js";
 import {
   createRuntimeArtifactPathResolver,
   isMutableRuntimeJsonPath,
   normalizeRuntimeCacheRelativePath
-} from "../src/platform/runtime/runtimeCacheFiles.js";
+} from "../apps/api/src/platform/runtime/runtimeCacheFiles.js";
 
 test("JSON request reader treats an empty request as an empty object", async () => {
   assert.deepEqual(
@@ -76,52 +75,26 @@ test("runtime cache paths preserve compatibility and reject traversal", async ()
   }
 });
 
-test("static asset server serves app routes and disables mutable cache entries", async () => {
+test("runtime artifact server disables cache for mutable job entries", async () => {
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "roamatlas-static-"));
-  const repositoryRoot = path.join(temporaryRoot, "repository");
   const runtimeCacheRoot = path.join(temporaryRoot, "runtime-cache");
-  await mkdir(repositoryRoot, { recursive: true });
   await mkdir(path.join(runtimeCacheRoot, "singapore", "image-jobs"), {
     recursive: true
   });
-  await writeFile(
-    path.join(repositoryRoot, "index.html"),
-    "<html><body><main>RoamAtlas</main></body></html>"
-  );
   await writeFile(
     path.join(runtimeCacheRoot, "singapore", "image-jobs", "page.json"),
     "{}"
   );
 
   try {
-    const { serveStaticAsset } = createStaticAssetServer({
-      repositoryRoot,
+    const jobResponse = await serveRuntimeArtifact({
+      pathname: "/runtime-cache/singapore/image-jobs/page.json",
       runtimeCacheRoot,
-      runtimeCacheUrlPrefix: "/runtime-cache",
-      liveReloadScript: "<script>reload()</script>"
+      runtimeCacheUrlPrefix: "/runtime-cache"
     });
-    const appResponse = await serveStaticAsset("/singapore/place/marina-bay");
-    assert.equal(appResponse.status, 200);
-    const appBody = await appResponse.text();
-    assert.match(appBody, /RoamAtlas/);
-    assert.match(appBody, /reload\(\)/);
-    assert.equal(appResponse.headers.get("Cache-Control"), "no-cache");
-
-    const jobResponse = await serveStaticAsset(
-      "/runtime-cache/singapore/image-jobs/page.json"
-    );
     assert.equal(jobResponse.status, 200);
     assert.equal(jobResponse.headers.get("Cache-Control"), "no-store");
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
-});
-
-test("live reload ignores generated country-card writes", () => {
-  assert.equal(shouldIgnoreLiveReloadPath("country-cards/singapore.jpg"), true);
-  assert.equal(
-    shouldIgnoreLiveReloadPath("public/country-cards/singapore.jpg"),
-    true
-  );
-  assert.equal(shouldIgnoreLiveReloadPath("src/features/explorer/view.ts"), false);
 });

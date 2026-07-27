@@ -2,38 +2,38 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { APP_CONFIG } from "../src/config/appConfig.js";
+import { APP_CONFIG } from "../apps/web/src/config/appConfig.js";
 import { readFrontendRuntimeSource } from "./support/frontend-runtime-source.js";
 import { readFrontendStylesSource } from "./support/frontend-styles-source.js";
 
 const appSource = readFrontendRuntimeSource();
 const styleSource = readFrontendStylesSource();
 const explorerClientSource = readFileSync(
-  new URL("../src/features/explorer/explorerClient.js", import.meta.url),
+  new URL("../apps/web/src/features/explorer/explorerClient.js", import.meta.url),
   "utf8"
 );
 const countrySetupViewSource = readFileSync(
-  new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url),
+  new URL("../apps/web/src/features/countrySetup/countryShellView.ts", import.meta.url),
   "utf8"
 );
 const environmentLayerSource = readFileSync(
-  new URL("../src/features/explorer/environmentLayerRenderer.js", import.meta.url),
+  new URL("../apps/web/src/features/explorer/environmentLayerRenderer.js", import.meta.url),
   "utf8"
 );
 const destinationNavigationSource = readFileSync(
-  new URL("../src/features/explorer/destinationNavigationView.js", import.meta.url),
+  new URL("../apps/web/src/features/explorer/destinationNavigationView.js", import.meta.url),
   "utf8"
 );
 const artworkJobPolicySource = readFileSync(
-  new URL("../src/features/artwork/artworkJobPolicy.ts", import.meta.url),
+  new URL("../apps/web/src/features/artwork/artworkJobPolicy.ts", import.meta.url),
   "utf8"
 );
 const sceneGeometrySource = readFileSync(
-  new URL("../src/features/explorer/sceneGeometry.ts", import.meta.url),
+  new URL("../apps/web/src/features/explorer/sceneGeometry.ts", import.meta.url),
   "utf8"
 );
 const environmentPlanPolicySource = readFileSync(
-  new URL("../src/features/explorer/environmentPlanPolicy.ts", import.meta.url),
+  new URL("../apps/web/src/features/explorer/environmentPlanPolicy.ts", import.meta.url),
   "utf8"
 );
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createDraftMetadataRenderer } from "../src/features/countryDraft/draftMetadataView.js";
+import { createDraftMetadataRenderer } from "../apps/web/src/features/countryDraft/draftMetadataView.js";
 
 const escapeHtml = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")

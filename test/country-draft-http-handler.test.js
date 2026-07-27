@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCountryDraftHttpHandlers } from "../src/features/countryDraft/countryDraftHttpHandler.js";
+import { createCountryDraftHttpHandlers } from "../apps/api/src/features/countryDraft/countryDraftHttpHandler.js";
 
 function createJsonRequest(body) {
   return new Request("http://localhost/api/country-draft/influence", {

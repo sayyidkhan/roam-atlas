@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createExaPlaceImageProvider } from "../src/features/placeImages/exaPlaceImageProvider.js";
+import { createExaPlaceImageProvider } from "../apps/api/src/features/placeImages/exaPlaceImageProvider.js";
 import {
   PLACE_IMAGE_FACT_BOUNDARY,
   getMappedPlaceImageSuggestionContext,
   hasUsablePlaceImageDimensions,
   normalizePlaceImagePromptSuggestions
-} from "../src/features/placeImages/placeImagePolicy.js";
-import { createPlaceImageService } from "../src/features/placeImages/placeImageService.js";
-import { createPlaceImageSuggestionProvider } from "../src/features/placeImages/placeImageSuggestionProvider.js";
+} from "../apps/api/src/features/placeImages/placeImagePolicy.js";
+import { createPlaceImageService } from "../apps/api/src/features/placeImages/placeImageService.js";
+import { createPlaceImageSuggestionProvider } from "../apps/api/src/features/placeImages/placeImageSuggestionProvider.js";
 
 test("Exa place-image provider uses injected transport and deduplicates usable media", async () => {
   const requests = [];

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createDraftReferencePhotoView } from "../src/features/countryDraft/draftReferencePhotoView.js";
+import { createDraftReferencePhotoView } from "../apps/web/src/features/countryDraft/draftReferencePhotoView.js";
 
 const escapeHtml = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")

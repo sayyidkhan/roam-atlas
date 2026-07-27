@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createArtworkJobRepository } from "../src/features/artwork/artworkJobRepository.js";
+import { createArtworkJobRepository } from "../apps/api/src/features/artwork/artworkJobRepository.js";
 
 test("artwork job repository atomically persists and indexes terminal jobs", async (t) => {
   const runtimeCacheRoot = await mkdtemp(

@@ -2,7 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const frontendRoot = fileURLToPath(new URL("../../src/", import.meta.url));
+const frontendRoot = fileURLToPath(
+  new URL("../../apps/web/src/", import.meta.url)
+);
 
 export function readFrontendStylesSource() {
   return collectCssFiles(frontendRoot)

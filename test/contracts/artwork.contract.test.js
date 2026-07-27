@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { countryPacks } from "../../src/data/countryPacks/serverRegistry.js";
-import { getDefaultArtworkPageForScene } from "../../src/data/defaultArtworkPages.js";
+import { countryPacks } from "../../apps/api/src/data/countryPacks/serverRegistry.js";
+import { getDefaultArtworkPageForScene } from "../../apps/api/src/data/defaultArtworkPages.js";
 import {
   ArtworkRequestQuerySchema,
   ArtworkResponseSchema
-} from "../../src/features/artwork/artworkContract.js";
+} from "../../packages/atlas-contracts/src/artworkContract.js";
 import {
   CountryPackRegistryResponseSchema,
   CountryPackResponseSchema
-} from "../../src/features/countryCatalog/countryPackContract.js";
+} from "../../packages/atlas-contracts/src/countryPackContract.js";
 import {
   RuntimeCacheFlushRequestSchema,
   RuntimeCacheFlushResponseSchema
-} from "../../src/features/runtimeCache/runtimeCacheContract.js";
+} from "../../packages/atlas-contracts/src/runtimeCacheContract.js";
 
 describe("artwork and country-pack contracts", () => {
   it("accepts a curated Singapore artwork page", () => {

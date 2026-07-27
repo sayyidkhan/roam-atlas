@@ -4,6 +4,10 @@ Date: 2026-05-09
 Skill: gstack plan-eng-review
 Mode: implementation lock-in before first code slice
 
+> Historical review: this document records the original static MVP decision.
+> Its file layout and stack recommendations are superseded by
+> [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Product Boundary
 
 RoamAtlas' core invariant is non-negotiable:

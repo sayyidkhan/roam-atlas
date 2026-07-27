@@ -10,22 +10,22 @@ import {
   findAnimalExhibitClaim,
   scrollScenes,
   searchKnownNode
-} from "../src/data/sceneGraph.js";
+} from "../apps/api/src/data/sceneGraph.js";
 import {
   ROAMATLAS_CONFIG,
   resolveRoamAtlasConfig
-} from "../src/config/roamAtlasConfig.js";
+} from "../apps/api/src/config/roamAtlasConfig.js";
 import {
   ROAMATLAS_EXPERIENCE_CONFIG,
   resolveRoamAtlasExperienceConfig
-} from "../src/config/experienceConfig.js";
+} from "../packages/atlas-data/src/experienceConfig.js";
 import {
   approveDraftItem,
   appendUnconfirmedRegionCandidates,
   isDraftItemApproved,
   unapproveDraftItem
-} from "../src/domain/countryDraftReview.js";
-import { buildLoadingStepTrail, resolveLoadingStep } from "../src/domain/loadingSteps.js";
+} from "../packages/atlas-domain/src/countryDraftReview.js";
+import { buildLoadingStepTrail, resolveLoadingStep } from "../packages/atlas-domain/src/loadingSteps.js";
 import {
   PLACE_IMAGE_SELECTION_VERSION,
   formatExaPlaceImageQuery,
@@ -33,80 +33,80 @@ import {
   isUsablePlaceImageUrl,
   rankPlaceImageCandidates,
   scorePlaceImageCandidate
-} from "../src/domain/placeImageSelection.js";
-import { listNextArtworkDestinations } from "../src/domain/nextArtworkDestinations.js";
+} from "../packages/atlas-domain/src/placeImageSelection.js";
+import { listNextArtworkDestinations } from "../packages/atlas-domain/src/nextArtworkDestinations.js";
 import {
   getCountryBySlug,
   getCountryCardState,
   worldCountries
-} from "../src/data/countries.js";
+} from "../packages/atlas-data/src/countries.js";
 import {
   getCountryImageOverrideUrl,
   getCountryImageTopics
-} from "../src/data/countryImageTopics.js";
-import { countryPacks } from "../src/data/countryPacks/serverRegistry.js";
+} from "../apps/api/src/data/countryImageTopics.js";
+import { countryPacks } from "../apps/api/src/data/countryPacks/serverRegistry.js";
 import {
   buildItinerary,
   createUnmappedDetour,
   filterCuratedItineraryNodes
-} from "../src/domain/itinerary.js";
+} from "../packages/atlas-domain/src/itinerary.js";
 import {
   buildTileCacheKey,
   findTopmostHotspot,
   getMissingTiles,
   resolveHotspotAction,
   viewportToScenePoint
-} from "../src/domain/scrollScene.js";
+} from "../packages/atlas-domain/src/scrollScene.js";
 import {
   assertGeneratedImagesAreNotFactSources,
   hasUnconfirmedNodeFacts
-} from "../src/domain/guardrails.js";
+} from "../packages/atlas-domain/src/guardrails.js";
 import {
   ArtworkRequestQuerySchema,
   ArtworkResponseSchema
-} from "../src/features/artwork/artworkContract.js";
+} from "../packages/atlas-contracts/src/artworkContract.js";
 import {
   CountryPackRegistryResponseSchema,
   CountryPackResponseSchema
-} from "../src/features/countryCatalog/countryPackContract.js";
+} from "../packages/atlas-contracts/src/countryPackContract.js";
 import {
   precomputeClickableRegions,
   resolveImageClick
-} from "../src/domain/clickResolver.js";
-import { matchClickPhraseToNode } from "../src/domain/nodeMatcher.js";
-import { buildRoamAtlasImagePrompt } from "../src/domain/imagePromptBuilder.js";
-import { planNextFlipbookPage } from "../src/domain/pagePlanner.js";
-import { getSceneArtwork } from "../src/data/sceneArtwork.js";
-import { sceneArtwork } from "../src/data/sceneArtwork.js";
+} from "../packages/atlas-domain/src/clickResolver.js";
+import { matchClickPhraseToNode } from "../packages/atlas-domain/src/nodeMatcher.js";
+import { buildRoamAtlasImagePrompt } from "../packages/atlas-prompts/src/imagePromptBuilder.js";
+import { planNextFlipbookPage } from "../packages/atlas-domain/src/pagePlanner.js";
+import { getSceneArtwork } from "../apps/api/src/data/sceneArtwork.js";
+import { sceneArtwork } from "../apps/api/src/data/sceneArtwork.js";
 import {
   getCanonicalArtworkPageForGeneration,
   getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
-} from "../src/data/defaultArtworkPages.js";
-import { resolveFlipbookClick } from "../src/domain/flipbookPage.js";
+} from "../apps/api/src/data/defaultArtworkPages.js";
+import { resolveFlipbookClick } from "../packages/atlas-domain/src/flipbookPage.js";
 import {
   buildHomepagePrompt,
   buildRegionPrompt,
   buildEncyclopediaPrompt,
   buildEnvironmentPlanPrompt,
   buildRoamAtlasImagePrompt as buildPromptOutput
-} from "../src/lib/prompts/index.js";
+} from "../packages/atlas-prompts/src/index.js";
 import {
   DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT,
   normalizeImageModel
-} from "../src/domain/imageProvider.js";
+} from "../apps/api/src/domain/imageProvider.js";
 import {
   shouldQueueDefaultArtwork,
   sortImageJobsForProcessing
-} from "../src/domain/imageJobQueue.js";
+} from "../apps/api/src/domain/imageJobQueue.js";
 import {
   RUNTIME_CACHE_URL_PREFIX,
   createCountryStarterMapCachePaths,
   createPlaceImageCachePaths,
   createRuntimeCachePaths,
   resolveRuntimeCacheRoot
-} from "../src/domain/runtimeCache.js";
+} from "../apps/api/src/domain/runtimeCache.js";
 import {
   canonicalRouteForNode,
   resolveAppRoute,
@@ -114,7 +114,7 @@ import {
   routeForCountryConfig,
   routeForNode,
   routeForPlace
-} from "../src/domain/routes.js";
+} from "../packages/atlas-domain/src/routes.js";
 import {
   buildCountryDraftInfluencePrompt,
   buildCountryDraftPrompt,
@@ -122,7 +122,7 @@ import {
   createCountryPackStarterMap,
   normalizeCountryDraftInstruction,
   normalizeCountryDraftPayload
-} from "../src/domain/countryDraft.js";
+} from "../packages/atlas-domain/src/countryDraft.js";
 
 test("country landing lists world countries with routable country shells", () => {
   const countryCodes = worldCountries.map((country) => country.code);
@@ -154,29 +154,29 @@ test("country landing lists world countries with routable country shells", () =>
 test("country landing cards request country-specific media images", () => {
   const appSource = readFrontendRuntimeSource();
   const catalogSource = readFileSync(
-    new URL("../src/features/countryCatalog/countryCatalog.js", import.meta.url),
+    new URL("../apps/web/src/features/countryCatalog/countryCatalog.js", import.meta.url),
     "utf8"
   );
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
   const countryImageServiceSource = readFileSync(
-    new URL("../src/features/countryImages/countryImageService.js", import.meta.url),
+    new URL("../apps/api/src/features/countryImages/countryImageService.js", import.meta.url),
     "utf8"
   );
   const countryImageHandlerSource = readFileSync(
-    new URL("../src/features/countryImages/countryImageHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/countryImages/countryImageHttpHandler.js", import.meta.url),
     "utf8"
   );
   const countryImageRepositorySource = readFileSync(
-    new URL("../src/features/countryImages/countryImageRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/countryImages/countryImageRepository.js", import.meta.url),
     "utf8"
   );
   const countryImageProviderSource = readFileSync(
-    new URL("../src/features/countryImages/wikimediaCountryImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/countryImages/wikimediaCountryImageProvider.js", import.meta.url),
     "utf8"
   );
   const countryImageSelectionSource = readFileSync(
-    new URL("../src/features/countryImages/countryImageSelection.js", import.meta.url),
+    new URL("../apps/api/src/features/countryImages/countryImageSelection.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
@@ -202,13 +202,15 @@ test("country landing cards request country-specific media images", () => {
   assert.match(catalogSource, /setAttribute\("data-country-card-action", "open"\)/);
   assert.match(appSource, /openCountryFromLanding/);
   assert.match(appSource, /enterCountryShell\(country\)/);
-  assert.match(catalogSource, /getCountryPhotoUrl/);
+  assert.match(catalogSource, /getBundledCountryPhotoUrl/);
+  assert.match(catalogSource, /localAssetExtensionOverrides/);
+  assert.match(catalogSource, /data-fallback-src|fallbackSrc/);
   assert.match(catalogSource, /\/api\/country-image\?countrySlug=/);
-  assert.match(catalogSource, /country-media-v7/);
+  assert.match(appSource, /config: APP_CONFIG\.countryCatalog/);
   assert.match(catalogSource, /observePhotos/);
   assert.match(catalogSource, /resetPhotoQueue/);
   assert.match(catalogSource, /IntersectionObserver/);
-  assert.match(catalogSource, /DEFAULT_IMAGE_CONCURRENCY = 2/);
+  assert.doesNotMatch(catalogSource, /DEFAULT_IMAGE_CONCURRENCY/);
   assert.match(catalogSource, /queuePhoto/);
   assert.match(serverSource, /createCountryImageRoutes/);
   assert.doesNotMatch(apiSource, /"\/api\//);
@@ -217,7 +219,8 @@ test("country landing cards request country-specific media images", () => {
   assert.match(countryImageServiceSource, /repository\.isLocalImageUrl\(result\.imageUrl\)/);
   assert.match(countryImageProviderSource, /resolveCountryWikipediaArticleImage/);
   assert.match(countryImageProviderSource, /wikipedia-article-pageimage/);
-  assert.match(serverSource, /publicUrlPrefix: "\/public\/country-cards"/);
+  assert.match(serverSource, /urlPrefix: `\$\{RUNTIME_CACHE_URL_PREFIX\}\/country-cards`/);
+  assert.doesNotMatch(serverSource, /public.*country-cards/);
   assert.match(countryImageHandlerSource, /withCacheVersion/);
   assert.match(countryImageServiceSource, /persistImage/);
   assert.match(countryImageServiceSource, /local-country-card/);
@@ -785,15 +788,17 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
 });
 
 test("country packs load source data dynamically instead of hardcoding every pack", () => {
-  const registrySource = readFileSync(new URL("../src/data/countryPacks/serverRegistry.js", import.meta.url), "utf8");
-  const browserRegistrySource = readFileSync(new URL("../src/data/countryPacks/index.js", import.meta.url), "utf8");
+  const registrySource = readFileSync(new URL("../apps/api/src/data/countryPacks/serverRegistry.js", import.meta.url), "utf8");
+  const browserRegistrySource = readFileSync(new URL("../apps/web/src/data/countryPacks/index.js", import.meta.url), "utf8");
   const clientSource = readFileSync(
-    new URL("../src/features/countryCatalog/countryPackClient.js", import.meta.url),
+    new URL("../apps/web/src/features/countryCatalog/countryPackClient.js", import.meta.url),
     "utf8"
   );
-  const packFiles = readdirSync(new URL("../src/data/countryPacks/", import.meta.url));
-  const malaysiaSource = readFileSync(new URL("../src/data/countryPacks/malaysia.json", import.meta.url), "utf8");
-  const singaporeSource = readFileSync(new URL("../src/data/countryPacks/singapore.json", import.meta.url), "utf8");
+  const packFiles = readdirSync(
+    new URL("../apps/api/src/data/countryPacks/", import.meta.url)
+  );
+  const malaysiaSource = readFileSync(new URL("../apps/api/src/data/countryPacks/malaysia.json", import.meta.url), "utf8");
+  const singaporeSource = readFileSync(new URL("../apps/api/src/data/countryPacks/singapore.json", import.meta.url), "utf8");
   const malaysiaData = JSON.parse(malaysiaSource);
   const singaporeData = JSON.parse(singaporeSource);
   const scene = countryPacks.malaysia.scenes["malaysia-overview"];
@@ -941,7 +946,10 @@ test("image model aliases normalize for OpenAI provider", () => {
 
 test("source config stores non-secret OpenAI model defaults", () => {
   const defaults = resolveRoamAtlasConfig({});
-  const withPortOverride = resolveRoamAtlasConfig({ PORT: "5173" });
+  const withServerOverrides = resolveRoamAtlasConfig({
+    HOST: "0.0.0.0",
+    PORT: "5173"
+  });
 
   assert.equal(ROAMATLAS_CONFIG.image.provider, "openai");
   assert.equal(defaults.image.provider, "openai");
@@ -953,12 +961,14 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(resolveRoamAtlasConfig({ ROAMATLAS_IMAGE_QUALITY: "invalid" }).image.quality, "high");
   assert.equal(defaults.image.outputFormat, "jpeg");
   assert.equal(defaults.image.outputCompression, 82);
-  assert.equal(defaults.server.port, 4150);
+  assert.equal(defaults.server.host, "127.0.0.1");
+  assert.equal(defaults.server.port, 4151);
   assert.equal(defaults.ai.textModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.vlmModel, "gpt-5.4-mini");
   assert.equal(defaults.ai.environmentModel, "gpt-5.5");
   assert.ok(Object.values(defaults.ai).every((model) => /^gpt-5(?:\.|$|-)/.test(model)));
-  assert.equal(withPortOverride.server.port, 5173);
+  assert.equal(withServerOverrides.server.host, "0.0.0.0");
+  assert.equal(withServerOverrides.server.port, 5173);
 });
 
 test("experience config stores prefetch and parallel job defaults", () => {
@@ -1231,7 +1241,7 @@ test("missing tiles do not block factual node display", () => {
 test("scene images can render image-specific ambient environment overlays", () => {
   const appSource = readFrontendRuntimeSource();
   const environmentLayerSource = readFileSync(
-    new URL("../src/features/explorer/environmentLayerRenderer.js", import.meta.url),
+    new URL("../apps/web/src/features/explorer/environmentLayerRenderer.js", import.meta.url),
     "utf8"
   );
   const styles = readFrontendStylesSource();
@@ -1566,7 +1576,7 @@ test("scene artwork registry does not reuse old public generated images", () => 
 test("frontend homepage requests runtime artwork without hardcoded local host", () => {
   const appSource = readFrontendRuntimeSource();
   const destinationNavigationSource = readFileSync(
-    new URL("../src/features/explorer/destinationNavigationView.js", import.meta.url),
+    new URL("../apps/web/src/features/explorer/destinationNavigationView.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
@@ -1599,7 +1609,7 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(destinationNavigationSource, /renderRegionRailCheck/);
   assert.match(appSource, /prefetchJobs/);
   assert.match(appSource, /renderLoadingPanel/);
-  assert.match(appSource, /import \{ buildLoadingStepTrail \} from "\.\.\/domain\/loadingSteps\.js";/);
+  assert.match(appSource, /from "@roamatlas\/domain\/loadingSteps\.js"/);
   assert.match(appSource, /mergePrefetchedArtwork/);
   assert.match(appSource, /loadExperienceConfig/);
   assert.match(appSource, /requestCurrentPageArtwork/);
@@ -1616,7 +1626,7 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
   assert.match(appSource, /params\.set\("priority", "interactive"\)/);
   assert.match(appSource, /explorerClient\.resolveFlipbookClick/);
   const explorerClientSource = readFileSync(
-    new URL("../src/features/explorer/explorerClient.js", import.meta.url),
+    new URL("../apps/web/src/features/explorer/explorerClient.js", import.meta.url),
     "utf8"
   );
   assert.match(explorerClientSource, /\/api\/flipbook\/click/);
@@ -1630,35 +1640,35 @@ test("frontend homepage requests runtime artwork without hardcoded local host", 
 test("country shell uses starter map wording instead of generated draft wording", () => {
   const appSource = readFrontendRuntimeSource();
   const countryDraftClientSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftClient.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftClient.js", import.meta.url),
     "utf8"
   );
   const runtimeCacheClientSource = readFileSync(
-    new URL("../src/features/runtimeCache/runtimeCacheClient.js", import.meta.url),
+    new URL("../apps/web/src/features/runtimeCache/runtimeCacheClient.js", import.meta.url),
     "utf8"
   );
   const placeImageClientSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageClient.js", import.meta.url),
+    new URL("../apps/web/src/features/placeImages/placeImageClient.js", import.meta.url),
     "utf8"
   );
   const countrySetupViewSource = readFileSync(
-    new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url),
+    new URL("../apps/web/src/features/countrySetup/countryShellView.ts", import.meta.url),
     "utf8"
   );
   const countryShellControllerSource = readFileSync(
-    new URL("../src/features/countrySetup/countryShellController.js", import.meta.url),
+    new URL("../apps/web/src/features/countrySetup/countryShellController.js", import.meta.url),
     "utf8"
   );
   const draftChatViewSource = readFileSync(
-    new URL("../src/features/countryDraft/draftChatView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftChatView.js", import.meta.url),
     "utf8"
   );
   const draftReviewViewSource = readFileSync(
-    new URL("../src/features/countryDraft/draftReviewView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftReviewView.js", import.meta.url),
     "utf8"
   );
   const countryDraftPanelSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
@@ -1851,7 +1861,7 @@ test("source-reviewed region suggestions append only unconfirmed new children", 
 test("draft tree reserves controls for nested curation without wrapping the delete button", () => {
   const appSource = readFrontendRuntimeSource();
   const countryDraftPanelSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
@@ -1908,11 +1918,12 @@ test("starter-map normalization preserves nested curated nodes", () => {
   assert.equal(draft.regions[0].children[0].confidence, "confirmed");
 });
 
-test("dev server treats missing static and runtime-cache files as normal 404s", () => {
-  const serverSource = readFileSync("src/server/roamAtlasDevServer.ts", "utf8");
+test("API treats missing routes and runtime-cache files as normal 404s", () => {
+  const serverSource = readFileSync("apps/api/src/main.ts", "utf8");
   const apiSource = readApiCompositionSource();
   assert.match(apiSource, /error\.code === "ENOENT"/);
-  assert.match(serverSource, /hostname: "127\.0\.0\.1"/);
+  assert.match(serverSource, /hostname: appConfig\.server\.host/);
+  assert.doesNotMatch(serverSource, /public.*country-cards/);
 });
 
 test("place image selection prefers capital skylines for states and scenes for tourist islands", () => {
@@ -1972,49 +1983,49 @@ test("place image selection prefers capital skylines for states and scenes for t
 test("candidate region cards request Exa-backed reference photos through the place-image API", () => {
   const appSource = readFrontendRuntimeSource();
   const draftMetadataSource = readFileSync(
-    new URL("../src/features/countryDraft/draftMetadataView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftMetadataView.js", import.meta.url),
     "utf8"
   );
   const draftPhotoSource = readFileSync(
-    new URL("../src/features/countryDraft/draftReferencePhotoView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftReferencePhotoView.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
   const countryDraftHandlerSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
     "utf8"
   );
   const placeImageClientSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageClient.js", import.meta.url),
+    new URL("../apps/web/src/features/placeImages/placeImageClient.js", import.meta.url),
     "utf8"
   );
   const placeImageHandlerSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageHttpHandler.js", import.meta.url),
     "utf8"
   );
   const placeImageFeatureSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageFeature.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageFeature.js", import.meta.url),
     "utf8"
   );
   const placeImageServiceSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageService.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageService.js", import.meta.url),
     "utf8"
   );
   const placeImageRepositorySource = readFileSync(
-    new URL("../src/features/placeImages/placeImageRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageRepository.js", import.meta.url),
     "utf8"
   );
   const placeImagePolicySource = readFileSync(
-    new URL("../src/features/placeImages/placeImagePolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImagePolicy.js", import.meta.url),
     "utf8"
   );
   const exaPlaceImageProviderSource = readFileSync(
-    new URL("../src/features/placeImages/exaPlaceImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/exaPlaceImageProvider.js", import.meta.url),
     "utf8"
   );
-  const runtimeCacheSource = readFileSync(new URL("../src/domain/runtimeCache.js", import.meta.url), "utf8");
+  const runtimeCacheSource = readFileSync(new URL("../apps/api/src/domain/runtimeCache.js", import.meta.url), "utf8");
 
   // Frontend renders reference photos on candidate cards through the API only.
   assert.match(draftMetadataSource, /draft-trust-tick/);
@@ -2120,23 +2131,23 @@ test("candidate region cards request Exa-backed reference photos through the pla
 test("draft tree exposes icon-only GenAI modal triggers", () => {
   const appSource = readFrontendRuntimeSource();
   const draftMetadataSource = readFileSync(
-    new URL("../src/features/countryDraft/draftMetadataView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftMetadataView.js", import.meta.url),
     "utf8"
   );
   const draftChatSource = readFileSync(
-    new URL("../src/features/countryDraft/draftChatView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftChatView.js", import.meta.url),
     "utf8"
   );
   const countryDraftPanelSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
     "utf8"
   );
   const countryDraftClientSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftClient.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftClient.js", import.meta.url),
     "utf8"
   );
   const countryShellControllerSource = readFileSync(
-    new URL("../src/features/countrySetup/countryShellController.js", import.meta.url),
+    new URL("../apps/web/src/features/countrySetup/countryShellController.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
@@ -2194,23 +2205,23 @@ test("draft tree exposes icon-only GenAI modal triggers", () => {
 test("draft tree exposes drag handles for sorting top-level starter records", () => {
   const appSource = readFrontendRuntimeSource();
   const countryDraftPanelSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
     "utf8"
   );
   const countryDraftClientSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftClient.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftClient.js", import.meta.url),
     "utf8"
   );
   const countryDraftHandlerSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
     "utf8"
   );
   const countryShellControllerSource = readFileSync(
-    new URL("../src/features/countrySetup/countryShellController.js", import.meta.url),
+    new URL("../apps/web/src/features/countrySetup/countryShellController.js", import.meta.url),
     "utf8"
   );
   const styleSource = readFrontendStylesSource();
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
 
   assert.match(countryDraftPanelSource, /data-draft-drag-handle/);
@@ -2235,30 +2246,33 @@ test("draft tree exposes drag handles for sorting top-level starter records", ()
 });
 
 test("server exposes country-scoped generated cache flushing", () => {
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
   const runtimeCacheHandlerSource = readFileSync(
-    new URL("../src/features/runtimeCache/runtimeCacheHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/runtimeCache/runtimeCacheHttpHandler.js", import.meta.url),
     "utf8"
   );
-  const staticAssetServerSource = readFileSync(
-    new URL("../src/platform/http/staticAssetServer.js", import.meta.url),
+  const runtimeArtifactSource = readFileSync(
+    new URL(
+      "../apps/api/src/features/runtimeCache/runtimeArtifactHttpHandler.js",
+      import.meta.url
+    ),
     "utf8"
   );
   const runtimeCacheFilesSource = readFileSync(
-    new URL("../src/platform/runtime/runtimeCacheFiles.js", import.meta.url),
+    new URL("../apps/api/src/platform/runtime/runtimeCacheFiles.js", import.meta.url),
     "utf8"
   );
   const runtimeCacheServiceSource = readFileSync(
     new URL(
-      "../src/features/runtimeCache/runtimeCacheService.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheService.js",
       import.meta.url
     ),
     "utf8"
   );
   const runtimeCacheRepositorySource = readFileSync(
     new URL(
-      "../src/features/runtimeCache/runtimeCacheRepository.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheRepository.js",
       import.meta.url
     ),
     "utf8"
@@ -2278,8 +2292,8 @@ test("server exposes country-scoped generated cache flushing", () => {
   assert.match(visualFoldersSource, /"image-jobs"/);
   assert.match(visualFoldersSource, /"understanding"/);
   assert.doesNotMatch(visualFoldersSource, /"place-images"/);
-  assert.match(staticAssetServerSource, /const isRuntimeImageFile = \/\\\.\(\?:avif\|gif\|jpe\?g\|png\|webp\)\$\/i/);
-  assert.match(staticAssetServerSource, /isMutableRuntimeJson \|\| isRuntimeImageFile/);
+  assert.match(runtimeArtifactSource, /const isRuntimeImageFile = \/\\\.\(\?:avif\|gif\|jpe\?g\|png\|webp\)\$\/i/);
+  assert.match(runtimeArtifactSource, /isMutableRuntimeJson \|\| isRuntimeImageFile/);
   assert.match(runtimeCacheServiceSource, /Source-controlled country pack data was not changed/);
   assert.match(runtimeCacheFilesSource, /function isPathInside/);
   assert.match(runtimeCacheServiceSource, /repository\.removeCountryRoot/);
@@ -2287,14 +2301,14 @@ test("server exposes country-scoped generated cache flushing", () => {
 });
 
 test("config thumbnails stream cached place images directly and cannot stay pending forever", () => {
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
   const placeImageHandlerSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageHttpHandler.js", import.meta.url),
     "utf8"
   );
   const draftPhotoSource = readFileSync(
-    new URL("../src/features/countryDraft/draftReferencePhotoView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/draftReferencePhotoView.js", import.meta.url),
     "utf8"
   );
   const appSource = readFrontendRuntimeSource();
@@ -2320,7 +2334,7 @@ test("config thumbnails stream cached place images directly and cannot stay pend
 });
 
 test("place image selection rejects Creative Commons badges and invalidates older selections", () => {
-  const selectionSource = readFileSync(new URL("../src/domain/placeImageSelection.js", import.meta.url), "utf8");
+  const selectionSource = readFileSync(new URL("../packages/atlas-domain/src/placeImageSelection.js", import.meta.url), "utf8");
 
   assert.match(selectionSource, /PLACE_IMAGE_SELECTION_VERSION = "v5"/);
   assert.match(selectionSource, /creative\[-_\.\]\?commons/);
@@ -2329,15 +2343,15 @@ test("place image selection rejects Creative Commons badges and invalidates olde
 
 test("place image resolver rejects badge-sized files and has a reference-photo fallback", () => {
   const serviceSource = readFileSync(
-    new URL("../src/features/placeImages/placeImageService.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImageService.js", import.meta.url),
     "utf8"
   );
   const policySource = readFileSync(
-    new URL("../src/features/placeImages/placeImagePolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/placeImagePolicy.js", import.meta.url),
     "utf8"
   );
   const wikipediaProviderSource = readFileSync(
-    new URL("../src/features/placeImages/wikipediaPlaceImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/placeImages/wikipediaPlaceImageProvider.js", import.meta.url),
     "utf8"
   );
 
@@ -2350,7 +2364,7 @@ test("place image resolver rejects badge-sized files and has a reference-photo f
 test("server filters thin Exa grounding snippets and restricts search to official-leaning domains", () => {
   const groundingProviderSource = readFileSync(
     new URL(
-      "../src/features/countryDraft/exaCountryGroundingProvider.js",
+      "../apps/api/src/features/countryDraft/exaCountryGroundingProvider.js",
       import.meta.url
     ),
     "utf8"
@@ -2365,35 +2379,35 @@ test("server filters thin Exa grounding snippets and restricts search to officia
 });
 
 test("server creates image-specific environment plans for generated artwork", () => {
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const artworkHandlerSource = readFileSync(
-    new URL("../src/features/artwork/artworkHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkHttpHandler.js", import.meta.url),
     "utf8"
   );
   const clickHandlerSource = readFileSync(
-    new URL("../src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
     "utf8"
   );
   const environmentPolicySource = readFileSync(
-    new URL("../src/features/explorer/environmentPlanServerPolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/environmentPlanServerPolicy.js", import.meta.url),
     "utf8"
   );
   const environmentProviderSource = readFileSync(
-    new URL("../src/features/explorer/openAIEnvironmentPlanner.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIEnvironmentPlanner.js", import.meta.url),
     "utf8"
   );
   const environmentQueueSource = readFileSync(
-    new URL("../src/features/artwork/environmentPlanQueue.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/environmentPlanQueue.js", import.meta.url),
     "utf8"
   );
   const artworkJobPolicySource = readFileSync(
     new URL(
-      "../src/features/artwork/artworkJobProcessingPolicy.js",
+      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js",
       import.meta.url
     ),
     "utf8"
   );
-  const promptSource = readFileSync(new URL("../src/lib/prompts/buildEnvironmentPlanPrompt.js", import.meta.url), "utf8");
+  const promptSource = readFileSync(new URL("../packages/atlas-prompts/src/buildEnvironmentPlanPrompt.js", import.meta.url), "utf8");
 
   assert.match(environmentQueueSource, /async function ensurePlan/);
   assert.match(serverSource, /createEnvironmentPlanWithOpenAI/);
@@ -2457,52 +2471,52 @@ function appSourceForEnvironmentTargets() {
 
 function readApiCompositionSource() {
   return readFileSync(
-    new URL("../src/server/createRoamAtlasApi.ts", import.meta.url),
+    new URL("../apps/api/src/server/createRoamAtlasApi.ts", import.meta.url),
     "utf8"
   );
 }
 
 test("server persists country starter maps in country-scoped runtime storage", () => {
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
   const configuredImageProviderSource = readFileSync(
-    new URL("../src/features/artwork/configuredImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/configuredImageProvider.js", import.meta.url),
     "utf8"
   );
   const clickResolutionFeatureSource = readFileSync(
-    new URL("../src/features/explorer/clickResolutionFeature.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickResolutionFeature.js", import.meta.url),
     "utf8"
   );
   const countryDraftFeatureSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftFeature.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftFeature.js", import.meta.url),
     "utf8"
   );
   const countryDraftRepositorySource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftRepository.js", import.meta.url),
     "utf8"
   );
   const countryDraftPolicySource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftPolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftPolicy.js", import.meta.url),
     "utf8"
   );
   const countryPackHandlerSource = readFileSync(
-    new URL("../src/features/countryCatalog/countryPackHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/countryCatalog/countryPackHttpHandler.js", import.meta.url),
     "utf8"
   );
   const experienceHandlerSource = readFileSync(
-    new URL("../src/features/experience/experienceConfigHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/experience/experienceConfigHttpHandler.js", import.meta.url),
     "utf8"
   );
   const countryDraftHandlerSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/countryDraft/countryDraftHttpHandler.js", import.meta.url),
     "utf8"
   );
   const countrySetupViewSource = readFileSync(
-    new URL("../src/features/countrySetup/countryShellView.ts", import.meta.url),
+    new URL("../apps/web/src/features/countrySetup/countryShellView.ts", import.meta.url),
     "utf8"
   );
   const countryDraftPanelSource = readFileSync(
-    new URL("../src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
+    new URL("../apps/web/src/features/countryDraft/countryDraftPanelView.js", import.meta.url),
     "utf8"
   );
   const appSource = readFrontendRuntimeSource();
@@ -2542,28 +2556,24 @@ test("server persists country starter maps in country-scoped runtime storage", (
   assert.match(serverSource, /appConfig\.ai\.vlmModel/);
 });
 
-test("dev server serves the app shell for direct country and node routes", () => {
-  const serverSource = readFileSync(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+test("web and API deployments have independent entry points", () => {
+  const serverSource = readFileSync(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const apiSource = readApiCompositionSource();
-  const staticAssetServerSource = readFileSync(
-    new URL("../src/platform/http/staticAssetServer.js", import.meta.url),
+  const htmlSource = readFileSync(
+    new URL("../apps/web/index.html", import.meta.url),
     "utf8"
   );
-  const liveReloadSource = readFileSync(
-    new URL("../src/platform/dev/liveReloadServer.js", import.meta.url),
+  const viteSource = readFileSync(
+    new URL("../apps/web/vite.config.js", import.meta.url),
     "utf8"
   );
-  const htmlSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
-  assert.match(serverSource, /createStaticAssetServer/);
-  assert.match(apiSource, /serveStaticAsset\(/);
-  assert.match(staticAssetServerSource, /pathname === "\/" \|\| isAppRoutePath\(pathname\)/);
-  assert.match(staticAssetServerSource, /!pathname\.startsWith\("\/api\/"\) && !path\.extname\(pathname\)/);
-  assert.match(liveReloadSource, /\/__roamatlas\/dev-reload/);
-  assert.match(liveReloadSource, /event\.data === "reload"/);
-  assert.match(liveReloadSource, /shouldIgnoreLiveReloadPath/);
-  assert.match(serverSource, /liveReload\.start\(\)/);
-  assert.match(staticAssetServerSource, /"Cache-Control": "no-cache"/);
+  assert.doesNotMatch(serverSource, /index\.html|createStaticAssetServer|liveReload/);
+  assert.match(apiSource, /status: 404/);
+  assert.match(serverSource, /createRuntimeArtifactRoutes/);
+  assert.match(viteSource, /const apiPort = Number\(process\.env\.PORT \?\? 4151\)/);
+  assert.match(viteSource, /"\/api": `http:\/\/127\.0\.0\.1:\$\{apiPort\}`/);
+  assert.match(viteSource, /"\/runtime-cache": `http:\/\/127\.0\.0\.1:\$\{apiPort\}`/);
   assert.match(htmlSource, /id="root"/);
   assert.match(htmlSource, /src="\/src\/app\/main\.tsx"/);
   assert.doesNotMatch(htmlSource, /src="\/src\/ui\/app\.js/);
@@ -2929,7 +2939,7 @@ test("runtime page clicks without reliable VLM should stay on the current page",
 
 test("server keeps deterministic fallback for non-runtime flipbook click handling", () => {
   const handlerSource = readFileSync(
-    new URL("../src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
     "utf8"
   );
   assert.match(handlerSource, /resolveSemanticRegionHit/);
@@ -2943,7 +2953,7 @@ test("server keeps deterministic fallback for non-runtime flipbook click handlin
 
 test("server does not let stale semantic coordinates override a generated overview or explicit target", () => {
   const handlerSource = readFileSync(
-    new URL("../src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickResolutionHttpHandler.js", import.meta.url),
     "utf8"
   );
   assert.match(handlerSource, /const isGeneratedOverview/);
@@ -2953,7 +2963,7 @@ test("server does not let stale semantic coordinates override a generated overvi
 
 test("server VLM resolver tolerates missing generated artwork", () => {
   const resolverSource = readFileSync(
-    new URL("../src/features/explorer/openAIClickResolver.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIClickResolver.js", import.meta.url),
     "utf8"
   );
   assert.match(resolverSource, /if \(!artwork\?\.imageUrl\)/);
@@ -2962,11 +2972,11 @@ test("server VLM resolver tolerates missing generated artwork", () => {
 
 test("server VLM resolver marks the clicked point in the image", () => {
   const resolverSource = readFileSync(
-    new URL("../src/features/explorer/openAIClickResolver.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIClickResolver.js", import.meta.url),
     "utf8"
   );
   const markerSource = readFileSync(
-    new URL("../src/features/explorer/clickMarkerPng.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/clickMarkerPng.js", import.meta.url),
     "utf8"
   );
   assert.match(resolverSource, /annotateClickPointOnPng/);
@@ -2978,7 +2988,7 @@ test("server VLM resolver marks the clicked point in the image", () => {
 
 test("server semantic cache prefers the nearest cached click over confidence alone", () => {
   const policySource = readFileSync(
-    new URL("../src/features/explorer/semanticRegionPolicy.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/semanticRegionPolicy.js", import.meta.url),
     "utf8"
   );
   assert.match(policySource, /selectSemanticRegionForPoint/);
@@ -2988,18 +2998,21 @@ test("server semantic cache prefers the nearest cached click over confidence alo
 });
 
 test("runtime image job polling is not cached by the browser", () => {
-  const staticAssetServerSource = readFileSync(
-    new URL("../src/platform/http/staticAssetServer.js", import.meta.url),
+  const runtimeArtifactSource = readFileSync(
+    new URL(
+      "../apps/api/src/features/runtimeCache/runtimeArtifactHttpHandler.js",
+      import.meta.url
+    ),
     "utf8"
   );
   const runtimeCacheFilesSource = readFileSync(
-    new URL("../src/platform/runtime/runtimeCacheFiles.js", import.meta.url),
+    new URL("../apps/api/src/platform/runtime/runtimeCacheFiles.js", import.meta.url),
     "utf8"
   );
   const appSource = readFrontendRuntimeSource();
-  assert.match(staticAssetServerSource, /isMutableRuntimeJsonPath/);
+  assert.match(runtimeArtifactSource, /isMutableRuntimeJsonPath/);
   assert.match(runtimeCacheFilesSource, /\(\?:image-jobs\|codex-jobs\|understanding\|environment\|starter-map\|country-pack-draft\)/);
-  assert.match(staticAssetServerSource, /isMutableRuntimeJson \|\| isRuntimeImageFile/);
-  assert.match(staticAssetServerSource, /"no-store"/);
+  assert.match(runtimeArtifactSource, /isMutableRuntimeJson \|\| isRuntimeImageFile/);
+  assert.match(runtimeArtifactSource, /"no-store"/);
   assert.match(appSource, /fetchArtworkResource\(toApiUrl\(jobUrl\), \{ cache: "no-store" \}\)/);
 });

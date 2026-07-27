@@ -2,253 +2,203 @@
 
 ## Status
 
-This document defines the target architecture for the incremental migration from
-the current vanilla JavaScript application. It is a decision record, not a
-license for a rewrite. Existing factual guardrails and passing behaviour remain
-the compatibility baseline.
+This document records the architecture in use. It is the compatibility baseline
+for future refactoring; it is not a proposal for a rewrite.
 
 ## Non-Negotiable Invariant
 
 > AI generates the visual layer. Curated data is the only authority for travel facts.
 
-Generated image output, VLM descriptions, reference-photo search results, and
-unreviewed starter-map candidates must never become verified facts or confirmed
-itinerary items without an explicit curated-data change.
+Generated images, VLM descriptions, reference-photo results, and unreviewed
+starter maps cannot become verified facts or confirmed itinerary items without
+an explicit curated-data change.
 
-## Current Migration Pressure
+## Current Stack
 
-The existing domain modules and source-controlled country packs already
-separate policy from data well. The primary migration targets are the large UI,
-server, and stylesheet entry points, which currently make unrelated features
-costly to retrieve and change safely.
-
-## Target Stack
-
-| Concern | Target | Responsibility |
+| Concern | Current choice | Responsibility |
 | --- | --- | --- |
-| Runtime | Active Node.js LTS | Server and build runtime |
-| Workspace | pnpm workspaces | Isolate deployable applications and shared packages |
-| Web | React, TypeScript, Vite, React Router | Visual explorer and configuration UI |
-| Remote state | TanStack Query | API caching, polling, mutations, and invalidation |
-| API | Hono on Node.js | Small feature-scoped HTTP routes |
-| Contracts | Zod | Runtime request/response validation and inferred types |
-| Persistence | PostgreSQL and Drizzle | Curated-review records, saved discoveries, jobs, metadata |
-| Artifacts | S3-compatible object storage | Generated artwork and reference-photo binaries |
-| Background work | Persistent Postgres-backed queue | Image generation and environment-plan jobs |
-| AI | OpenAI SDK behind adapters | Image generation and visual description only |
-| Tests | Vitest and Playwright | Unit/contract and browser journey coverage |
+| Runtime | Node.js 22.18+ | API runtime, type stripping, and build tooling |
+| Workspace | npm workspaces | Independent applications and shared packages |
+| Web | React 19, TypeScript, Vite 8, React Router 7 | Browser composition and static production build |
+| Remote state | TanStack Query 5 | Browser cache, polling, mutations, and invalidation |
+| API | Hono 4 on Node.js | Feature-owned HTTP routes |
+| Contracts | Zod 4 | Runtime request and response validation |
+| Current persistence | Source-controlled packs and API-owned runtime files | Curated facts, generated media, jobs, and review artifacts |
+| AI | Provider adapters | Image generation and visual description only |
+| Tests | Node test runner, Vitest, Playwright | Unit, component, contract, and browser coverage |
 
-Do not introduce microservices, Redis, authentication, payment systems, or a
-WebGL rendering engine until a concrete product requirement requires them.
+PostgreSQL with Drizzle, object storage, and a durable job queue remain planned
+production persistence upgrades. They should replace adapters inside
+`apps/api`; they do not require another repository reorganization.
 
-## Target Repository Shape
+Do not introduce microservices, Redis, authentication, payments, or WebGL until
+a concrete product requirement justifies them.
+
+## Repository Shape
 
 ```text
 apps/
-  web/src/features/
-    country-catalog/
-    country-setup/
-    explorer/
-    artwork/
-    itinerary/
-  api/src/features/
-    artwork/
-    click-resolution/
-    country-packs/
-    country-setup/
-    place-media/
-    itinerary/
-  api/src/platform/
-    http/
-    storage/
-    jobs/
-    openai/
+  web/                         deployable React/Vite application
+    index.html
+    vite.config.js
+    src/
+      app/                     React composition and browser runtime adapters
+      config/                  browser-safe application policy
+      features/                UI, clients, controllers, and local styles
+      styles/                  global tokens, defaults, and accessibility
+  api/                         deployable Hono application
+    src/
+      main.ts                  dependency composition and process lifecycle
+      config/                  server and provider policy
+      data/                    API-owned scene data and curated country packs
+      features/                routes, services, policies, repositories
+      platform/                HTTP, environment, media, runtime, OpenAI adapters
+      server/                  Hono error boundary and route composition
 packages/
-  atlas-domain/
-  atlas-contracts/
-  atlas-prompts/
-  country-packs/
+  atlas-contracts/             shared Zod API contracts
+  atlas-data/                  browser-safe shared catalog/config data
+  atlas-domain/                pure product and guardrail policy
+  atlas-prompts/               prompt construction from structured inputs
+public/                        web-owned static artwork fixtures/assets
+test/                          cross-workspace tests and local browser fixtures
 ```
 
-Each feature owns its UI or route, contracts, application service, and tests.
-`platform` modules adapt external systems only and must not contain travel
-policy. Avoid generic `helpers`, `utils`, or `common` directories.
+There is intentionally no root `src/` directory and no combined dev server.
+The repository root orchestrates workspaces and quality gates only.
 
-## Boundary Rules
+## Dependency Direction
 
-- `atlas-domain` is pure TypeScript and has no browser, HTTP, database, or AI
-  SDK imports.
-- `atlas-contracts` owns externally visible request/response schemas. A client
-  and server must not duplicate an API shape independently.
-- `country-packs` are source-controlled curated facts. Runtime starter maps
-  are review artifacts and cannot replace them.
-- `atlas-prompts` may describe curated inputs but cannot create factual claims.
-- AI adapters return typed visual descriptions or artifacts. Their callers must
-  pass results through the curated node matcher before displaying facts.
-- The factual UI renders only structured node facts and their confidence/source
-  metadata; it never reads claims from generated image metadata.
+```text
+apps/web ─┐
+          ├──> packages/*
+apps/api ─┘
 
-## Migration Order
+apps/web -- HTTP --> apps/api
+```
 
-1. Preserve today’s behavior with contract tests and browser fixtures.
-2. Introduce TypeScript and Vite while the current server remains the API.
-3. Extract frontend features from the existing browser entry point.
-4. Extract API features from the current server entry point behind shared Zod
-   contracts.
-5. Replace runtime-local persistence with PostgreSQL, object storage, and a
-   persistent job queue.
-6. Add production observability and deployment-specific adapters.
+- `apps/web` must not import `apps/api`, Node built-ins, provider adapters, or
+  server configuration.
+- `apps/api` must not import `apps/web`, React, DOM code, or Vite internals.
+- `packages/*` must not import either deployable application.
+- Shared packages must not hide environment access or filesystem writes.
+- Browser/API communication goes through feature clients and Zod contracts,
+  never source-level cross-imports.
+- API feature routes own their endpoint paths. `main.ts` only constructs
+  dependencies and registers features.
 
-The current baseline includes a React 19 composition root, React Router,
-TanStack Query, Vite, strict TypeScript checking, React-aware ESLint, Zod
-validation for artwork and country-pack APIs, Vitest component/contract tests,
-Playwright fixture isolation, and a typed Hono API composition root on Node.js.
-The React runtime composes feature-owned
-country, explorer, artwork, and browser-feedback controllers; the former
-`src/ui/app.js` monolith and temporary legacy bridge have been removed. Hono
-is active for route composition; PostgreSQL and Drizzle remain deliberate later
-migrations, introduced only when their persistence boundary is ready.
+The web and API may both import shared packages. Shared packages may depend on
+another shared package when the dependency is explicit in its workspace
+manifest.
 
-### Current Feature Boundaries
+## Deployment Boundary
 
-The React frontend is now the active browser composition. The Node API remains
-an incremental migration target, while these features already own their public
-clients, handlers, policies, and adapters:
+The frontend and backend deploy independently:
 
-- `artwork`: validated artwork request handler.
-- `countryCatalog`: country-pack client, registry contract, and API handler.
-- `countryDraft`: browser client, server guardrail handler, country-scoped
-  repository, draft policy, guarded generator, Exa grounding provider, and a
-  complete starter-map panel composed from focused chat, review-status,
-  metadata, and non-factual reference-photo views.
-- `countrySetup`: country configuration shell view and DOM event controller.
-- `explorer`: detail panel, destination-navigation view, environment renderer,
-  click-resolution handler, semantic guardrails, click-marker codec, injected
-  click VLM provider, environment-plan policy/provider, and explorer client.
-- `experience`: public browser-safe runtime configuration endpoint/client.
-- `countryImages`: decorative country-card selection policy, Wikimedia
-  provider, local artifact repository, application service, and HTTP handler.
-- `placeImages`: reference-photo browser client, factual-boundary HTTP handler,
-  application service, local artifact/history repository, prompt policy, and
-  isolated Exa, OpenAI, and Wikipedia providers.
-- `runtimeCache`: country-scoped cleanup endpoint/client.
+```text
+browser
+  -> static web deployment
+       /country-cards/*        bundled decorative assets
+  -> reverse proxy
+       /api/*                  Hono API
+       /runtime-cache/*        API-owned generated artifacts
+```
 
-### Backend Platform Boundaries
+The recommended production topology keeps one public origin and routes
+`/api/*` plus `/runtime-cache/*` to the API. All other application routes use
+the web deployment's SPA fallback. The API never serves `index.html`, React
+source, or the Vite build.
 
-The typed development composition root wires platform adapters instead of
-implementing generic infrastructure inline:
+The two deployments do not share a writable filesystem:
 
-- `src/platform/env/loadLocalEnv.js` owns local environment-file loading and
-  preserves explicit blank test overrides.
-- `src/platform/http/readJsonRequest.js` owns bounded Fetch request-body
-  decoding.
-- `src/platform/http/fetchResponses.js` owns framework-neutral Fetch response
-  construction.
-- `src/platform/http/honoRoutes.ts` owns typed Hono route registration.
-- `src/platform/http/mediaTypes.js` owns static and image MIME resolution.
-- `src/platform/http/safeHeaderValue.js` owns safe external metadata encoding
-  for response headers.
-- `src/platform/http/staticAssetServer.js` owns app-shell fallback and
-  cache-safe static/runtime artifact delivery.
-- `src/platform/media/mediaFetch.js` owns browser-like media download options
-  and content-type extension mapping.
-- `src/platform/runtime/runtimeCacheFiles.js` owns runtime artifact path
-  compatibility and traversal-safe path resolution.
-- `src/platform/dev/liveReloadServer.js` owns development-only file watching
-  and server-sent reload events.
+- Bundled country-card artwork belongs to `apps/web` through `public/`.
+- Dynamically fetched or generated artwork belongs to the API runtime cache.
+- API production persistence can later move to Postgres and object storage
+  without changing frontend deployment.
 
-These modules contain infrastructure only. Country facts, generated media
-policy, provider selection, and cache-flush policy remain in their owning
-features. Future backend extractions should inject these adapters rather than
-reintroducing filesystem, HTTP, or environment concerns into feature policy.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for commands, artifacts, and routing.
 
-The API entry now composes `countryImages` and `placeImages` instead of
-implementing their workflows inline. In particular, reference-photo provider
-traffic, prompt suggestions, cache history, claim deduplication, image
-validation, and persistence do not live in the startup script or composition
-root. Provider tests inject mock transports; they do not use live credentials
-or network traffic.
+## Feature Boundaries
 
-Country-draft runtime storage, promotion artifacts, source-refresh policy,
-grounding search, and OpenAI generation are likewise feature-owned. The server
-only supplies configuration and registry adapters.
-`openAICountryDraftProvider.js` owns provider transport and response parsing;
-`countryDraftGenerator.js` owns prompting, fallback behavior, and enforcement
-of the unconfirmed review state. Generated starter maps remain unconfirmed
-review artifacts, and provider failures retain that status.
+Both applications organize by product feature:
 
-Artwork provider configuration is feature-owned, including model
-normalization, quality policy, provider readiness, and the OpenAI image adapter.
-Click and environment VLMs accept injected transports, read only local
-artifacts, and pass output through deterministic policy before it can affect
-navigation. Environment output remains decorative and click output can only
-match curated candidates or become an unverified detour.
+- `artwork`: image jobs, provider configuration, visual loading state.
+- `countryCatalog`: country-pack discovery and the visual catalog.
+- `countryDraft`: unconfirmed starter-map generation and review.
+- `countrySetup`: configuration shell and navigation.
+- `countryImages`: API fallback for decorative country-card media.
+- `experience`: public browser-safe runtime configuration.
+- `explorer`: click resolution, visual navigation, environment layers.
+- `placeImages`: non-factual reference media and feedback.
+- `runtimeCache`: generated artifact delivery and country-scoped cleanup.
 
-Artwork jobs are likewise feature-owned. `artworkJobProcessingPolicy.js` owns cache
-identity, priority, retry eligibility, and environment scheduling;
-`artworkJobRepository.js` owns atomic job persistence, generated binary/JSON
-artifact writes, path validation, and terminal indexing;
-`artworkJobCreationService.js` owns cache reuse, pending-job creation, and
-country-flush coordination; and `artworkJobService.js` owns background scans,
-provider execution, partial artifacts, retry state, and cancellation.
-`environmentPlanQueue.js` runs decorative environment analysis independently
-after final artwork readiness. The server entry composes these boundaries and
-does not implement the worker lifecycle.
+Keep transport, persistence, provider integration, and pure policy separate
+inside a feature when doing so reduces retrieval scope. Do not create generic
+`helpers`, `utils`, `common`, or another catch-all entry point.
 
-`runtimeCacheService.js` owns country-scoped flush locking, in-flight job
-cancellation, factual-cache scope policy, and feature-memory invalidation.
-`runtimeCacheRepository.js` owns traversal-safe filesystem deletion. The typed
-`src/server/createRoamAtlasApi.ts` root composes feature route registrars and
-owns only the HTTP error boundary, live-reload route, and static fallback.
-Endpoint paths and methods live in the owning feature HTTP modules rather than
-the bootstrap or API root. `runtimeArtworkContext.js` owns runtime country and
-asset-version resolution. `src/server/roamAtlasDevServer.ts` is the typed
-dependency-composition and process-lifecycle entry executed directly by the
-`dev:api` command. Every feature HTTP handler accepts Fetch requests where
-needed and returns native responses; raw Node request/response bindings are not
-part of feature contracts.
+## Data and AI Boundaries
 
-Browser-wide tunable policy lives in `src/config/appConfig.js`: storage keys,
-quality choices, polling and retry budgets, version gates, input limits, and
-notification timing. Feature modules consume that policy; provider secrets and
-machine-specific values must never enter browser configuration.
+- `atlas-domain` owns deterministic guardrails, matching, planning, and scene
+  policy. Continue migrating it toward strict TypeScript without adding runtime
+  infrastructure dependencies.
+- `atlas-contracts` owns externally visible schemas. Client and server must not
+  duplicate an API shape independently.
+- Source-controlled country packs under `apps/api/src/data/countryPacks/` are
+  curated factual input. Runtime starter maps are review artifacts only.
+- `atlas-prompts` describes structured inputs but cannot create authoritative
+  facts.
+- Provider output must pass deterministic matching and confidence policy before
+  it can affect navigation.
+- The factual UI renders structured data, confidence, and sources. It never
+  extracts claims from generated image metadata.
 
-### CSS Ownership
+## Frontend Rules
 
-`src/styles.css` is an import manifest, not a component stylesheet. Global CSS
-is limited to design tokens, document defaults, and accessibility primitives in
-`src/styles/`. Feature selectors live beside the feature that renders them.
+`apps/web/src/app/` owns composition, providers, route mounting, and browser
+adapters. Feature workflows remain under `features/` and communicate through
+explicit clients/controllers.
 
-React-owned UI uses `*.module.css`. During the incremental migration, a module
-may expose a documented `:global(...)` alias only when the same selector is
-still consumed by a legacy DOM renderer. Delete that alias when the legacy
-renderer is removed.
+`applicationRuntime.ts` is the typed composition root. It may wire features but
+must not absorb their rendering, transport, or stateless policy.
+`browserRuntime.ts` owns browser-only adapters and feedback contracts.
 
-Country setup, country draft, artwork, and explorer styles are split by
-cohesive UI responsibility. Responsive rules stay beside their owning feature.
-Do not recreate a cross-feature stylesheet organized by generic categories such
-as buttons, cards, forms, or animations.
+Browser-wide tunable policy lives in `apps/web/src/config/appConfig.js`.
+Secrets, server paths, and provider credentials must never enter it.
 
-Stylelint is the CSS quality gate. New CSS Modules must keep selector
-specificity within the configured limit; existing global feature CSS retains
-its established cascade until that feature is migrated to React.
+`apps/web/src/styles.css` is an import manifest. Global CSS is limited to
+tokens, document defaults, and accessibility primitives. Feature styles stay
+beside the feature that renders them; React-owned styles should use CSS Modules.
 
-`src/app/` owns composition, providers, route mounting, and browser adapters.
-Feature workflows belong to their domain directories and communicate through
-explicit controller interfaces. Pure transformations belong in typed feature
-policy modules and must remain independent of browser state.
+## Backend Rules
 
-`src/app/applicationRuntime.ts` is the typed composition root and must not
-absorb feature workflows. Browser-only adapters and feedback contracts live in
-`src/app/browserRuntime.ts`. Keep transport in the owning feature client and
-keep runtime adapters out of travel policy modules.
+`apps/api/src/main.ts` is the dependency-composition and process-lifecycle
+entry. It must not implement route bodies, persistence algorithms, provider
+transport, or domain policy.
 
-No migration step may weaken the unmapped-detour fallback, curated-node-only
-itinerary rule, fact confidence labels, or missing-artwork accessibility.
+Feature HTTP handlers accept Fetch requests where needed and return native
+responses. Platform modules adapt HTTP, environment, filesystem, media, and
+OpenAI mechanics without containing travel policy.
 
-## Completion Criteria
+Runtime artifacts are served only through the traversal-safe
+`runtimeCache/runtimeArtifactHttpHandler.js`. Missing artifacts return a normal
+404 and never prevent factual content or itinerary behavior.
 
-The migration is complete only when the feature-first structure is in use,
-production state is durable, all AI integrations are adapter-backed, browser
-tests use mocked providers, and the visual/factual separation is proven by
-unit, contract, and browser tests.
+## Testing Rules
+
+Every structural migration must preserve unit, component, contract, and build
+gates. Playwright uses local artwork fixtures and mocked image/VLM responses;
+it must never contact OpenAI or another external provider.
+
+Architecture tests enforce workspace commands, entry-point separation, and the
+absence of cross-application imports. See [TESTING.md](TESTING.md).
+
+## Outstanding Platform Migration
+
+The application split is complete. Remaining production platform work is:
+
+1. Replace local review/job metadata with PostgreSQL and Drizzle.
+2. Replace generated binary storage with S3-compatible object storage.
+3. Replace the in-process image queue with a durable queue.
+4. Add production observability and deployment-specific health checks.
+
+These are adapter migrations inside the API boundary, not frontend migration
+work and not reasons to merge the two applications again.

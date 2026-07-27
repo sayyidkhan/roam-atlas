@@ -2,7 +2,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { CountryCatalogView } from "../../src/features/countryCatalog/CountryCatalogView";
+import { CountryCatalogView } from "../../apps/web/src/features/countryCatalog/CountryCatalogView";
 
 describe("CountryCatalogView", () => {
   it("filters countries and emits typed open/configure intents", () => {

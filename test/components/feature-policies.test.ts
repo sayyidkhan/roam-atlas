@@ -5,21 +5,21 @@ import {
   getPageArtworkCacheKey,
   isArtworkJobFailed,
   isArtworkJobPending
-} from "../../src/features/artwork/artworkJobPolicy";
+} from "../../apps/web/src/features/artwork/artworkJobPolicy";
 import {
   getDraftNodeAtPath,
   removeDraftNodeAtPath,
   reorderArray
-} from "../../src/features/countryDraft/draftTree";
+} from "../../apps/web/src/features/countryDraft/draftTree";
 import {
   imageQualityLabel,
   normalizeImageQuality
-} from "../../src/features/experience/imageQualityPolicy";
-import { normalizeEnvironmentPlanBounds } from "../../src/features/explorer/sceneGeometry";
+} from "../../apps/web/src/features/experience/imageQualityPolicy";
+import { normalizeEnvironmentPlanBounds } from "../../apps/web/src/features/explorer/sceneGeometry";
 import {
   environmentPlanNeedsTargetRecovery,
   normalizeEnvironmentPlan
-} from "../../src/features/explorer/environmentPlanPolicy";
+} from "../../apps/web/src/features/explorer/environmentPlanPolicy";
 
 describe("stateless frontend feature policies", () => {
   it("classifies artwork jobs without browser state", () => {

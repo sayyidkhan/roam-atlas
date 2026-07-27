@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPlaceImageHttpHandlers } from "../src/features/placeImages/placeImageHttpHandler.js";
+import { createPlaceImageHttpHandlers } from "../apps/api/src/features/placeImages/placeImageHttpHandler.js";
 
 function createJsonRequest(body) {
   return new Request("http://localhost/api/place-image", {

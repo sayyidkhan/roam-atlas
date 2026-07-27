@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApplicationStoreProvider,
   useApplicationStore
-} from "../../src/app/applicationStore";
+} from "../../apps/web/src/app/applicationStore";
 
 function StoreWrapper({ children }: PropsWithChildren) {
   return <ApplicationStoreProvider>{children}</ApplicationStoreProvider>;

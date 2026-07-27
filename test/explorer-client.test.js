@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createExplorerClient } from "../src/features/explorer/explorerClient.js";
+import { createExplorerClient } from "../apps/web/src/features/explorer/explorerClient.js";
 
 test("explorer client posts flipbook clicks and reads environment plans", async () => {
   const requests = [];

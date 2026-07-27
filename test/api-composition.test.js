@@ -3,26 +3,22 @@ import test from "node:test";
 
 import { z } from "zod";
 
-import { createArtworkRoutes } from "../src/features/artwork/artworkHttpHandler.js";
-import { createCountryPackRoutes } from "../src/features/countryCatalog/countryPackHttpHandler.js";
-import { createCountryDraftRoutes } from "../src/features/countryDraft/countryDraftHttpHandler.js";
-import { createCountryImageRoutes } from "../src/features/countryImages/countryImageHttpHandler.js";
-import { createExperienceConfigRoutes } from "../src/features/experience/experienceConfigHttpHandler.js";
-import { createClickResolutionRoutes } from "../src/features/explorer/clickResolutionHttpHandler.js";
-import { createPlaceImageRoutes } from "../src/features/placeImages/placeImageHttpHandler.js";
-import { createRuntimeCacheRoutes } from "../src/features/runtimeCache/runtimeCacheHttpHandler.js";
-import { registerHonoRoute } from "../src/platform/http/honoRoutes.ts";
-import { createRoamAtlasApi } from "../src/server/createRoamAtlasApi.ts";
+import { createArtworkRoutes } from "../apps/api/src/features/artwork/artworkHttpHandler.js";
+import { createCountryPackRoutes } from "../apps/api/src/features/countryCatalog/countryPackHttpHandler.js";
+import { createCountryDraftRoutes } from "../apps/api/src/features/countryDraft/countryDraftHttpHandler.js";
+import { createCountryImageRoutes } from "../apps/api/src/features/countryImages/countryImageHttpHandler.js";
+import { createExperienceConfigRoutes } from "../apps/api/src/features/experience/experienceConfigHttpHandler.js";
+import { createClickResolutionRoutes } from "../apps/api/src/features/explorer/clickResolutionHttpHandler.js";
+import { createPlaceImageRoutes } from "../apps/api/src/features/placeImages/placeImageHttpHandler.js";
+import { createRuntimeArtifactRoutes } from "../apps/api/src/features/runtimeCache/runtimeArtifactHttpHandler.js";
+import { createRuntimeCacheRoutes } from "../apps/api/src/features/runtimeCache/runtimeCacheHttpHandler.js";
+import { registerHonoRoute } from "../apps/api/src/platform/http/honoRoutes.ts";
+import { createRoamAtlasApi } from "../apps/api/src/server/createRoamAtlasApi.ts";
 
 test("typed Hono composition registers every feature-owned API route", () => {
   const handler = async () => {};
   const app = createRoamAtlasApi({
-    routeRegistrars: createRouteRegistrars(handler),
-    liveReload: {
-      routePath: "/__live-reload",
-      handleRequest: () => {}
-    },
-    serveStaticAsset: async () => {}
+    routeRegistrars: createRouteRegistrars(handler)
   });
   const registered = new Set(
     app.routes.map((route) => `${route.method} ${route.path}`)
@@ -33,7 +29,7 @@ test("typed Hono composition registers every feature-owned API route", () => {
   assert.ok(registered.has("HEAD /api/place-image"));
   assert.ok(registered.has("POST /api/country-draft/approve-item"));
   assert.ok(registered.has("POST /api/runtime-cache/flush"));
-  assert.ok(registered.has("GET /__live-reload"));
+  assert.ok(registered.has("GET /runtime-cache/*"));
 });
 
 test("Hono dispatches a feature route through native Fetch responses", async () => {
@@ -52,12 +48,7 @@ test("Hono dispatches a feature route through native Fetch responses", async () 
         },
         isLocalImageUrl: () => false
       })
-    ],
-    liveReload: {
-      routePath: "/__live-reload",
-      handleRequest: () => {}
-    },
-    serveStaticAsset: async () => {}
+    ]
   });
 
   const response = await app.fetch(
@@ -80,11 +71,6 @@ test("Hono maps request-contract validation failures to HTTP 400", async () => {
         );
       }
     ],
-    liveReload: {
-      routePath: "/__live-reload",
-      handleRequest: () => {}
-    },
-    serveStaticAsset: async () => {},
     logger: { error() {} }
   });
 
@@ -115,6 +101,10 @@ function createRouteRegistrars(handler) {
   };
 
   return [
+    createRuntimeArtifactRoutes({
+      runtimeCacheRoot: "/tmp/unused-runtime-cache",
+      runtimeCacheUrlPrefix: "/runtime-cache"
+    }),
     createClickResolutionRoutes({
       handleResolveClick: handler,
       handleFlipbookClick: handler

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { APP_CONFIG } from "../src/config/appConfig.js";
+import { APP_CONFIG } from "../apps/web/src/config/appConfig.js";
 import { readFrontendRuntimeSource } from "./support/frontend-runtime-source.js";
 
 const appSource = readFrontendRuntimeSource();

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { flushCountryRuntimeCache } from "../src/features/runtimeCache/runtimeCacheClient.js";
-import { handleRuntimeCacheFlushHttpRequest } from "../src/features/runtimeCache/runtimeCacheHttpHandler.js";
+import { flushCountryRuntimeCache } from "../apps/web/src/features/runtimeCache/runtimeCacheClient.js";
+import { handleRuntimeCacheFlushHttpRequest } from "../apps/api/src/features/runtimeCache/runtimeCacheHttpHandler.js";
 
 function createJsonRequest(body) {
   return new Request("http://localhost/api/runtime-cache/flush", {

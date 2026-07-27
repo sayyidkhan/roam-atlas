@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createArtworkJobCreationService } from "../src/features/artwork/artworkJobCreationService.js";
+import { createArtworkJobCreationService } from "../apps/api/src/features/artwork/artworkJobCreationService.js";
 
 test("artwork creation persists a pending job without calling the image provider", async (t) => {
   const cacheRoot = await mkdtemp(

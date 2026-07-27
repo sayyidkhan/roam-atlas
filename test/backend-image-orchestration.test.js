@@ -5,11 +5,11 @@ import test from "node:test";
 import {
   ROAMATLAS_EXPERIENCE_CONFIG,
   resolveRoamAtlasExperienceConfig
-} from "../src/config/experienceConfig.js";
+} from "../packages/atlas-data/src/experienceConfig.js";
 import {
   isStaleProcessingImageJob,
   selectImageJobsForProcessing
-} from "../src/domain/imageJobQueue.js";
+} from "../apps/api/src/domain/imageJobQueue.js";
 
 const entry = (fileName, jobKind, createdAt = "2026-01-01T00:00:00.000Z") => ({
   fileName,
@@ -126,7 +126,7 @@ test("processing and partial jobs become recoverable only after their lease expi
 
 test("server publishes final readiness before queuing environment analysis", async () => {
   const source = await readFile(
-    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
     "utf8"
   );
   const workerStart = source.indexOf("async function processJob");
@@ -148,7 +148,7 @@ test("server publishes final readiness before queuing environment analysis", asy
 test("finished pages map their targets while unrelated image jobs continue", async () => {
   const worker = await readFile(
     new URL(
-      "../src/features/artwork/environmentPlanQueue.js",
+      "../apps/api/src/features/artwork/environmentPlanQueue.js",
       import.meta.url
     ),
     "utf8"
@@ -161,40 +161,40 @@ test("finished pages map their targets while unrelated image jobs continue", asy
 });
 
 test("server forwards optimized image options and stores versioned partial assets", async () => {
-  const source = await readFile(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const jobService = await readFile(
-    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
     "utf8"
   );
   const jobCreationService = await readFile(
     new URL(
-      "../src/features/artwork/artworkJobCreationService.js",
+      "../apps/api/src/features/artwork/artworkJobCreationService.js",
       import.meta.url
     ),
     "utf8"
   );
   const configuredProvider = await readFile(
-    new URL("../src/features/artwork/configuredImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/configuredImageProvider.js", import.meta.url),
     "utf8"
   );
   const jobRepository = await readFile(
-    new URL("../src/features/artwork/artworkJobRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobRepository.js", import.meta.url),
     "utf8"
   );
   const jobPolicy = await readFile(
     new URL(
-      "../src/features/artwork/artworkJobProcessingPolicy.js",
+      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js",
       import.meta.url
     ),
     "utf8"
   );
   const clickResolver = await readFile(
-    new URL("../src/features/explorer/openAIClickResolver.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIClickResolver.js", import.meta.url),
     "utf8"
   );
   const runtimeCacheService = await readFile(
     new URL(
-      "../src/features/runtimeCache/runtimeCacheService.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheService.js",
       import.meta.url
     ),
     "utf8"
@@ -221,22 +221,22 @@ test("server forwards optimized image options and stores versioned partial asset
 });
 
 test("selected image quality controls provider generation and cache identity", async () => {
-  const source = await readFile(new URL("../src/server/roamAtlasDevServer.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const jobService = await readFile(
-    new URL("../src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
     "utf8"
   );
   const provider = await readFile(
-    new URL("../src/features/artwork/configuredImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/configuredImageProvider.js", import.meta.url),
     "utf8"
   );
   const artworkHandler = await readFile(
-    new URL("../src/features/artwork/artworkHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkHttpHandler.js", import.meta.url),
     "utf8"
   );
   const assetVersion = await readFile(
     new URL(
-      "../src/features/artwork/artworkJobProcessingPolicy.js",
+      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js",
       import.meta.url
     ),
     "utf8"

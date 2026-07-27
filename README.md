@@ -19,7 +19,9 @@ AI-generated, while factual claims are grounded in curated and official data.
 - [AGENTS.md](AGENTS.md) is the operating guide for coding, research, image,
   fact-check, and itinerary agents.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) defines the feature-first migration
-  target and non-negotiable system boundaries.
+  shape and non-negotiable system boundaries.
+- [DEPLOYMENT.md](docs/DEPLOYMENT.md) defines the independent web/API build
+  artifacts and production routing.
 - [TESTING.md](docs/TESTING.md) defines isolated provider fixtures, including
   the rule that Playwright never contacts a live image or VLM API.
 
@@ -41,8 +43,8 @@ Current route shape:
 Country pack registry:
 
 ```text
-src/data/countryPacks/
-  index.js
+apps/api/src/data/countryPacks/
+  serverRegistry.js
   malaysia.json
   singapore.json
 ```
@@ -64,7 +66,9 @@ create a private `.env` from `.env.example` and add the one secret the app uses:
 OPENAI_API_KEY="..."
 ```
 
-Non-secret model defaults live in `src/config/roamAtlasConfig.js`.
+Non-secret server/model defaults live in
+`apps/api/src/config/roamAtlasConfig.js`. Browser-safe interaction policy lives
+in `apps/web/src/config/appConfig.js`.
 
 - Text, VLM, and environment models must stay on GPT-5-family or newer models.
 - Interactive image generation uses `gpt-image-2` with a compressed JPEG
@@ -82,6 +86,21 @@ OPENAI_API_KEY="..." npm run dev
 The development command starts Vite on `127.0.0.1:4150` and the local API on
 `127.0.0.1:4151`; Vite proxies `/api` and `/runtime-cache` to the API process.
 The browser therefore always receives transformed React/TypeScript modules.
+
+The repository is an npm workspace:
+
+```text
+apps/web/                 React/Vite frontend
+apps/api/                 Hono/Node API
+packages/atlas-domain/    shared product policy
+packages/atlas-contracts/ shared Zod contracts
+packages/atlas-data/      browser-safe shared data
+packages/atlas-prompts/   structured prompt construction
+```
+
+Use `npm run dev:web` or `npm run dev:api` when working on one deployment
+without starting the other. Use `npm run build:web` for the static frontend
+artifact and `npm run start:api` for the API runtime.
 
 If a key is pasted into chat, rotate it after testing.
 
@@ -127,7 +146,7 @@ When an AI starter map is confirmed for curation, the dev server writes
 `/runtime-cache/{countrySlug}/starter-map/confirmation.json` and
 `/runtime-cache/{countrySlug}/country-pack-draft/country.json`. These files are
 review artifacts; they do not register a live country pack until source-backed
-data is moved into `src/data/countryPacks/`.
+data is moved into `apps/api/src/data/countryPacks/`.
 
 Malaysia currently ships as an actual country pack at `/malaysia`; its starter
 facts stay `ai_generated` and `unconfirmed` until replaced with source-backed
@@ -138,5 +157,7 @@ Set `ROAMATLAS_IMAGE_QUALITY` to `low`, `medium`, or `high` to override the
 server default; a browser's saved country-config selection takes precedence for
 its generation requests. Quality is part of the image cache identity, so assets
 from different tiers are never mixed.
-For production, keep job metadata in Redis and image files in object storage; do
-not commit generated runtime images to the codebase.
+For production, keep job metadata in durable persistence and image files in
+object storage; do not commit generated runtime images to the codebase. See
+[DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current filesystem-backed deployment
+constraint and routing contract.
