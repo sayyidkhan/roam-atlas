@@ -1,27 +1,12 @@
 {
-  "compilerOptions": {
-    "allowJs": true,
-    "allowImportingTsExtensions": true,
-    "checkJs": false,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "noEmit": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "target": "ES2022",
-    "types": ["node"]
-  },
-  "include": [
-    "apps/**/*.js",
-    "apps/**/*.ts",
-    "apps/**/*.tsx",
-    "packages/**/*.js",
-    "packages/**/*.ts",
-    "packages/**/*.tsx",
-    "test/**/*.ts",
-    "test/**/*.tsx"
+  "files": [],
+  "references": [
+    { "path": "./libs/contracts" },
+    { "path": "./libs/data" },
+    { "path": "./libs/prompts" },
+    { "path": "./libs/domain" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" },
+    { "path": "./test" }
   ]
 }

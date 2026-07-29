@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "../../dist/types/libs/domain",
+    "rootDir": "src",
+    "tsBuildInfoFile": "../../dist/types/libs/domain.tsbuildinfo"
+  },
+  "include": ["src/**/*.js", "src/**/*.ts"],
+  "references": [
+    { "path": "../prompts" }
+  ]
+}

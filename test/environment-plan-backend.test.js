@@ -4,14 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createArtworkJobRepository } from "../apps/api/src/features/artwork/artworkJobRepository.js";
-import { createEnvironmentPlanQueue } from "../apps/api/src/features/artwork/environmentPlanQueue.js";
-import { createEnvironmentPlanServerPolicy } from "../apps/api/src/features/explorer/environmentPlanServerPolicy.js";
-import { createOpenAIEnvironmentPlanner } from "../apps/api/src/features/explorer/openAIEnvironmentPlanner.js";
+import { createArtworkJobRepository } from "../apps/api/src/features/artwork/artworkJobRepository.ts";
+import { createEnvironmentPlanQueue } from "../apps/api/src/features/artwork/environmentPlanQueue.ts";
+import { createEnvironmentPlanServerPolicy } from "../apps/api/src/features/explorer/environmentPlanServerPolicy.ts";
+import { createOpenAIEnvironmentPlanner } from "../apps/api/src/features/explorer/openAIEnvironmentPlanner.ts";
 import {
   ENVIRONMENT_PLAN_PROMPT_VERSION,
   ENVIRONMENT_PLAN_SCHEMA_VERSION
-} from "../packages/atlas-prompts/src/buildEnvironmentPlanPrompt.js";
+} from "../libs/prompts/src/buildEnvironmentPlanPrompt.js";
 
 const page = {
   id: "marina-page",

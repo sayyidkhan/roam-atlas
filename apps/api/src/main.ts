@@ -3,59 +3,59 @@ import { fileURLToPath } from "node:url";
 
 import { serve } from "@hono/node-server";
 
-import { getSceneArtwork } from "./data/sceneArtwork.js";
-import { createConfiguredImageProvider } from "./features/artwork/configuredImageProvider.js";
-import { createArtworkJobPolicy } from "./features/artwork/artworkJobProcessingPolicy.js";
-import { createArtworkJobRepository } from "./features/artwork/artworkJobRepository.js";
-import { createArtworkJobService } from "./features/artwork/artworkJobService.js";
-import { createEnvironmentPlanQueue } from "./features/artwork/environmentPlanQueue.js";
-import { createArtworkRoutes } from "./features/artwork/artworkHttpHandler.js";
-import { createRuntimeArtworkContext } from "./features/artwork/runtimeArtworkContext.js";
-import { createCountryPackRoutes } from "./features/countryCatalog/countryPackHttpHandler.js";
-import { createCountryDraftFeature } from "./features/countryDraft/countryDraftFeature.js";
-import { createCountryImageService } from "./features/countryImages/countryImageService.js";
-import { createCountryImageRoutes } from "./features/countryImages/countryImageHttpHandler.js";
-import { createCountryImageRepository } from "./features/countryImages/countryImageRepository.js";
-import { createClickResolutionFeature } from "./features/explorer/clickResolutionFeature.js";
-import { createClickResolutionRoutes } from "./features/explorer/clickResolutionHttpHandler.js";
-import { createPlaceImageFeature } from "./features/placeImages/placeImageFeature.js";
-import { createPlaceImageRoutes } from "./features/placeImages/placeImageHttpHandler.js";
-import { resolvePlaceWikipediaImage } from "./features/placeImages/wikipediaPlaceImageProvider.js";
-import { createRuntimeArtifactRoutes } from "./features/runtimeCache/runtimeArtifactHttpHandler.js";
-import { createRuntimeCacheRoutes } from "./features/runtimeCache/runtimeCacheHttpHandler.js";
-import { createRuntimeCacheRepository } from "./features/runtimeCache/runtimeCacheRepository.js";
-import { createRuntimeCacheService } from "./features/runtimeCache/runtimeCacheService.js";
-import { createExperienceConfigRoutes } from "./features/experience/experienceConfigHttpHandler.js";
-import { createCountryDraftRoutes } from "./features/countryDraft/countryDraftHttpHandler.js";
-import { createEnvironmentPlanServerPolicy } from "./features/explorer/environmentPlanServerPolicy.js";
-import { createOpenAIEnvironmentPlanner } from "./features/explorer/openAIEnvironmentPlanner.js";
-import { createOpenAIClickResolver } from "./features/explorer/openAIClickResolver.js";
+import { getSceneArtwork } from "./data/sceneArtwork.ts";
+import { createConfiguredImageProvider } from "./features/artwork/configuredImageProvider.ts";
+import { createArtworkJobPolicy } from "./features/artwork/artworkJobProcessingPolicy.ts";
+import { createArtworkJobRepository } from "./features/artwork/artworkJobRepository.ts";
+import { createArtworkJobService } from "./features/artwork/artworkJobService.ts";
+import { createEnvironmentPlanQueue } from "./features/artwork/environmentPlanQueue.ts";
+import { createArtworkRoutes } from "./features/artwork/artworkHttpHandler.ts";
+import { createRuntimeArtworkContext } from "./features/artwork/runtimeArtworkContext.ts";
+import { createCountryPackRoutes } from "./features/countryCatalog/countryPackHttpHandler.ts";
+import { createCountryDraftFeature } from "./features/countryDraft/countryDraftFeature.ts";
+import { createCountryImageService } from "./features/countryImages/countryImageService.ts";
+import { createCountryImageRoutes } from "./features/countryImages/countryImageHttpHandler.ts";
+import { createCountryImageRepository } from "./features/countryImages/countryImageRepository.ts";
+import { createClickResolutionFeature } from "./features/explorer/clickResolutionFeature.ts";
+import { createClickResolutionRoutes } from "./features/explorer/clickResolutionHttpHandler.ts";
+import { createPlaceImageFeature } from "./features/placeImages/placeImageFeature.ts";
+import { createPlaceImageRoutes } from "./features/placeImages/placeImageHttpHandler.ts";
+import { resolvePlaceWikipediaImage } from "./features/placeImages/wikipediaPlaceImageProvider.ts";
+import { createRuntimeArtifactRoutes } from "./features/runtimeCache/runtimeArtifactHttpHandler.ts";
+import { createRuntimeCacheRoutes } from "./features/runtimeCache/runtimeCacheHttpHandler.ts";
+import { createRuntimeCacheRepository } from "./features/runtimeCache/runtimeCacheRepository.ts";
+import { createRuntimeCacheService } from "./features/runtimeCache/runtimeCacheService.ts";
+import { createExperienceConfigRoutes } from "./features/experience/experienceConfigHttpHandler.ts";
+import { createCountryDraftRoutes } from "./features/countryDraft/countryDraftHttpHandler.ts";
+import { createEnvironmentPlanServerPolicy } from "./features/explorer/environmentPlanServerPolicy.ts";
+import { createOpenAIEnvironmentPlanner } from "./features/explorer/openAIEnvironmentPlanner.ts";
+import { createOpenAIClickResolver } from "./features/explorer/openAIClickResolver.ts";
 import {
   getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   listDefaultArtworkPages
-} from "./data/defaultArtworkPages.js";
+} from "./data/defaultArtworkPages.ts";
 import {
   DEFAULT_COUNTRY_SLUG,
   countryPacks,
   getCountryPack,
   isSourceControlledCountryPack
-} from "./data/countryPacks/serverRegistry.js";
+} from "./data/countryPacks/serverRegistry.ts";
 import { getCountryBySlug } from "@roamatlas/data/countries.js";
-import { resolveRoamAtlasConfig } from "./config/roamAtlasConfig.js";
+import { resolveRoamAtlasConfig } from "./config/roamAtlasConfig.ts";
 import { resolveRoamAtlasExperienceConfig } from "@roamatlas/data/experienceConfig.js";
 import {
   DEFAULT_RUNTIME_COUNTRY_SLUG,
   RUNTIME_CACHE_URL_PREFIX,
   resolveRuntimeCacheRoot
-} from "./domain/runtimeCache.js";
+} from "./domain/runtimeCache.ts";
 import { buildEnvironmentPlanPrompt } from "@roamatlas/prompts/buildEnvironmentPlanPrompt.js";
-import { loadLocalEnv } from "./platform/env/loadLocalEnv.js";
+import { loadLocalEnv } from "./platform/env/loadLocalEnv.ts";
 import {
   extractOpenAIText,
   parseJsonObject
-} from "./platform/openai/responseParsing.js";
-import { createRuntimeArtifactPathResolver } from "./platform/runtime/runtimeCacheFiles.js";
+} from "./platform/openai/responseParsing.ts";
+import { createRuntimeArtifactPathResolver } from "./platform/runtime/runtimeCacheFiles.ts";
 import { createRoamAtlasApi } from "./server/createRoamAtlasApi.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

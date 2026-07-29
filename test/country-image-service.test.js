@@ -4,17 +4,20 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createCountryImageService } from "../apps/api/src/features/countryImages/countryImageService.js";
-import { handleCountryImageHttpRequest } from "../apps/api/src/features/countryImages/countryImageHttpHandler.js";
-import { createCountryImageRepository } from "../apps/api/src/features/countryImages/countryImageRepository.js";
+import { createCountryImageService } from "../apps/api/src/features/countryImages/countryImageService.ts";
+import { handleCountryImageHttpRequest } from "../apps/api/src/features/countryImages/countryImageHttpHandler.ts";
+import { createCountryImageRepository } from "../apps/api/src/features/countryImages/countryImageRepository.ts";
 import {
   selectCountryArticleImage,
   selectCountrySearchImage
-} from "../apps/api/src/features/countryImages/countryImageSelection.js";
+} from "../apps/api/src/features/countryImages/countryImageSelection.ts";
+import {
+  resolveCountryWikipediaArticleImage
+} from "../apps/api/src/features/countryImages/wikimediaCountryImageProvider.ts";
 import {
   getPlaceWikipediaArticleCandidates,
   resolvePlaceWikipediaImage
-} from "../apps/api/src/features/placeImages/wikipediaPlaceImageProvider.js";
+} from "../apps/api/src/features/placeImages/wikipediaPlaceImageProvider.ts";
 
 const singapore = {
   code: "SG",
@@ -118,6 +121,65 @@ test("country article selection only accepts Wikimedia visual media", () => {
   );
 
   assert.equal(selected.pageTitle, "Gardens by the Bay");
+});
+
+test("country Wikimedia provider narrows mocked JSON at its transport boundary", async () => {
+  const result = await resolveCountryWikipediaArticleImage(
+    singapore,
+    "Singapore",
+    async () =>
+      new Response(
+        JSON.stringify({
+          query: {
+            pages: {
+              "1": {
+                title: "Singapore Marina Bay Sands",
+                thumbnail: {
+                  source:
+                    "https://upload.wikimedia.org/marina-bay-sands.jpg"
+                }
+              }
+            }
+          }
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json"
+          }
+        }
+      )
+  );
+
+  assert.deepEqual(result, {
+    imageUrl:
+      "https://upload.wikimedia.org/marina-bay-sands.jpg",
+    pageTitle: "Singapore Marina Bay Sands",
+    source: "wikipedia-article-pageimage"
+  });
+});
+
+test("country image service does not cache unsupported image media", async () => {
+  let writes = 0;
+  const service = createCountryImageService({
+    repository: {
+      find: async () => null,
+      isLocalImageUrl: () => false,
+      write: async () => {
+        writes += 1;
+        return "/runtime-cache/country-cards/singapore.jpg";
+      }
+    },
+    fetchFn: async () =>
+      new Response(Buffer.from("gif-fixture"), {
+        headers: { "Content-Type": "image/gif" }
+      })
+  });
+
+  const image = await service.resolveImage(singapore);
+
+  assert.equal(image.source, "country-image-override");
+  assert.match(image.imageUrl, /^https:\/\/upload\.wikimedia\.org\//);
+  assert.equal(writes, 0);
 });
 
 test("place Wikipedia fallback is injected and remains non-factual media", async () => {

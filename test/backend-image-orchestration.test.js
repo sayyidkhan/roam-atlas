@@ -5,11 +5,11 @@ import test from "node:test";
 import {
   ROAMATLAS_EXPERIENCE_CONFIG,
   resolveRoamAtlasExperienceConfig
-} from "../packages/atlas-data/src/experienceConfig.js";
+} from "../libs/data/src/experienceConfig.ts";
 import {
   isStaleProcessingImageJob,
   selectImageJobsForProcessing
-} from "../apps/api/src/domain/imageJobQueue.js";
+} from "../apps/api/src/features/artwork/artworkQueuePolicy.ts";
 
 const entry = (fileName, jobKind, createdAt = "2026-01-01T00:00:00.000Z") => ({
   fileName,
@@ -126,7 +126,7 @@ test("processing and partial jobs become recoverable only after their lease expi
 
 test("server publishes final readiness before queuing environment analysis", async () => {
   const source = await readFile(
-    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobWorker.ts", import.meta.url),
     "utf8"
   );
   const workerStart = source.indexOf("async function processJob");
@@ -148,14 +148,14 @@ test("server publishes final readiness before queuing environment analysis", asy
 test("finished pages map their targets while unrelated image jobs continue", async () => {
   const worker = await readFile(
     new URL(
-      "../apps/api/src/features/artwork/environmentPlanQueue.js",
+      "../apps/api/src/features/artwork/environmentPlanQueue.ts",
       import.meta.url
     ),
     "utf8"
   );
 
   assert.match(worker, /pendingPlans\.size === 0/);
-  assert.match(worker, /ensurePlan\(task\.page/);
+  assert.match(worker, /ensurePlan\(\s*task\.page/);
   assert.doesNotMatch(worker, /processingJobs/);
   assert.doesNotMatch(worker, /scheduleProcessing\(1000\)/);
 });
@@ -163,80 +163,99 @@ test("finished pages map their targets while unrelated image jobs continue", asy
 test("server forwards optimized image options and stores versioned partial assets", async () => {
   const source = await readFile(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const jobService = await readFile(
-    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobService.ts", import.meta.url),
+    "utf8"
+  );
+  const jobWorker = await readFile(
+    new URL("../apps/api/src/features/artwork/artworkJobWorker.ts", import.meta.url),
     "utf8"
   );
   const jobCreationService = await readFile(
     new URL(
-      "../apps/api/src/features/artwork/artworkJobCreationService.js",
+      "../apps/api/src/features/artwork/artworkJobCreationService.ts",
       import.meta.url
     ),
     "utf8"
   );
   const configuredProvider = await readFile(
-    new URL("../apps/api/src/features/artwork/configuredImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/configuredImageProvider.ts", import.meta.url),
     "utf8"
   );
   const jobRepository = await readFile(
-    new URL("../apps/api/src/features/artwork/artworkJobRepository.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobRepository.ts", import.meta.url),
     "utf8"
   );
   const jobPolicy = await readFile(
     new URL(
-      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js",
+      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const jobCreationGuard = await readFile(
+    new URL(
+      "../apps/api/src/features/artwork/artworkJobCreationGuard.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const jobReuseService = await readFile(
+    new URL(
+      "../apps/api/src/features/artwork/artworkJobReuseService.ts",
       import.meta.url
     ),
     "utf8"
   );
   const clickResolver = await readFile(
-    new URL("../apps/api/src/features/explorer/openAIClickResolver.js", import.meta.url),
+    new URL("../apps/api/src/features/explorer/openAIClickResolver.ts", import.meta.url),
     "utf8"
   );
   const runtimeCacheService = await readFile(
     new URL(
-      "../apps/api/src/features/runtimeCache/runtimeCacheService.js",
+      "../apps/api/src/features/runtimeCache/runtimeCacheService.ts",
       import.meta.url
     ),
     "utf8"
   );
   assert.match(jobPolicy, /createImageVariantKey/);
-  assert.match(jobService, /variantKey: job\.assetVersion/);
-  assert.match(jobService, /paths\.partialImagePath/);
+  assert.match(jobWorker, /variantKey: job\.assetVersion/);
+  assert.match(jobWorker, /paths\.partialImagePath/);
   assert.match(configuredProvider, /partialImages: imageConfig\.partialImages/);
   assert.match(configuredProvider, /outputCompression: imageConfig\.outputCompression/);
-  assert.match(jobService, /for \(const jobPath of processingJobs\.keys\(\)\)/);
+  assert.match(jobWorker, /for \(const jobPath of processingJobs\.keys\(\)\)/);
   assert.match(jobService, /jobRepository\.isTerminal\(jobPath\)/);
   assert.match(jobCreationService, /cachedImageAvailable/);
   assert.match(jobRepository, /await stat\(filePath\)/);
   assert.match(clickResolver, /No marker was drawn on this image/);
   assert.match(clickResolver, /const markerInstruction = imageMarked/);
   assert.match(clickResolver, /const targetInstruction = imageMarked/);
-  assert.match(jobService, /processingJobAbortControllers/);
-  assert.match(jobCreationService, /Promise\.allSettled/);
+  assert.match(jobWorker, /processingJobAbortControllers/);
+  assert.match(jobCreationGuard, /Promise\.allSettled/);
   assert.match(runtimeCacheService, /cancelEnvironmentForCountry/);
-  assert.match(jobService, /error\?\.retryAfterMs/);
+  assert.match(jobWorker, /retryAfterMs\(error\)/);
   assert.match(runtimeCacheService, /countryCacheFlushRuns/);
-  assert.match(jobCreationService, /beginCountryJobCreation/);
+  assert.match(jobCreationService, /creationGuard\.begin\(countrySlug\)/);
+  assert.match(jobReuseService, /queueEnvironmentPlanWhenNeeded/);
   assert.match(jobRepository, /await rename\(temporaryPath, jobPath\)/);
 });
 
 test("selected image quality controls provider generation and cache identity", async () => {
   const source = await readFile(new URL("../apps/api/src/main.ts", import.meta.url), "utf8");
   const jobService = await readFile(
-    new URL("../apps/api/src/features/artwork/artworkJobService.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkJobWorker.ts", import.meta.url),
     "utf8"
   );
   const provider = await readFile(
-    new URL("../apps/api/src/features/artwork/configuredImageProvider.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/configuredImageProvider.ts", import.meta.url),
     "utf8"
   );
   const artworkHandler = await readFile(
-    new URL("../apps/api/src/features/artwork/artworkHttpHandler.js", import.meta.url),
+    new URL("../apps/api/src/features/artwork/artworkHttpHandler.ts", import.meta.url),
     "utf8"
   );
   const assetVersion = await readFile(
     new URL(
-      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js",
+      "../apps/api/src/features/artwork/artworkJobProcessingPolicy.ts",
       import.meta.url
     ),
     "utf8"
@@ -245,7 +264,10 @@ test("selected image quality controls provider generation and cache identity", a
   assert.match(source, /createArtworkRoutes/);
   assert.match(artworkHandler, /handleArtworkHttpRequest/);
   assert.match(artworkHandler, /url\.searchParams\.get\("quality"\)/);
-  assert.match(artworkHandler, /imageQuality: normalizeImageQuality\(query\.quality\)/);
+  assert.match(
+    artworkHandler,
+    /imageQuality:\s*normalizeImageQuality\(query\.quality\)/
+  );
   assert.match(assetVersion, /quality: normalizeImageQuality\(imageQuality\)/);
   assert.match(jobService, /quality: job\.imageQuality/);
   assert.match(provider, /quality: normalizeQuality\(quality\)/);

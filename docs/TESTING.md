@@ -77,3 +77,11 @@ the code moves files.
 Run React component and typed feature-policy tests with `npm run test:react`.
 `npm run lint` runs both ESLint and the CSS quality gate. Use
 `npm run lint:css` when iterating on styles alone.
+
+The root `npm run typecheck` command uses TypeScript build mode so workspace
+project references are checked in dependency order. Use
+`npm run typecheck:clean` only when declaration/build metadata must be rebuilt.
+
+GitHub Actions runs the same gates. Its browser job explicitly blanks OpenAI
+and Exa credentials, disables provider concurrency, and installs only the local
+Chromium runtime needed for fixture journeys.

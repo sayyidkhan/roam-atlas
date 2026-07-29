@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "checkJs": true,
+    "composite": true,
+    "outDir": "../../dist/types/libs/data",
+    "rootDir": "src",
+    "tsBuildInfoFile": "../../dist/types/libs/data.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"]
+}

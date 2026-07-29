@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { createOpenAIClickResolver } from "../apps/api/src/features/explorer/openAIClickResolver.js";
+import { createOpenAIClickResolver } from "../apps/api/src/features/explorer/openAIClickResolver.ts";
 import {
   appendSemanticRegion,
   createBaseUnderstanding,
   selectSemanticRegionForPoint
-} from "../apps/api/src/features/explorer/semanticRegionPolicy.js";
+} from "../apps/api/src/features/explorer/semanticRegionPolicy.ts";
 
 const pack = {
   countrySlug: "singapore",

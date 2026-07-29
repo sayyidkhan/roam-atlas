@@ -22,6 +22,8 @@ AI-generated, while factual claims are grounded in curated and official data.
   shape and non-negotiable system boundaries.
 - [DEPLOYMENT.md](docs/DEPLOYMENT.md) defines the independent web/API build
   artifacts and production routing.
+- [MAINTAINABILITY.md](docs/MAINTAINABILITY.md) tracks the safe controller,
+  TypeScript, test-ownership, and persistence checkpoints.
 - [TESTING.md](docs/TESTING.md) defines isolated provider fixtures, including
   the rule that Playwright never contacts a live image or VLM API.
 
@@ -92,10 +94,10 @@ The repository is an npm workspace:
 ```text
 apps/web/                 React/Vite frontend
 apps/api/                 Hono/Node API
-packages/atlas-domain/    shared product policy
-packages/atlas-contracts/ shared Zod contracts
-packages/atlas-data/      browser-safe shared data
-packages/atlas-prompts/   structured prompt construction
+libs/domain/              shared product policy
+libs/contracts/           shared Zod contracts
+libs/data/                browser-safe shared data
+libs/prompts/             structured prompt construction
 ```
 
 Use `npm run dev:web` or `npm run dev:api` when working on one deployment

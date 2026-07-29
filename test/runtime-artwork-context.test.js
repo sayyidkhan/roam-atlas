@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   createRuntimeArtworkContext,
   extractAssetVersionFromRuntimeUrl
-} from "../apps/api/src/features/artwork/runtimeArtworkContext.js";
+} from "../apps/api/src/features/artwork/runtimeArtworkContext.ts";
 
 const packs = {
   singapore: { countrySlug: "singapore" },
@@ -57,4 +57,17 @@ test("runtime artwork context extracts deterministic asset versions", () => {
     "fedcba0987654321"
   );
   assert.equal(extractAssetVersionFromRuntimeUrl("/public/image.webp"), null);
+});
+
+test("runtime artwork context requires a registered default pack", () => {
+  assert.throws(
+    () =>
+      createRuntimeArtworkContext({
+        defaultCountrySlug: "missing",
+        defaultRuntimeCountrySlug: "missing",
+        runtimeCacheUrlPrefix: "/runtime-cache",
+        getCountryPack: () => null
+      }),
+    /No default country pack is registered/
+  );
 });

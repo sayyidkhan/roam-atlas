@@ -5,7 +5,7 @@
   "type": "module",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "libs/*"
   ],
   "scripts": {
     "test": "npm run test:unit",
@@ -13,7 +13,8 @@
     "test:react": "vitest run test/components",
     "test:contract": "vitest run test/contracts",
     "test:browser": "playwright test",
-    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "typecheck": "tsc --build --pretty false",
+    "typecheck:clean": "tsc --build --clean",
     "lint": "eslint . && npm run lint:css",
     "lint:css": "stylelint \"apps/web/src/**/*.css\"",
     "lint:css:fix": "stylelint \"apps/web/src/**/*.css\" --fix",

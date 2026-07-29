@@ -4,13 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createCountryDraftGenerator } from "../apps/api/src/features/countryDraft/countryDraftGenerator.js";
-import { createCountryDraftRepository } from "../apps/api/src/features/countryDraft/countryDraftRepository.js";
+import { createCountryDraftGenerator } from "../apps/api/src/features/countryDraft/countryDraftGenerator.ts";
+import { createCountryDraftRepository } from "../apps/api/src/features/countryDraft/countryDraftRepository.ts";
 import {
   EXA_MIN_SNIPPET_TEXT_LENGTH,
   createExaCountryGroundingProvider
-} from "../apps/api/src/features/countryDraft/exaCountryGroundingProvider.js";
-import { createOpenAICountryDraftProvider } from "../apps/api/src/features/countryDraft/openAICountryDraftProvider.js";
+} from "../apps/api/src/features/countryDraft/exaCountryGroundingProvider.ts";
+import { createOpenAICountryDraftProvider } from "../apps/api/src/features/countryDraft/openAICountryDraftProvider.ts";
 
 const country = {
   code: "SG",

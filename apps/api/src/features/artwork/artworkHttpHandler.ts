@@ -1,0 +1,172 @@
+import {
+  ArtworkRequestQuerySchema,
+  ArtworkResponseSchema
+} from "@roamatlas/contracts/artworkContract.js";
+import {
+  jsonResponse
+} from "../../platform/http/fetchResponses.ts";
+import {
+  registerHonoRoute,
+  type HonoRouteRegistrar
+} from "../../platform/http/honoRoutes.ts";
+import type {
+  CompiledCountryPack
+} from "../../data/countryPacks/serverRegistry.ts";
+import type {
+  DefaultArtworkPage
+} from "../../data/defaultArtworkPages.ts";
+
+type ArtworkHttpDependencies = {
+  createImageJob: (
+    page: DefaultArtworkPage,
+    options: {
+      imageQuality: string;
+      jobKind: string;
+    }
+  ) => Promise<unknown>;
+  defaultCountrySlug: string;
+  getCountryPack: (
+    countrySlug: string
+  ) => CompiledCountryPack | null;
+  getDefaultArtworkPageForNode: (
+    nodeId: string,
+    sceneId: string | null | undefined,
+    scenes: CompiledCountryPack["scenes"],
+    nodes: CompiledCountryPack["nodes"],
+    countrySlug: string,
+    countryName: string
+  ) => DefaultArtworkPage | null;
+  getDefaultArtworkPageForScene: (
+    sceneId: string,
+    scenes: CompiledCountryPack["scenes"],
+    nodes: CompiledCountryPack["nodes"],
+    countrySlug: string,
+    countryName: string
+  ) => DefaultArtworkPage | null;
+  normalizeImageQuality: (
+    quality: unknown
+  ) => string;
+};
+
+export function createArtworkRoutes(
+  dependencies: ArtworkHttpDependencies
+): HonoRouteRegistrar {
+  return (app) => {
+    registerHonoRoute(
+      app,
+      "GET",
+      "/api/artwork",
+      (context) =>
+        handleArtworkHttpRequest({
+          ...dependencies,
+          url: new URL(context.req.url)
+        })
+    );
+  };
+}
+
+export async function handleArtworkHttpRequest({
+  url,
+  defaultCountrySlug,
+  getCountryPack,
+  getDefaultArtworkPageForNode,
+  getDefaultArtworkPageForScene,
+  createImageJob,
+  normalizeImageQuality
+}: ArtworkHttpDependencies & {
+  url: URL;
+}): Promise<Response> {
+  const query = ArtworkRequestQuerySchema.parse({
+    countrySlug:
+      url.searchParams.get("countrySlug") ??
+      undefined,
+    sceneId:
+      url.searchParams.get("sceneId") ??
+      undefined,
+    nodeId:
+      url.searchParams.get("nodeId") ??
+      undefined,
+    quality:
+      url.searchParams.get("quality") ??
+      undefined,
+    priority:
+      url.searchParams.get("priority") ??
+      undefined,
+    prefetch:
+      url.searchParams.get("prefetch") ??
+      undefined
+  });
+  const {
+    sceneId,
+    nodeId
+  } = query;
+  const countrySlug =
+    query.countrySlug ?? defaultCountrySlug;
+  const pack = getCountryPack(countrySlug);
+  if (!pack) {
+    return jsonResponse(
+      {
+        error:
+          `Unknown country pack: ${countrySlug}`
+      },
+      404
+    );
+  }
+
+  const page = nodeId
+    ? getDefaultArtworkPageForNode(
+        nodeId,
+        sceneId,
+        pack.scenes,
+        pack.nodes,
+        pack.countrySlug,
+        pack.title
+      )
+    : sceneId
+      ? getDefaultArtworkPageForScene(
+          sceneId,
+          pack.scenes,
+          pack.nodes,
+          pack.countrySlug,
+          pack.title
+        )
+      : null;
+  if (!page) {
+    return jsonResponse(
+      {
+        error: nodeId
+          ? `Unknown artwork node: ${nodeId}`
+          : `Unknown artwork scene: ${sceneId}`
+      },
+      404
+    );
+  }
+
+  const isPrefetch =
+    query.prefetch === "true" ||
+    query.prefetch === "priority";
+  const isInteractivePriority =
+    query.priority === "interactive";
+  const jobKind = isInteractivePriority
+    ? "interactive"
+    : isPrefetch
+      ? query.prefetch === "priority"
+        ? "prefetch"
+        : "artwork"
+      : nodeId
+        ? "interactive"
+        : "artwork";
+  const artworkPage = await createImageJob(
+    page,
+    {
+      jobKind,
+      imageQuality:
+        normalizeImageQuality(query.quality)
+    }
+  );
+  return jsonResponse(
+    ArtworkResponseSchema.parse({
+      page: artworkPage
+    })
+  );
+}

@@ -4,8 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createRuntimeCacheRepository } from "../apps/api/src/features/runtimeCache/runtimeCacheRepository.js";
-import { createRuntimeCacheService } from "../apps/api/src/features/runtimeCache/runtimeCacheService.js";
+import { createRuntimeCacheRepository } from "../apps/api/src/features/runtimeCache/runtimeCacheRepository.ts";
+import { createRuntimeCacheService } from "../apps/api/src/features/runtimeCache/runtimeCacheService.ts";
 
 test("visual cache flush removes only generated visual folders", async (t) => {
   const cacheRoot = await mkdtemp(

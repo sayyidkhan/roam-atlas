@@ -48,7 +48,7 @@ to the frontend build.
 The API deployment needs:
 
 - `apps/api/`
-- `packages/`
+- `libs/`
 - root `package.json` and `package-lock.json`
 
 It does not need `apps/web/`, `public/`, or `dist/web/` at runtime.

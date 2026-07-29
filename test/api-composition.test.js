@@ -3,15 +3,15 @@ import test from "node:test";
 
 import { z } from "zod";
 
-import { createArtworkRoutes } from "../apps/api/src/features/artwork/artworkHttpHandler.js";
-import { createCountryPackRoutes } from "../apps/api/src/features/countryCatalog/countryPackHttpHandler.js";
-import { createCountryDraftRoutes } from "../apps/api/src/features/countryDraft/countryDraftHttpHandler.js";
-import { createCountryImageRoutes } from "../apps/api/src/features/countryImages/countryImageHttpHandler.js";
-import { createExperienceConfigRoutes } from "../apps/api/src/features/experience/experienceConfigHttpHandler.js";
-import { createClickResolutionRoutes } from "../apps/api/src/features/explorer/clickResolutionHttpHandler.js";
-import { createPlaceImageRoutes } from "../apps/api/src/features/placeImages/placeImageHttpHandler.js";
-import { createRuntimeArtifactRoutes } from "../apps/api/src/features/runtimeCache/runtimeArtifactHttpHandler.js";
-import { createRuntimeCacheRoutes } from "../apps/api/src/features/runtimeCache/runtimeCacheHttpHandler.js";
+import { createArtworkRoutes } from "../apps/api/src/features/artwork/artworkHttpHandler.ts";
+import { createCountryPackRoutes } from "../apps/api/src/features/countryCatalog/countryPackHttpHandler.ts";
+import { createCountryDraftRoutes } from "../apps/api/src/features/countryDraft/countryDraftHttpHandler.ts";
+import { createCountryImageRoutes } from "../apps/api/src/features/countryImages/countryImageHttpHandler.ts";
+import { createExperienceConfigRoutes } from "../apps/api/src/features/experience/experienceConfigHttpHandler.ts";
+import { createClickResolutionRoutes } from "../apps/api/src/features/explorer/clickResolutionHttpHandler.ts";
+import { createPlaceImageRoutes } from "../apps/api/src/features/placeImages/placeImageHttpHandler.ts";
+import { createRuntimeArtifactRoutes } from "../apps/api/src/features/runtimeCache/runtimeArtifactHttpHandler.ts";
+import { createRuntimeCacheRoutes } from "../apps/api/src/features/runtimeCache/runtimeCacheHttpHandler.ts";
 import { registerHonoRoute } from "../apps/api/src/platform/http/honoRoutes.ts";
 import { createRoamAtlasApi } from "../apps/api/src/server/createRoamAtlasApi.ts";
 

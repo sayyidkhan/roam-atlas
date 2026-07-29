@@ -1,0 +1,20 @@
+{
+  "name": "@roamatlas/prompts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./buildClickResolverPrompt.js": "./src/buildClickResolverPrompt.js",
+    "./buildEncyclopediaPrompt.js": "./src/buildEncyclopediaPrompt.js",
+    "./buildEnvironmentPlanPrompt.js": "./src/buildEnvironmentPlanPrompt.js",
+    "./buildHomepagePrompt.js": "./src/buildHomepagePrompt.js",
+    "./buildPagePlannerPrompt.js": "./src/buildPagePlannerPrompt.js",
+    "./buildRegionPrompt.js": "./src/buildRegionPrompt.js",
+    "./buildRoamAtlasImagePrompt.js": "./src/buildRoamAtlasImagePrompt.js",
+    "./imagePromptBuilder.js": "./src/imagePromptBuilder.js",
+    "./index.js": "./src/index.js",
+    "./promptContext.js": "./src/promptContext.js",
+    "./roamAtlasPromptStyle.js": "./src/roamAtlasPromptStyle.js",
+    "./roamAtlasPromptTypes.js": "./src/roamAtlasPromptTypes.js"
+  }
+}

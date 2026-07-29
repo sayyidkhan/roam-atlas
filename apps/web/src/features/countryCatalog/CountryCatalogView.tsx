@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 
+import {
+  CountryCardFlag,
+  CountryCardPhoto,
+  type CountryCatalogCountry
+} from "./CountryCardMedia";
 import styles from "./CountryCatalog.module.css";
 
-export type CountryCatalogCountry = {
-  code: string;
-  displayCode: string;
-  name: string;
-  slug: string;
-};
+export type { CountryCatalogCountry } from "./CountryCardMedia";
 
 type CountryPackSummary = {
   confidence?: string;
@@ -22,14 +22,6 @@ type CountryCatalogProps = {
 
 function normalizeQuery(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function countryImageUrl(countrySlug: string): string {
-  return `/api/country-image?countrySlug=${encodeURIComponent(countrySlug)}&v=country-media-v7`;
-}
-
-function countryFlagUrl(code: string, width: number): string {
-  return `https://flagcdn.com/w${width}/${code.toLowerCase()}.png`;
 }
 
 function SettingsIcon() {
@@ -95,22 +87,8 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
               }`}
               aria-label={`${country.name}, ${isMapped ? "source-reviewed explorer" : "starter explorer"}`}
             >
-              <img
-                className={styles["country-card-photo"]}
-                src={countryImageUrl(country.slug)}
-                alt=""
-                loading="lazy"
-              />
-              <span className={styles["country-card-visual"]}>
-                <img
-                  className={styles["country-flag"]}
-                  src={countryFlagUrl(country.code, 160)}
-                  srcSet={`${countryFlagUrl(country.code, 80)} 80w, ${countryFlagUrl(country.code, 160)} 160w, ${countryFlagUrl(country.code, 320)} 320w`}
-                  sizes="(max-width: 720px) 72px, 96px"
-                  alt=""
-                  loading="lazy"
-                />
-              </span>
+              <CountryCardPhoto country={country} />
+              <CountryCardFlag country={country} />
               <button
                 type="button"
                 className={styles["country-card-menu"]}

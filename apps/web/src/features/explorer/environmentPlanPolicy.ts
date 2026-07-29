@@ -1,5 +1,5 @@
 import { APP_CONFIG } from "../../config/appConfig.js";
-import { normalizeEnvironmentKind } from "./environmentLayerRenderer.js";
+import { normalizeEnvironmentKind } from "./explorerEnvironmentLayerPolicy";
 import { normalizeEnvironmentPlanBounds, type Bounds } from "./sceneGeometry";
 
 type JsonRecord = Record<string, unknown>;

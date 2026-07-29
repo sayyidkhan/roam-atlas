@@ -1,0 +1,14 @@
+{
+  "name": "@roamatlas/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./artworkContract.js": "./src/artworkContract.ts",
+    "./countryPackContract.js": "./src/countryPackContract.ts",
+    "./runtimeCacheContract.js": "./src/runtimeCacheContract.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

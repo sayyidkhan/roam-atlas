@@ -1,3 +1,8 @@
+import type {
+  FlipbookHotspot,
+  FlipbookNode,
+  FlipbookScene
+} from "@roamatlas/domain/flipbookPage.js";
 import { APP_CONFIG } from "../config/appConfig.js";
 
 export type RootPage = {
@@ -17,24 +22,6 @@ type RootPagePack = {
   rootNodeId: string;
 };
 
-type LoadingStep = {
-  label: string;
-  state: string;
-};
-
-type LoadingTrail = {
-  current: {
-    phase: string;
-    message: string;
-    detail: string;
-  };
-  steps: LoadingStep[];
-};
-
-export type LoadingJob = {
-  status: string;
-};
-
 export type RuntimePage = {
   id?: string;
   countrySlug?: string;
@@ -47,20 +34,43 @@ export type RuntimePage = {
   parentClick?: unknown;
   status?: string;
   plan?: {
-    title: string;
-    factMode: string;
-  };
+    title?: string;
+    factMode?: string;
+    [key: string]: unknown;
+  } | null;
 };
 
-export type RuntimeNode = {
-  title: string;
-  facts?: unknown[];
+export type RuntimeNode = FlipbookNode & {
+  artworkCalloutLabels?: string[];
   parentId?: string | null;
+  tags?: string[];
 };
 
-export type RuntimeScene = {
-  id: string;
-  rootNodeId: string;
+export type RuntimeHotspot = FlipbookHotspot & {
+  anchorNumber?: string | number;
+  displayNumber?: string | number;
+  mapNumber?: string | number;
+};
+
+export type RuntimeScene = Omit<
+  FlipbookScene,
+  "hotspots"
+> & {
+  ambientLayers?: unknown[];
+  hotspots?: RuntimeHotspot[];
+  pageType?: string;
+  tiles: Array<{
+    bounds: {
+      height: number;
+      width: number;
+      x: number;
+      y: number;
+    };
+    cacheKey: string;
+    column: number;
+    id: string;
+  }>;
+  title: string;
 };
 
 export type RuntimePack = {
@@ -70,49 +80,6 @@ export type RuntimePack = {
   title: string;
   nodes: Record<string, RuntimeNode>;
   scenes: Record<string, RuntimeScene>;
-};
-
-type PendingJob = {
-  intervalId?: number;
-};
-
-export type BrowserFeedbackState = {
-  experienceConfig: { showLoadingSteps: boolean };
-  pendingJob: PendingJob | null;
-  history: Array<{ page: RuntimePage | null; nodeId: string | null }>;
-  currentPage: RuntimePage | null;
-  currentSceneId: string | null;
-  selectedNodeId: string | null;
-  detailOverride: unknown;
-  detailPanelMode: string;
-  activePack: RuntimePack | null;
-  activeCountrySlug: string;
-};
-
-export type BrowserFeedbackElements = {
-  viewport: HTMLElement;
-};
-
-type BrowserFeedbackDependencies = {
-  buildLoadingStepTrail: (input: {
-    job: LoadingJob;
-    pageTitle?: string;
-  }) => LoadingTrail;
-  canonicalRouteForNode: (
-    countrySlug: string,
-    nodeId: string,
-    pack: RuntimePack
-  ) => string;
-  elements: BrowserFeedbackElements;
-  endNavigationFeedback: () => void;
-  render: () => void;
-  state: BrowserFeedbackState;
-};
-
-export type LoadingPanelOptions = {
-  job?: LoadingJob | null;
-  pageTitle?: string;
-  fallbackMessage?: string;
 };
 
 export function apiPath(path: string): string {
@@ -154,135 +121,11 @@ export function createRootPage(pack: RootPagePack): RootPage {
   };
 }
 
-export function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export function setBrowserPath(path: string, { replace = false }: { replace?: boolean } = {}): void {
   if (window.location.pathname === path) return;
   const method = replace ? "replaceState" : "pushState";
   window.history[method]({}, "", path);
   window.dispatchEvent(new PopStateEvent("popstate"));
-}
-
-export function createBrowserFeedbackController({
-  buildLoadingStepTrail,
-  canonicalRouteForNode,
-  elements,
-  endNavigationFeedback,
-  render,
-  state
-}: BrowserFeedbackDependencies) {
-  function renderLoadingPanel({ job = null, pageTitle, fallbackMessage }: LoadingPanelOptions): void {
-    if (!state.experienceConfig.showLoadingSteps) {
-      renderScrollStatus(fallbackMessage ?? pageTitle ?? "Loading…");
-      return;
-    }
-
-    clearScrollStatus();
-    const trail = buildLoadingStepTrail({
-      job: job ?? { status: "pending_codex_image_generation" },
-      pageTitle
-    });
-    const progressState = trail.current.phase === "ready"
-      ? "loading-panel-progress--complete"
-      : trail.current.phase === "failed"
-      ? "loading-panel-progress--failed"
-      : "loading-panel-progress--indeterminate";
-
-    let panel = elements.viewport.querySelector(".loading-panel");
-    if (!panel) {
-      panel = document.createElement("section");
-      panel.className = "loading-panel";
-      panel.setAttribute("role", "status");
-      panel.setAttribute("aria-live", "polite");
-      elements.viewport.appendChild(panel);
-    }
-
-    panel.innerHTML = `
-      <div class="loading-panel-head">
-        <span class="scroll-status-dot" aria-hidden="true"></span>
-        <strong>${escapeHtml(trail.current.message)}</strong>
-      </div>
-      <p class="loading-panel-detail">${escapeHtml(trail.current.detail)}</p>
-      <div class="loading-panel-progress ${progressState}" aria-hidden="true"><span></span></div>
-      <ol class="loading-panel-steps">
-        ${trail.steps.map((step) => (
-          `<li class="loading-panel-step loading-panel-step--${step.state}">${escapeHtml(step.label)}</li>`
-        )).join("")}
-      </ol>
-    `;
-  }
-
-  function clearLoadingPanel() {
-    elements.viewport.querySelector(".loading-panel")?.remove();
-    clearScrollStatus();
-  }
-
-  function renderScrollStatus(message: string): void {
-    let status = elements.viewport.querySelector(".scroll-status");
-    if (status) {
-      const label = status.querySelector(".scroll-status-label");
-      if (label) {
-        label.textContent = message;
-        return;
-      }
-    }
-    status = document.createElement("div");
-    status.className = "scroll-status";
-    status.setAttribute("role", "status");
-    status.setAttribute("aria-live", "polite");
-    status.innerHTML = `
-      <span class="scroll-status-dot" aria-hidden="true"></span>
-      <span class="scroll-status-label">${escapeHtml(message)}</span>
-    `;
-    elements.viewport.appendChild(status);
-  }
-
-  function clearScrollStatus() {
-    elements.viewport.querySelector(".scroll-status")?.remove();
-  }
-
-  function clearPendingJob() {
-    if (state.pendingJob?.intervalId) window.clearInterval(state.pendingJob.intervalId);
-    state.pendingJob = null;
-    endNavigationFeedback();
-  }
-
-  function enterReadyPage(page: RuntimePage): void {
-    clearPendingJob();
-    if (state.currentPage) {
-      state.history.push({ page: state.currentPage, nodeId: state.selectedNodeId });
-    }
-    state.currentPage = page;
-    state.currentSceneId = page.sceneId;
-    state.selectedNodeId = page.nodeId;
-    state.detailOverride = null;
-    const activePack = state.activePack;
-    if (!activePack) throw new Error("Cannot enter a page without an active country pack.");
-    const detailNode = page.nodeId && page.nodeId !== activePack.rootNodeId
-      ? activePack.nodes[page.nodeId]
-      : null;
-    state.detailPanelMode = detailNode ? "compact" : "hidden";
-    if (page.nodeId) {
-      setBrowserPath(canonicalRouteForNode(state.activeCountrySlug, page.nodeId, activePack));
-    }
-    render();
-  }
-
-  return {
-    clearLoadingPanel,
-    clearPendingJob,
-    clearScrollStatus,
-    enterReadyPage,
-    renderLoadingPanel,
-    renderScrollStatus
-  };
 }
 
 function createTimeoutAbortSignal(timeoutMs: number): AbortSignal {

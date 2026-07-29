@@ -7,7 +7,7 @@ import {
   isTransientGenerationError,
   shouldProcessJob,
   shouldQueueEnvironmentPlanForJobKind
-} from "../apps/api/src/features/artwork/artworkJobProcessingPolicy.js";
+} from "../apps/api/src/features/artwork/artworkJobProcessingPolicy.ts";
 
 test("artwork job policy keeps interactive work ahead of speculative work", () => {
   assert.equal(

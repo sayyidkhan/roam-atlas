@@ -7,6 +7,13 @@ import {
   isArtworkJobPending
 } from "../../apps/web/src/features/artwork/artworkJobPolicy";
 import {
+  getPrefetchDestinationLimit,
+  getPrefetchReadinessLabel,
+  getPrefetchSceneKey,
+  isArtworkTargetReady,
+  mergePrefetchedArtwork
+} from "../../apps/web/src/features/artwork/artworkPrefetchPolicy";
+import {
   getDraftNodeAtPath,
   removeDraftNodeAtPath,
   reorderArray
@@ -15,6 +22,14 @@ import {
   imageQualityLabel,
   normalizeImageQuality
 } from "../../apps/web/src/features/experience/imageQualityPolicy";
+import {
+  appendPlaceImageHistoryRequest,
+  replaceLatestProcessingMessage,
+  scopeInstructionToCandidate
+} from "../../apps/web/src/features/countrySetup/countryExperiencePolicy";
+import {
+  createPlaceImageKey
+} from "../../apps/web/src/features/placeImages/placeImageSessionStore";
 import { normalizeEnvironmentPlanBounds } from "../../apps/web/src/features/explorer/sceneGeometry";
 import {
   environmentPlanNeedsTargetRecovery,
@@ -83,5 +98,110 @@ describe("stateless frontend feature policies", () => {
         { singapore: { childIds: ["mandai"] } }
       )
     ).toBe(true);
+  });
+
+  it("keeps country experience messages and media keys deterministic", () => {
+    const messages = [
+      { role: "user", text: "More nature", target: "region:Central" },
+      {
+        role: "assistant",
+        status: "processing",
+        text: "Working",
+        target: "region:Central"
+      }
+    ];
+    const replacement = {
+      role: "assistant",
+      status: "done",
+      text: "Updated",
+      target: "region:Central"
+    };
+
+    expect(
+      replaceLatestProcessingMessage(messages, replacement, "region:Central")
+    ).toEqual([messages[0], replacement]);
+    expect(
+      scopeInstructionToCandidate("theme:Wildlife", "Add wetlands.")
+    ).toContain('research theme "Wildlife"');
+    expect(createPlaceImageKey("singapore", " Marina Bay ")).toBe(
+      "singapore:marina bay"
+    );
+    expect(
+      appendPlaceImageHistoryRequest(
+        "/runtime-cache/photo.jpg?size=large",
+        "entry 1",
+        "session-v1"
+      )
+    ).toBe(
+      "/runtime-cache/photo.jpg?size=large&history=entry%201&view=session-v1"
+    );
+  });
+
+  it("keeps artwork prefetch identity and cache selection deterministic", () => {
+    expect(
+      getPrefetchDestinationLimit({
+        prefetchDestinationLimit: "3",
+        maxParallelImageJobs: 8
+      })
+    ).toBe(3);
+    expect(
+      getPrefetchDestinationLimit({
+        prefetchDestinationLimit: "invalid",
+        maxParallelImageJobs: 2
+      })
+    ).toBe(2);
+    expect(
+      getPrefetchSceneKey({
+        countrySlug: "singapore",
+        sceneId: "overview",
+        pageId: "root",
+        nodeId: "sg"
+      })
+    ).toBe("singapore:overview:root:sg");
+
+    const cacheState = {
+      scenes: {
+        overview: { rootNodeId: "sg" }
+      },
+      artworkByScene: new Map([
+        [
+          "overview",
+          {
+            imageUrl: "/scene.png",
+            environmentUrl: "/scene.json"
+          }
+        ]
+      ]),
+      artworkByPage: new Map([
+        ["node:marina", { imageUrl: "/marina.png" }]
+      ])
+    };
+    expect(
+      isArtworkTargetReady(
+        {
+          key: "scene:overview",
+          sceneId: "overview",
+          nodeId: "sg"
+        },
+        cacheState
+      )
+    ).toBe(true);
+    expect(
+      mergePrefetchedArtwork(
+        { sceneId: "overview", nodeId: "marina" },
+        cacheState
+      )
+    ).toMatchObject({
+      imageUrl: "/marina.png",
+      artworkDecoded: true,
+      status: "ready"
+    });
+    expect(
+      getPrefetchReadinessLabel({
+        enabled: true,
+        readyCount: 1,
+        targetCount: 3
+      })
+    ).toBe("1 of 3 destinations ready");
   });
 });

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const localEnvSource = readFileSync(
-  new URL("../apps/api/src/platform/env/loadLocalEnv.js", import.meta.url),
+  new URL("../apps/api/src/platform/env/loadLocalEnv.ts", import.meta.url),
   "utf8"
 );
 const playwrightConfig = readFileSync(new URL("../playwright.config.js", import.meta.url), "utf8");

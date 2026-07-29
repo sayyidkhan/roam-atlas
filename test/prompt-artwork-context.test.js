@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { atlasNodes, scrollScenes } from "../apps/api/src/data/sceneGraph.js";
-import { getDefaultArtworkPageForNode } from "../apps/api/src/data/defaultArtworkPages.js";
-import { buildRegionPrompt } from "../packages/atlas-prompts/src/buildRegionPrompt.js";
+import { atlasNodes, scrollScenes } from "../apps/api/src/data/sceneGraph.ts";
+import { getDefaultArtworkPageForNode } from "../apps/api/src/data/defaultArtworkPages.ts";
+import { buildRegionPrompt } from "../libs/prompts/src/buildRegionPrompt.js";
 
 test("child artwork does not inherit unrelated parent-scene landmarks", () => {
   const marinaBaySands = getDefaultArtworkPageForNode(

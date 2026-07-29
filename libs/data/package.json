@@ -1,0 +1,10 @@
+{
+  "name": "@roamatlas/data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./countries.js": "./src/countries.ts",
+    "./experienceConfig.js": "./src/experienceConfig.ts"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@roamatlas/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./clickResolver.js": "./src/clickResolver.ts",
+    "./countryDraft.js": "./src/countryDraft.ts",
+    "./countryDraftReview.js": "./src/countryDraftReview.ts",
+    "./flipbookPage.js": "./src/flipbookPage.ts",
+    "./guardrails.js": "./src/guardrails.ts",
+    "./itinerary.js": "./src/itinerary.ts",
+    "./loadingSteps.js": "./src/loadingSteps.ts",
+    "./nextArtworkDestinations.js": "./src/nextArtworkDestinations.ts",
+    "./nodeMatcher.js": "./src/nodeMatcher.ts",
+    "./pagePlanner.js": "./src/pagePlanner.ts",
+    "./placeImageSelection.js": "./src/placeImageSelection.ts",
+    "./routes.js": "./src/routes.ts",
+    "./scrollScene.js": "./src/scrollScene.ts"
+  },
+  "dependencies": {
+    "@roamatlas/prompts": "*"
+  }
+}

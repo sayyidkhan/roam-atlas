@@ -35,8 +35,8 @@ export default [
     files: [
       "apps/**/*.ts",
       "apps/**/*.tsx",
-      "packages/**/*.ts",
-      "packages/**/*.tsx",
+      "libs/**/*.ts",
+      "libs/**/*.tsx",
       "test/**/*.ts",
       "test/**/*.tsx"
     ],
@@ -55,6 +55,165 @@ export default [
     files: ["**/*.js"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off"
+    }
+  },
+  {
+    files: ["apps/web/src/**/*.{js,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "node:*",
+                "@roamatlas/api",
+                "@roamatlas/api/*",
+                "**/apps/api/**"
+              ],
+              message: "The web app may use shared libraries or HTTP clients, never API internals or Node built-ins."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["apps/api/src/**/*.{js,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "react",
+                "react/*",
+                "react-dom",
+                "react-dom/*",
+                "@roamatlas/web",
+                "@roamatlas/web/*",
+                "**/apps/web/**"
+              ],
+              message: "The API must remain independent of React and the web deployment."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["libs/**/*.{js,ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "node:*",
+                "@roamatlas/api",
+                "@roamatlas/api/*",
+                "@roamatlas/web",
+                "@roamatlas/web/*",
+                "**/apps/api/**",
+                "**/apps/web/**"
+              ],
+              message: "Shared libraries must stay independent of deployable applications and runtime infrastructure."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["libs/contracts/**/*.{js,ts}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@roamatlas/data",
+                "@roamatlas/data/*",
+                "@roamatlas/domain",
+                "@roamatlas/domain/*",
+                "@roamatlas/prompts",
+                "@roamatlas/prompts/*"
+              ],
+              message: "Contracts are the lowest shared layer and cannot depend on other RoamAtlas libraries."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["libs/data/**/*.{js,ts}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@roamatlas/contracts",
+                "@roamatlas/contracts/*",
+                "@roamatlas/domain",
+                "@roamatlas/domain/*",
+                "@roamatlas/prompts",
+                "@roamatlas/prompts/*"
+              ],
+              message: "Shared data must remain dependency-free product input."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["libs/prompts/**/*.{js,ts}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@roamatlas/contracts",
+                "@roamatlas/contracts/*",
+                "@roamatlas/data",
+                "@roamatlas/data/*",
+                "@roamatlas/domain",
+                "@roamatlas/domain/*"
+              ],
+              message: "Prompt builders cannot depend on contracts, catalog data, or domain orchestration."
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    files: ["libs/domain/**/*.{js,ts}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@roamatlas/contracts",
+                "@roamatlas/contracts/*",
+                "@roamatlas/data",
+                "@roamatlas/data/*"
+              ],
+              message: "Domain policy may depend on prompt construction, but not transport contracts or catalog configuration."
+            }
+          ]
+        }
+      ]
     }
   }
 ];
