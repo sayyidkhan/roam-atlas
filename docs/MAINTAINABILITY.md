@@ -45,7 +45,8 @@ mock-only browser test policy.
   invalidation, and cache promotion are isolated from interactive artwork
   generation in typed feature modules.
 - Speculative prefetch is further divided into scene/target orchestration,
-  background-job lifecycle, decode-before-cache promotion, and shared contracts.
+  background request startup, polling/timer lifecycle, decode-before-cache
+  promotion, and shared contracts.
   Stale request epochs remain mandatory before generated visuals enter a cache.
 - Interactive artwork requests, retry, polling transport, shared attempt
   lifecycle, final decode/cache promotion, and partial-preview decoding have
@@ -174,8 +175,9 @@ Refactor one feature at a time. Do not split files solely by line count.
 
 The original 1,154-line controller has been replaced by a typed composition
 controller. React now renders the complete setup experience and invokes typed
-review, drag, approval, image, and GenAI commands directly. Finish replacing
-the remaining state bridge with:
+review, drag, approval, image, and GenAI commands directly. The compatibility
+bridge has been replaced by `countrySetupStore.ts`, a feature-owned Zustand
+store. Continue toward:
 
 ```text
 countrySetup/
@@ -189,11 +191,15 @@ countrySetup/
 Keep network calls in feature clients and derive display state during render.
 Image-quality persistence, runtime reset coordination, notifications, and
 scroll preservation already have independent typed adapters. React Router now
-owns route observation and passes explicit pathnames into the compatibility
-runtime. Country setup disclosure state is already local to its React owner.
-The remaining compatibility responsibility is the typed mutable-state handoff
-for domain and workflow state while feature stores replace the
+owns an explicit route table and passes explicit pathnames into the
+compatibility runtime. Country setup disclosure state is already local to its
+React owner. The remaining compatibility responsibility is command
+orchestration around the feature-owned stores while they replace the
 application-wide state object.
+
+The country catalog registry is the first React-owned server-state path on
+TanStack Query. It uses the existing feature client/registry boundary and no
+longer maintains a manual effect counter solely to force rerenders.
 
 ### 2. Artwork
 
@@ -206,7 +212,10 @@ separate owners; the public prefetch controller is now a small composition
 surface. Interactive artwork similarly composes request creation and
 pending/retry transitions while poll state owns timer and timeout bookkeeping.
 The next React migration can replace these adapters with TanStack Query hooks
-and stable query keys without reopening one monolithic controller.
+and stable query keys after artwork job state moves out of the shared
+application state. Until then, the existing poll controller remains the single
+owner; adding a parallel query poller would create conflicting timers and
+completion side effects.
 On the API side, artwork queue policy, creation guards, reuse policy, runtime
 context, and the provider worker are strict TypeScript. The worker owns the
 single-job partial/final artifact, retry, cancellation, and visual-only fact
@@ -242,10 +251,10 @@ policy.
 `ApplicationRuntimeHost.tsx` explicitly starts and disposes that adapter through
 React lifecycle; importing the runtime no longer bootstraps the app as a hidden
 side effect. The host also observes `useLocation()` and applies explicit
-pathnames; the former global `popstate` controller has been removed. Continue
-replacing the remaining compatibility state handoff with feature-owned React
-stores; the adapter must not regain feature rendering, transport, polling, or
-stateless policy.
+pathnames through an explicit route table; the former global `popstate`
+controller has been removed. Continue moving command orchestration onto
+feature-owned React stores; the adapter must not regain feature rendering,
+transport, polling, or stateless policy.
 
 ## Type Migration Order
 
@@ -273,6 +282,13 @@ country catalog records and experience configuration through explicit package
 exports, while retaining stable `.js` ESM specifiers for existing consumers.
 Architecture tests prevent JavaScript source or wildcard package internals from
 returning.
+
+The shared `atlas-prompts` source tree is TypeScript-only. Typed prompt inputs,
+page and zoom inference, normalization, and prompt outputs replace JSDoc
+contracts and remove the API compiler's compatibility cast. Public `.js`
+specifier names remain stable through explicit package exports that resolve to
+the TypeScript implementations; architecture tests prevent JavaScript prompt
+sources from returning.
 
 The `atlas-domain` source tree is now TypeScript-only. Its typed policy and
 navigation boundaries ensure generated imagery cannot become factual evidence,
@@ -369,6 +385,16 @@ while provider JSON is narrowed from `unknown` before use. Reference photos
 remain non-factual visual material. The HTTP facade delegates media delivery,
 prompt suggestions, and saved-photo history to separate workflow handlers
 instead of collecting every endpoint in one file.
+
+Shared place-image selection is a small stable facade. Hardcoded regional
+capital and landmark-query records live in a named configuration module;
+profile/query construction and deterministic candidate ranking have separate
+policy owners and share explicit boundary types.
+
+Frontend CSS is grouped through feature-owned import manifests. Country-draft
+tree, tool/menu, edit-modal, thumbnail, and lightbox rules are independently
+retrievable, while explorer environment presentation is separated from motion
+keyframes. The root stylesheet remains composition-only.
 
 Country-image selection is TypeScript-owned. Untrusted Wikimedia article and
 Commons payload fields are normalized before URL allow-listing, exclusion

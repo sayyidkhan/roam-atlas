@@ -1,9 +1,11 @@
 import { storePrefetchedArtwork } from "./artworkPrefetchCache";
+import { createArtworkPrefetchPollingController } from "./artworkPrefetchPollingController";
 import type {
   ArtworkJob,
   ArtworkPage,
   ArtworkPrefetchState,
-  ArtworkTarget
+  ArtworkTarget,
+  PrefetchRequestIdentity
 } from "./artworkPrefetchTypes";
 
 type ArtworkPrefetchJobDependencies = {
@@ -27,11 +29,6 @@ type ArtworkPrefetchJobDependencies = {
   toApiUrl: (path: string) => string;
 };
 
-type PrefetchPoller = {
-  intervalId: number;
-  requestEpoch: number;
-};
-
 export function createArtworkPrefetchJobController(
   dependencies: ArtworkPrefetchJobDependencies
 ) {
@@ -50,9 +47,22 @@ export function createArtworkPrefetchJobController(
     state,
     toApiUrl
   } = dependencies;
-  const prefetchPollers = new Map<string, PrefetchPoller>();
   let prefetchRenderFrame: number | null = null;
   let prefetchEpoch = 0;
+  const pollingController =
+    createArtworkPrefetchPollingController({
+      artworkPollIntervalMs,
+      artworkPollMaxAttempts,
+      artworkPollTimeoutMs,
+      explainClickError,
+      fetchArtworkResource,
+      isArtworkJobFailed,
+      isCurrentRequest: isCurrentPrefetchRequest,
+      scheduleRender: schedulePrefetchRailRender,
+      state,
+      storeCache,
+      toApiUrl
+    });
 
   function prefetchArtworkTarget(target: ArtworkTarget): void {
     if (
@@ -128,8 +138,7 @@ export function createArtworkPrefetchJobController(
             target,
             page,
             null,
-            requestEpoch,
-            requestSceneId
+            { requestEpoch, requestSceneId }
           );
           if (
             !stored ||
@@ -168,7 +177,7 @@ export function createArtworkPrefetchJobController(
           generated: page.generated
         });
         schedulePrefetchRailRender();
-        pollPrefetchJob(
+        pollingController.poll(
           target,
           jobUrl,
           page,
@@ -197,190 +206,11 @@ export function createArtworkPrefetchJobController(
       });
   }
 
-  function pollPrefetchJob(
-    target: ArtworkTarget,
-    jobUrl: string,
-    page: ArtworkPage,
-    requestEpoch: number,
-    requestSceneId: string
-  ): void {
-    stopPrefetchPoller(target.key);
-    const tick = async (): Promise<void> => {
-      if (
-        !isCurrentPrefetchRequest(
-          requestEpoch,
-          requestSceneId
-        )
-      ) {
-        stopPrefetchPoller(target.key, requestEpoch);
-        return;
-      }
-      const existing = state.prefetchJobs.get(target.key);
-      const elapsed =
-        Date.now() - (existing?.startedAt ?? Date.now());
-      if (
-        !existing ||
-        elapsed >= artworkPollTimeoutMs ||
-        (existing.attempts ?? 0) >= artworkPollMaxAttempts
-      ) {
-        stopPrefetchPoller(target.key, requestEpoch);
-        state.prefetchRequests.delete(target.key);
-        if (existing) {
-          state.prefetchJobs.set(target.key, {
-            ...existing,
-            status: "timed_out",
-            error: "Background illustration timed out."
-          });
-        }
-        schedulePrefetchRailRender();
-        return;
-      }
-      try {
-        const response = await fetchArtworkResource(
-          toApiUrl(jobUrl),
-          { cache: "no-store" }
-        );
-        if (
-          !isCurrentPrefetchRequest(
-            requestEpoch,
-            requestSceneId
-          )
-        ) {
-          return;
-        }
-        const latest = state.prefetchJobs.get(target.key);
-        state.prefetchJobs.set(target.key, {
-          ...latest,
-          attempts: (latest?.attempts ?? 0) + 1
-        });
-        if (!response.ok) return;
-        const job = (await response.json()) as ArtworkJob;
-        if (
-          !isCurrentPrefetchRequest(
-            requestEpoch,
-            requestSceneId
-          )
-        ) {
-          return;
-        }
-        const previous =
-          state.prefetchJobs.get(target.key) ?? {};
-        const didChange = [
-          "status",
-          "partialImageUrl",
-          "imageUrl",
-          "error"
-        ].some((field) => previous[field] !== job[field]);
-        state.prefetchJobs.set(target.key, {
-          ...previous,
-          ...job,
-          jobKind: job.jobKind ?? "prefetch",
-          title:
-            job.title ??
-            page.plan?.title ??
-            target.title
-        });
-        if (isArtworkJobFailed(job)) {
-          stopPrefetchPoller(target.key, requestEpoch);
-          state.prefetchRequests.delete(target.key);
-          schedulePrefetchRailRender();
-          return;
-        }
-        if (job.status === "ready" && !job.imageUrl) {
-          stopPrefetchPoller(target.key, requestEpoch);
-          state.prefetchRequests.delete(target.key);
-          state.prefetchJobs.set(target.key, {
-            ...state.prefetchJobs.get(target.key),
-            status: "failed",
-            error:
-              "Background illustration completed without an image."
-          });
-          schedulePrefetchRailRender();
-          return;
-        }
-        if (job.status !== "ready" || !job.imageUrl) {
-          if (didChange) schedulePrefetchRailRender();
-          return;
-        }
-        stopPrefetchPoller(target.key, requestEpoch);
-        state.prefetchRequests.delete(target.key);
-        try {
-          const stored = await storeCache(
-            target,
-            page,
-            job,
-            requestEpoch,
-            requestSceneId
-          );
-          if (
-            !stored ||
-            !isCurrentPrefetchRequest(
-              requestEpoch,
-              requestSceneId
-            )
-          ) {
-            return;
-          }
-        } catch (error) {
-          state.prefetchJobs.set(target.key, {
-            ...state.prefetchJobs.get(target.key),
-            status: "failed",
-            error: explainClickError(error)
-          });
-          schedulePrefetchRailRender();
-          return;
-        }
-        state.prefetchJobs.set(target.key, {
-          ...state.prefetchJobs.get(target.key),
-          status: "ready",
-          imageUrl: job.imageUrl
-        });
-        schedulePrefetchRailRender();
-      } catch (error) {
-        if (
-          !isCurrentPrefetchRequest(
-            requestEpoch,
-            requestSceneId
-          )
-        ) {
-          return;
-        }
-        const latest = state.prefetchJobs.get(target.key);
-        if (!latest) return;
-        state.prefetchJobs.set(target.key, {
-          ...latest,
-          lastPollError: explainClickError(error)
-        });
-      }
-    };
-
-    let pollInFlight = false;
-    const guardedTick = async (): Promise<void> => {
-      if (pollInFlight) return;
-      pollInFlight = true;
-      try {
-        await tick();
-      } finally {
-        pollInFlight = false;
-      }
-    };
-    void guardedTick();
-    prefetchPollers.set(target.key, {
-      intervalId: window.setInterval(
-        guardedTick,
-        artworkPollIntervalMs
-      ),
-      requestEpoch
-    });
-  }
-
   function invalidatePrefetchJobs(): void {
     prefetchEpoch += 1;
     state.prefetchRequests.clear();
     state.prefetchJobs.clear();
-    for (const key of [...prefetchPollers.keys()]) {
-      stopPrefetchPoller(key);
-    }
+    pollingController.stopAll();
   }
 
   function isCurrentPrefetchRequest(
@@ -402,28 +232,11 @@ export function createArtworkPrefetchJobController(
     });
   }
 
-  function stopPrefetchPoller(
-    key: string,
-    expectedEpoch: number | null = null
-  ): void {
-    const poller = prefetchPollers.get(key);
-    if (
-      !poller ||
-      (expectedEpoch != null &&
-        poller.requestEpoch !== expectedEpoch)
-    ) {
-      return;
-    }
-    window.clearInterval(poller.intervalId);
-    prefetchPollers.delete(key);
-  }
-
   function storeCache(
     target: ArtworkTarget,
     page: ArtworkPage,
     job: ArtworkJob | null,
-    requestEpoch: number,
-    requestSceneId: string | null
+    request: PrefetchRequestIdentity
   ): Promise<boolean> {
     return storePrefetchedArtwork(
       {
@@ -435,7 +248,7 @@ export function createArtworkPrefetchJobController(
       {
         job,
         page,
-        request: { requestEpoch, requestSceneId },
+        request,
         target
       }
     );

@@ -55,6 +55,13 @@ const artworkPrefetchJobSource = readFileSync(
   ),
   "utf8"
 );
+const artworkPrefetchPollingSource = readFileSync(
+  new URL(
+    "../apps/web/src/features/artwork/artworkPrefetchPollingController.ts",
+    import.meta.url
+  ),
+  "utf8"
+);
 const artworkPrefetchControllerSource = readFileSync(
   new URL(
     "../apps/web/src/features/artwork/artworkPrefetchController.ts",
@@ -196,7 +203,7 @@ test("stale navigation and prefetch responses are invalidated", () => {
   const prefetch = sourceBetweenIn(
     artworkPrefetchJobSource,
     "function prefetchArtworkTarget",
-    "function pollPrefetchJob"
+    "function invalidatePrefetchJobs"
   );
 
   assert.match(clickResolver, /isNavigationRequestCurrent\(navigationRequest\.id\)/);
@@ -209,7 +216,10 @@ test("stale navigation and prefetch responses are invalidated", () => {
     prefetch,
     /isCurrentPrefetchRequest\(\s*requestEpoch,\s*requestSceneId\s*\)/
   );
-  assert.match(appSource, /stopPrefetchPoller\(target\.key, requestEpoch\)/);
+  assert.match(
+    artworkPrefetchPollingSource,
+    /stop\(target\.key, requestEpoch\)/
+  );
 });
 
 test("runtime cache flush clears every in-memory artwork tier", () => {
@@ -447,7 +457,7 @@ test("image quality selection is accessible, persistent, and reaches artwork req
   const prefetchRequest = sourceBetweenIn(
     artworkPrefetchJobSource,
     "function prefetchArtworkTarget",
-    "function pollPrefetchJob"
+    "function invalidatePrefetchJobs"
   );
 
   assert.match(

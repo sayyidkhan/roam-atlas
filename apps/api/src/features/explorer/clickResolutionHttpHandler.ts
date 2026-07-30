@@ -236,10 +236,8 @@ function resolvePageClick({
     normalizedClick,
     targetNodeId: body.targetNodeId,
     detourPhrase: body.detourPhrase,
-    scenes:
-      pack.scenes as unknown as ResolveFlipbookClickInput["scenes"],
-    nodes:
-      pack.nodes as unknown as ResolveFlipbookClickInput["nodes"],
+    scenes: pack.scenes,
+    nodes: pack.nodes,
     sceneArtwork,
     countryName: pack.title
   });

@@ -33,6 +33,7 @@ function createState() {
     defaultCountrySlug: "singapore",
     defaultImageQuality: "high",
     experienceConfig: {
+      loadNextDestinationsEarly: true,
       maxParallelImageJobs: 1,
       showLoadingSteps: true
     }

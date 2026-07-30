@@ -2,6 +2,9 @@ import type {
   RuntimePack,
   RuntimePage
 } from "../../app/browserRuntime";
+import type {
+  ArtworkCacheEntry
+} from "../artwork/artworkCacheTypes";
 
 export type ExplorerPage = RuntimePage & {
   countryName?: string;
@@ -12,12 +15,7 @@ export type ExplorerPage = RuntimePage & {
   [key: string]: unknown;
 };
 
-export type CachedArtwork = {
-  decoded?: boolean;
-  environmentUrl?: string | null;
-  imageUrl?: string | null;
-  [key: string]: unknown;
-};
+export type CachedArtwork = ArtworkCacheEntry;
 
 export function materializeExplorerRequestPage({
   activePack,

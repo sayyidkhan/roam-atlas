@@ -46,13 +46,6 @@ export type ArtworkJob = {
   [key: string]: unknown;
 };
 
-export type ArtworkCacheEntry = {
-  decoded: boolean;
-  environmentUrl?: string | null;
-  imageUrl: string;
-  page: ArtworkPage;
-};
-
 export type ArtworkScene = {
   id: string;
   rootNodeId: string;
@@ -73,3 +66,6 @@ export type ArtworkState = {
 };
 
 export type ArtworkJobKind = "interactive" | "prefetch" | string;
+import type {
+  ArtworkCacheEntry
+} from "./artworkCacheTypes";

@@ -1,0 +1,262 @@
+@keyframes ambient-light {
+  from {
+    transform: translate3d(-1%, -1%, 0);
+  }
+
+  to {
+    transform: translate3d(1%, 1%, 0);
+  }
+}
+
+@keyframes atmosphere-water-wash {
+  from {
+    transform: translate3d(-2%, 1%, 0) rotate(-1deg) scale(1);
+  }
+
+  to {
+    transform: translate3d(3%, -1%, 0) rotate(1deg) scale(1.05);
+  }
+}
+
+@keyframes atmosphere-sea-drift {
+  0%,
+  100% {
+    transform: translate3d(-26px, 5px, 0) rotate(-8deg) scaleX(0.78);
+    opacity: 0.22;
+  }
+
+  50% {
+    transform: translate3d(42px, -4px, 0) rotate(-8deg) scaleX(1.16);
+    opacity: 0.66;
+  }
+}
+
+@keyframes atmosphere-water-glint {
+  0%,
+  100% {
+    transform: translate3d(-18px, 4px, 0) rotate(-8deg) scaleX(0.28);
+    opacity: 0.12;
+  }
+
+  45% {
+    transform: translate3d(18px, -2px, 0) rotate(-8deg) scaleX(1.2);
+    opacity: 0.78;
+  }
+}
+
+@keyframes atmosphere-shoreline-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -80;
+  }
+}
+
+@keyframes atmosphere-canopy-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg) translate3d(-1px, 2px, 0);
+    opacity: 0.2;
+  }
+
+  50% {
+    transform: rotate(5deg) translate3d(2px, -2px, 0);
+    opacity: 0.42;
+  }
+}
+
+@keyframes atmosphere-cloud-wisp-drift {
+  from {
+    transform: translate3d(-18%, 0, 0);
+  }
+
+  to {
+    transform: translate3d(42%, -4%, 0);
+  }
+}
+
+@keyframes atmosphere-cloud-bank-drift {
+  0%,
+  100% {
+    transform: translate3d(-42px, 4px, 0) scale(var(--cloud-scale));
+    opacity: 0.48;
+  }
+
+  45% {
+    transform: translate3d(42px, -7px, 0) scale(calc(var(--cloud-scale) * 1.04));
+    opacity: 0.82;
+  }
+
+  72% {
+    transform: translate3d(74px, -2px, 0) scale(calc(var(--cloud-scale) * 0.98));
+    opacity: 0.7;
+  }
+}
+
+@keyframes atmosphere-breeze-drift {
+  from {
+    transform: translate3d(-20%, 0, 0);
+  }
+
+  to {
+    transform: translate3d(135%, 0, 0);
+  }
+}
+
+@keyframes atmosphere-bird-glide {
+  0%,
+  100% {
+    transform: translate3d(-18px, 5px, 0) scale(0.82);
+    opacity: 0.36;
+  }
+
+  50% {
+    transform: translate3d(38px, -12px, 0) scale(1.06);
+    opacity: 0.86;
+  }
+}
+
+@keyframes atmosphere-dolphin-leap {
+  0%,
+  100% {
+    transform: translate3d(-18px, 18px, 0) rotate(5deg) scale(0.78);
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 0.64;
+  }
+
+  43% {
+    transform: translate3d(18px, -22px, 0) rotate(-15deg) scale(1.04);
+    opacity: 0.86;
+  }
+
+  68% {
+    opacity: 0.46;
+  }
+}
+
+@keyframes ambient-cloud {
+  from {
+    transform: translateX(-44%);
+  }
+
+  to {
+    transform: translateX(44%);
+  }
+}
+
+@keyframes ambient-water {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 120px 0;
+  }
+}
+
+@keyframes ambient-water-line {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -60;
+  }
+}
+
+@keyframes ambient-ripple {
+  0%,
+  100% {
+    transform: translateX(-14px) scaleX(0.78);
+    opacity: 0.38;
+  }
+
+  50% {
+    transform: translateX(24px) scaleX(1.26);
+    opacity: 0.84;
+  }
+}
+
+@keyframes ambient-wingbeat {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes ambient-bird {
+  0%,
+  100% {
+    transform: translate3d(-28px, 4px, 0) scale(0.88);
+    opacity: 0.42;
+  }
+
+  50% {
+    transform: translate3d(34px, -9px, 0) scale(1.1);
+    opacity: 0.86;
+  }
+}
+
+@keyframes ambient-marine-jump {
+  0%,
+  100% {
+    transform: translate3d(-10px, 14px, 0) rotate(2deg) scale(0.86);
+    opacity: 0.28;
+  }
+
+  18% {
+    opacity: 0.72;
+  }
+
+  45% {
+    transform: translate3d(18px, -24px, 0) rotate(-12deg) scale(1.08);
+    opacity: 0.92;
+  }
+
+  72% {
+    opacity: 0.54;
+  }
+}
+
+@keyframes ambient-sway {
+  0%,
+  100% {
+    transform: rotate(-2deg) translateY(0);
+  }
+
+  50% {
+    transform: rotate(3deg) translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .environment-layer,
+  .environment-particle,
+  .atmosphere-layer,
+  .atmosphere-layer *,
+  .region-rail-item--loading .region-rail-progress,
+  .loading-scene-progress span,
+  .loading-panel-progress--indeterminate span,
+  .loading-destination-card--loading .loading-destination-progress,
+  .draft-photo-spinner,
+  .artwork-pending,
+  .scroll-status-dot {
+    animation: none !important;
+  }
+
+  .loading-scene-progress--indeterminate span,
+  .loading-panel-progress--indeterminate span {
+    width: 100%;
+    transform: none;
+    opacity: 0.5;
+  }
+}

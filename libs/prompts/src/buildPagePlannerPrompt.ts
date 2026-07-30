@@ -1,4 +1,4 @@
-export function buildPagePlannerPrompt() {
+export function buildPagePlannerPrompt(): string {
   return `
 You are the RoamAtlas Flipbook Page Planner.
 

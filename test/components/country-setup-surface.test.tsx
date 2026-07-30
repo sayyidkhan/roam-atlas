@@ -9,17 +9,17 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CountrySetupSurface } from "../../apps/web/src/features/countrySetup/CountrySetupSurface";
-import { countrySetupBridge } from "../../apps/web/src/features/countrySetup/countrySetupBridge";
+import { countrySetupStore } from "../../apps/web/src/features/countrySetup/countrySetupStore";
 import { createCountryRuntimeCacheStore } from "../../apps/web/src/features/runtimeCache/countryRuntimeCacheStore";
 import { createCountryDraftStore } from "../../apps/web/src/features/countryDraft/countryDraftStore";
 
 afterEach(() => {
   cleanup();
-  act(() => countrySetupBridge.clear());
+  act(() => countrySetupStore.getState().clear());
 });
 
 describe("CountrySetupSurface", () => {
-  it("renders the setup shell from a typed compatibility snapshot", () => {
+  it("renders the setup shell from feature-owned store state", () => {
     const commands = createCommandMocks();
     const runtimeCacheStore =
       createCountryRuntimeCacheStore();
@@ -37,7 +37,7 @@ describe("CountrySetupSurface", () => {
     const { container } = render(<CountrySetupSurface />);
 
     act(() => {
-      countrySetupBridge.publish({
+      countrySetupStore.getState().setSetup({
         buildDraftPhotoUrl: vi.fn(() => "/reference.jpg"),
         country: {
           code: "SG",
@@ -147,7 +147,7 @@ describe("CountrySetupSurface", () => {
     render(<CountrySetupSurface />);
 
     act(() => {
-      countrySetupBridge.publish({
+      countrySetupStore.getState().setSetup({
         buildDraftPhotoUrl: vi.fn(() => "/reference.jpg"),
         country: {
           code: "MY",

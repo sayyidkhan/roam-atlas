@@ -52,7 +52,10 @@ test("country-pack registry rejects malformed JSON and incomplete scenes", () =>
           rootNodeId: "test-country",
           title: "Test Country",
           nodes: {
-            "test-country": { id: "test-country" }
+            "test-country": {
+              id: "test-country",
+              title: "Test Country"
+            }
           },
           scenes: {
             "test-overview": {

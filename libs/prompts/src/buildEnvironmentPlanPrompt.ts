@@ -1,24 +1,25 @@
 export const ENVIRONMENT_PLAN_SCHEMA_VERSION = "environment-plan-v4";
 export const ENVIRONMENT_PLAN_PROMPT_VERSION = "environment-plan-v7";
 
-/**
- * @param {{
- *   countryName?: string;
- *   title?: string;
- *   pageType?: string;
- *   targetCandidates?: Array<{
- *     nodeId: string;
- *     title?: string;
- *     mapNumber?: unknown;
- *   }>;
- * }} [options]
- */
+export type EnvironmentTargetCandidate = {
+  mapNumber?: unknown;
+  nodeId: string;
+  title?: string;
+};
+
+export type EnvironmentPlanPromptOptions = {
+  countryName?: string;
+  pageType?: string;
+  targetCandidates?: EnvironmentTargetCandidate[];
+  title?: string;
+};
+
 export function buildEnvironmentPlanPrompt({
   countryName = "selected country",
   title = "current atlas page",
   pageType = "atlas_page",
   targetCandidates = []
-} = {}) {
+}: EnvironmentPlanPromptOptions = {}): string {
   const candidateJson = JSON.stringify(
     targetCandidates.map(({ nodeId, title: candidateTitle, mapNumber }) => ({
       nodeId,

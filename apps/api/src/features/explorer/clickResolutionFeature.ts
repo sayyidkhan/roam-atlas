@@ -149,10 +149,7 @@ export function createClickResolutionFeature({
     const canonicalPage =
       getCanonicalArtworkPageForGeneration(
         page,
-        pack.scenes,
-        pack.nodes,
-        pack.countrySlug,
-        pack.title
+        pack
       );
     const artworkPage = await createImageJob(
       {
@@ -189,10 +186,8 @@ export function createClickResolutionFeature({
     return resolveFlipbookClick({
       currentPage,
       normalizedClick,
-      scenes:
-        pack.scenes as unknown as ResolveFlipbookClickInput["scenes"],
-      nodes:
-        pack.nodes as unknown as ResolveFlipbookClickInput["nodes"],
+      scenes: pack.scenes,
+      nodes: pack.nodes,
       sceneArtwork,
       countryName: pack.title
     });
@@ -322,8 +317,7 @@ export function createClickResolutionFeature({
     return matchClickPhraseToNode({
       phrase,
       candidates,
-      nodes:
-        pack.nodes as unknown as ResolveFlipbookClickInput["nodes"]
+      nodes: pack.nodes
     });
   }
 

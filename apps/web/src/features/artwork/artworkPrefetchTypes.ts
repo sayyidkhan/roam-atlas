@@ -1,4 +1,7 @@
 import type { RuntimePage } from "../../app/browserRuntime";
+import type {
+  ArtworkCacheEntry
+} from "./artworkCacheTypes";
 
 export type ArtworkTarget = {
   key: string;
@@ -33,13 +36,6 @@ export type ArtworkJob = {
   status?: string;
   title?: string;
   [key: string]: unknown;
-};
-
-export type ArtworkCacheEntry = {
-  decoded?: boolean;
-  environmentUrl?: string | null;
-  imageUrl?: string | null;
-  page?: ArtworkPage;
 };
 
 export type ArtworkScene = {

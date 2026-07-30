@@ -1,26 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { atlasNodes, scrollScenes } from "../apps/api/src/data/sceneGraph.ts";
+import { countryPacks } from "../apps/api/src/data/countryPacks/serverRegistry.ts";
 import { getDefaultArtworkPageForNode } from "../apps/api/src/data/defaultArtworkPages.ts";
-import { buildRegionPrompt } from "../libs/prompts/src/buildRegionPrompt.js";
+import { buildRegionPrompt } from "../libs/prompts/src/buildRegionPrompt.ts";
 
 test("child artwork does not inherit unrelated parent-scene landmarks", () => {
+  const singaporePack = countryPacks.singapore;
   const marinaBaySands = getDefaultArtworkPageForNode(
     "marina-bay-sands",
     "marina-bay-scroll",
-    scrollScenes,
-    atlasNodes,
-    "singapore",
-    "Singapore"
+    singaporePack
   );
   const merlion = getDefaultArtworkPageForNode(
     "merlion-park",
     "marina-bay-scroll",
-    scrollScenes,
-    atlasNodes,
-    "singapore",
-    "Singapore"
+    singaporePack
   );
 
   for (const page of [marinaBaySands, merlion]) {

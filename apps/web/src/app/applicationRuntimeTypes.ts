@@ -8,6 +8,12 @@ import type {
 import type {
   PreloadedImageSize
 } from "../features/explorer/explorerImagePreloader";
+import type {
+  BrowserExperienceConfig
+} from "../features/experience/experienceConfigClient";
+import type {
+  ArtworkJob as PrefetchArtworkJob
+} from "../features/artwork/artworkPrefetchTypes";
 
 export type CountrySummary = {
   code: string;
@@ -27,9 +33,13 @@ export type ApplicationState = ExplorerControllerState & {
     string,
     Promise<PreloadedImageSize>
   >;
-  experienceConfig: ExplorerControllerState["experienceConfig"] & {
-    showLoadingSteps: boolean;
-  } & Record<string, boolean | number>;
+  experienceConfig:
+    ExplorerControllerState["experienceConfig"] &
+    Partial<BrowserExperienceConfig> & {
+      loadNextDestinationsEarly: boolean;
+      maxParallelImageJobs: number;
+      showLoadingSteps: boolean;
+    };
   history: Array<{
     page: RuntimePage | null;
     nodeId: string | null;
@@ -39,7 +49,7 @@ export type ApplicationState = ExplorerControllerState & {
   } | null;
   selectedCountry: CountrySummary | null;
   prefetchRequests: Set<string>;
-  prefetchJobs: Map<string, unknown>;
+  prefetchJobs: Map<string, PrefetchArtworkJob>;
   prefetchSceneId: string | null;
   routeNotice: RouteNotice | null;
 };

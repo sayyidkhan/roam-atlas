@@ -4,17 +4,17 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./buildClickResolverPrompt.js": "./src/buildClickResolverPrompt.js",
-    "./buildEncyclopediaPrompt.js": "./src/buildEncyclopediaPrompt.js",
-    "./buildEnvironmentPlanPrompt.js": "./src/buildEnvironmentPlanPrompt.js",
-    "./buildHomepagePrompt.js": "./src/buildHomepagePrompt.js",
-    "./buildPagePlannerPrompt.js": "./src/buildPagePlannerPrompt.js",
-    "./buildRegionPrompt.js": "./src/buildRegionPrompt.js",
-    "./buildRoamAtlasImagePrompt.js": "./src/buildRoamAtlasImagePrompt.js",
-    "./imagePromptBuilder.js": "./src/imagePromptBuilder.js",
-    "./index.js": "./src/index.js",
-    "./promptContext.js": "./src/promptContext.js",
-    "./roamAtlasPromptStyle.js": "./src/roamAtlasPromptStyle.js",
-    "./roamAtlasPromptTypes.js": "./src/roamAtlasPromptTypes.js"
+    "./buildClickResolverPrompt.js": "./src/buildClickResolverPrompt.ts",
+    "./buildEncyclopediaPrompt.js": "./src/buildEncyclopediaPrompt.ts",
+    "./buildEnvironmentPlanPrompt.js": "./src/buildEnvironmentPlanPrompt.ts",
+    "./buildHomepagePrompt.js": "./src/buildHomepagePrompt.ts",
+    "./buildPagePlannerPrompt.js": "./src/buildPagePlannerPrompt.ts",
+    "./buildRegionPrompt.js": "./src/buildRegionPrompt.ts",
+    "./buildRoamAtlasImagePrompt.js": "./src/buildRoamAtlasImagePrompt.ts",
+    "./imagePromptBuilder.js": "./src/imagePromptBuilder.ts",
+    "./index.js": "./src/index.ts",
+    "./promptContext.js": "./src/promptContext.ts",
+    "./roamAtlasPromptStyle.js": "./src/roamAtlasPromptStyle.ts",
+    "./roamAtlasPromptTypes.js": "./src/roamAtlasPromptTypes.ts"
   }
 }

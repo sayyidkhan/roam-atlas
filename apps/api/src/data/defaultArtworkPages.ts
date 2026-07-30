@@ -3,13 +3,14 @@ import {
   inferPageTypeForNode,
   inferZoomLevelForNode
 } from "@roamatlas/prompts/imagePromptBuilder.js";
-import {
-  atlasNodes
-} from "./sceneGraph.ts";
 import type {
   CompiledCountryPack
 } from "./countryPacks/serverRegistry.ts";
 
+type ArtworkCountryPack = Pick<
+  CompiledCountryPack,
+  "countrySlug" | "nodes" | "scenes" | "title"
+>;
 type ArtworkNodes =
   CompiledCountryPack["nodes"];
 type ArtworkNode = ArtworkNodes[string];
@@ -43,46 +44,40 @@ export type DefaultArtworkPage = {
 
 export function getDefaultArtworkPageForScene(
   sceneId: string,
-  scenes: ArtworkScenes,
-  nodes: ArtworkNodes = atlasNodes,
-  countrySlug = "default-country",
-  countryName = "selected country"
+  pack: ArtworkCountryPack
 ): DefaultArtworkPage | null {
-  const scene = scenes[sceneId];
+  const scene = pack.scenes[sceneId];
   if (!scene) return null;
 
-  const node = nodes[scene.rootNodeId];
+  const node = pack.nodes[scene.rootNodeId];
   if (!node) return null;
 
   return createDefaultArtworkPage({
     scene,
     node,
-    nodes,
-    countrySlug,
-    countryName
+    nodes: pack.nodes,
+    countrySlug: pack.countrySlug,
+    countryName: pack.title
   });
 }
 
 export function getDefaultArtworkPageForNode(
   nodeId: string,
   sceneId: string | null | undefined,
-  scenes: ArtworkScenes,
-  nodes: ArtworkNodes = atlasNodes,
-  countrySlug = "default-country",
-  countryName = "selected country"
+  pack: ArtworkCountryPack
 ): DefaultArtworkPage | null {
-  const node = nodes[nodeId];
+  const node = pack.nodes[nodeId];
   if (!node) return null;
 
   const scene =
-    (sceneId ? scenes[sceneId] : undefined) ??
-    Object.values(scenes).find(
+    (sceneId ? pack.scenes[sceneId] : undefined) ??
+    Object.values(pack.scenes).find(
       (item) =>
         item.rootNodeId === node.id ||
         item.id === node.id
     ) ??
-    Object.values(scenes).find((item) =>
-      nodes[item.rootNodeId]?.childIds?.includes(
+    Object.values(pack.scenes).find((item) =>
+      pack.nodes[item.rootNodeId]?.childIds?.includes(
         node.id
       )
     );
@@ -91,9 +86,9 @@ export function getDefaultArtworkPageForNode(
   return createDefaultArtworkPage({
     scene,
     node,
-    nodes,
-    countrySlug,
-    countryName,
+    nodes: pack.nodes,
+    countrySlug: pack.countrySlug,
+    countryName: pack.title,
     pageId:
       scene.rootNodeId === node.id
         ? `artwork-${scene.id}`
@@ -108,10 +103,7 @@ export function getCanonicalArtworkPageForGeneration<
   }
 >(
   page: Page,
-  scenes: ArtworkScenes,
-  nodes: ArtworkNodes = atlasNodes,
-  countrySlug = "default-country",
-  countryName = "selected country"
+  pack: ArtworkCountryPack
 ): Page | DefaultArtworkPage {
   if (!page.nodeId) return page;
 
@@ -119,30 +111,24 @@ export function getCanonicalArtworkPageForGeneration<
     getDefaultArtworkPageForNode(
       page.nodeId,
       page.sceneId,
-      scenes,
-      nodes,
-      countrySlug,
-      countryName
+      pack
     );
   return defaultPage ?? page;
 }
 
 export function listDefaultArtworkPages(
-  scenes: ArtworkScenes,
-  nodes: ArtworkNodes = atlasNodes,
-  countrySlug = "default-country",
-  countryName = "selected country"
+  pack: ArtworkCountryPack
 ): DefaultArtworkPage[] {
-  return Object.values(scenes)
+  return Object.values(pack.scenes)
     .map((scene) => {
-      const node = nodes[scene.rootNodeId];
+      const node = pack.nodes[scene.rootNodeId];
       return node
         ? createDefaultArtworkPage({
             scene,
             node,
-            nodes,
-            countrySlug,
-            countryName
+            nodes: pack.nodes,
+            countrySlug: pack.countrySlug,
+            countryName: pack.title
           })
         : null;
     })

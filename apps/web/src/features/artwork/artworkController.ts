@@ -32,7 +32,7 @@ type ArtworkControllerState =
   PartialDependencies["state"] &
   PollingDependencies["state"] &
   PrefetchDependencies["state"] & {
-    experienceConfig: BrowserExperienceConfig &
+    experienceConfig: Partial<BrowserExperienceConfig> &
       PrefetchDependencies["state"]["experienceConfig"];
   };
 
@@ -63,7 +63,7 @@ type ArtworkControllerDependencies =
     }) => Promise<BrowserExperienceConfig>;
     hasStoredImageQualityPreference: () => boolean;
     normalizeImageQuality: (value: unknown) => string;
-    state: unknown;
+    state: ArtworkControllerState;
   };
 
 export function createArtworkController(
@@ -90,8 +90,7 @@ export function createArtworkController(
     normalizeImageQuality,
     toApiUrl
   } = dependencies;
-  const state =
-    dependencies.state as ArtworkControllerState;
+  const { state } = dependencies;
   const artworkPrefetchController = createArtworkPrefetchController({
     ARTWORK_POLL_INTERVAL_MS,
     ARTWORK_POLL_MAX_ATTEMPTS,

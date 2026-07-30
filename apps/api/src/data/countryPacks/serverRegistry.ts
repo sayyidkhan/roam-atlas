@@ -5,13 +5,16 @@ import { fileURLToPath } from "node:url";
 import { worldCountries } from "@roamatlas/data/countries.js";
 import {
   compileCountryPackData,
-  createStarterCountryPackData,
-  type CountryPackSource
+  type CompiledCountryPack
 } from "./compiler.ts";
+import type {
+  CountryPackSource
+} from "./countryPackTypes.ts";
+import {
+  createStarterCountryPackData
+} from "./starterCountryPack.ts";
 
-export type CompiledCountryPack = ReturnType<
-  typeof compileCountryPackData
->;
+export type { CompiledCountryPack } from "./compiler.ts";
 
 export const countryPacks =
   await loadCountryPacksFromDirectory();
@@ -135,6 +138,11 @@ export function parseCountryPackSource(
     requireNonEmptyString(
       node,
       "id",
+      `${filename} node ${nodeId}`
+    );
+    requireNonEmptyString(
+      node,
+      "title",
       `${filename} node ${nodeId}`
     );
   }

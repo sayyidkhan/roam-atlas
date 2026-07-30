@@ -90,10 +90,7 @@ type ArtworkJobServiceDependencies = {
   >;
   jobRepository: ArtworkJobRepository;
   listDefaultPages: (
-    scenes: CompiledCountryPack["scenes"],
-    nodes: CompiledCountryPack["nodes"],
-    countrySlug: string,
-    countryName: string
+    pack: CompiledCountryPack
   ) => ArtworkCreationPage[];
   logger?: Pick<Console, "error" | "log">;
   runtimeCacheRoot: string;
@@ -222,12 +219,7 @@ export function createArtworkJobService({
     for (const pack of Object.values(
       countryPacks
     )) {
-      const pages = listDefaultPages(
-        pack.scenes,
-        pack.nodes,
-        pack.countrySlug,
-        pack.title
-      );
+      const pages = listDefaultPages(pack);
       for (const page of pages) {
         await creationService.createImageJob(
           page,

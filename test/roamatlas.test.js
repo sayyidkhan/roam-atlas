@@ -8,12 +8,12 @@ import {
 import { readFrontendStylesSource } from "./support/frontend-styles-source.js";
 
 import {
-  atlasNodes,
-  createInitialSavedState,
   findAnimalExhibitClaim,
-  scrollScenes,
   searchKnownNode
-} from "../apps/api/src/data/sceneGraph.ts";
+} from "../apps/api/src/data/countryPacks/countryPackQueries.ts";
+import {
+  createInitialSavedState
+} from "../libs/domain/src/savedDiscoveries.ts";
 import {
   ROAMATLAS_CONFIG,
   resolveRoamAtlasConfig
@@ -53,6 +53,7 @@ import {
   createUnmappedDetour,
   filterCuratedItineraryNodes
 } from "../libs/domain/src/itinerary.ts";
+
 import {
   buildTileCacheKey,
   findTopmostHotspot,
@@ -77,7 +78,7 @@ import {
   resolveImageClick
 } from "../libs/domain/src/clickResolver.ts";
 import { matchClickPhraseToNode } from "../libs/domain/src/nodeMatcher.ts";
-import { buildRoamAtlasImagePrompt } from "../libs/prompts/src/imagePromptBuilder.js";
+import { buildRoamAtlasImagePrompt } from "../libs/prompts/src/imagePromptBuilder.ts";
 import { planNextFlipbookPage } from "../libs/domain/src/pagePlanner.ts";
 import { getSceneArtwork } from "../apps/api/src/data/sceneArtwork.ts";
 import { sceneArtwork } from "../apps/api/src/data/sceneArtwork.ts";
@@ -94,7 +95,7 @@ import {
   buildEncyclopediaPrompt,
   buildEnvironmentPlanPrompt,
   buildRoamAtlasImagePrompt as buildPromptOutput
-} from "../libs/prompts/src/index.js";
+} from "../libs/prompts/src/index.ts";
 import {
   DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT,
   normalizeImageModel
@@ -126,6 +127,11 @@ import {
   normalizeCountryDraftInstruction,
   normalizeCountryDraftPayload
 } from "../libs/domain/src/countryDraft.ts";
+
+const {
+  nodes: atlasNodes,
+  scenes: scrollScenes
+} = countryPacks.singapore;
 
 test("country landing lists world countries with routable country shells", () => {
   const countryCodes = worldCountries.map((country) => country.code);
@@ -349,7 +355,7 @@ test("saved discoveries produce an approximate itinerary with warnings", () => {
 });
 
 test("unknown searches become unmapped detours instead of invented nodes", () => {
-  const result = searchKnownNode("blue whale");
+  const result = searchKnownNode(atlasNodes, "blue whale");
 
   assert.equal(result.status, "unmapped");
   assert.equal(result.nodeId, null);
@@ -361,8 +367,8 @@ test("unknown searches become unmapped detours instead of invented nodes", () =>
 });
 
 test("animal exhibit claims require confirmed data", () => {
-  const giraffeClaim = findAnimalExhibitClaim("giraffe");
-  const blueWhaleClaim = findAnimalExhibitClaim("blue-whale");
+  const giraffeClaim = findAnimalExhibitClaim(atlasNodes, "giraffe");
+  const blueWhaleClaim = findAnimalExhibitClaim(atlasNodes, "blue-whale");
 
   assert.equal(giraffeClaim.status, "confirmed");
   assert.equal(giraffeClaim.nodeId, "giraffe");
@@ -864,10 +870,7 @@ test("artwork API contract requires a structured factual plan", () => {
   const pack = countryPacks.singapore;
   const page = getDefaultArtworkPageForScene(
     "singapore-overview",
-    pack.scenes,
-    pack.nodes,
-    pack.countrySlug,
-    pack.title
+    pack
   );
 
   assert.equal(ArtworkResponseSchema.parse({ page }).page.plan.factMode, "curated");
@@ -2471,10 +2474,11 @@ test("config thumbnails stream cached place images directly and cannot stay pend
 
 test("place image selection rejects Creative Commons badges and invalidates older selections", () => {
   const selectionSource = readFileSync(new URL("../libs/domain/src/placeImageSelection.ts", import.meta.url), "utf8");
+  const rankingSource = readFileSync(new URL("../libs/domain/src/placeImageCandidateRanking.ts", import.meta.url), "utf8");
 
   assert.match(selectionSource, /PLACE_IMAGE_SELECTION_VERSION = "v5"/);
-  assert.match(selectionSource, /creative\[-_\.\]\?commons/);
-  assert.match(selectionSource, /POSTER_PENALTY_PATTERN\.test\(imageUrl\)/);
+  assert.match(rankingSource, /creative\[-_\.\]\?commons/);
+  assert.match(rankingSource, /POSTER_PENALTY_PATTERN\.test\(imageUrl\)/);
 });
 
 test("place image resolver rejects badge-sized files and has a reference-photo fallback", () => {
@@ -2559,7 +2563,7 @@ test("server creates image-specific environment plans for generated artwork", ()
     ),
     "utf8"
   );
-  const promptSource = readFileSync(new URL("../libs/prompts/src/buildEnvironmentPlanPrompt.js", import.meta.url), "utf8");
+  const promptSource = readFileSync(new URL("../libs/prompts/src/buildEnvironmentPlanPrompt.ts", import.meta.url), "utf8");
 
   assert.match(environmentQueueSource, /async function ensurePlan/);
   assert.match(serverSource, /createEnvironmentPlanWithOpenAI/);
@@ -2789,7 +2793,7 @@ test("web and API deployments have independent entry points", () => {
     "utf8"
   );
   const viteSource = readFileSync(
-    new URL("../apps/web/vite.config.js", import.meta.url),
+    new URL("../apps/web/vite.config.ts", import.meta.url),
     "utf8"
   );
 
@@ -2805,20 +2809,20 @@ test("web and API deployments have independent entry points", () => {
 });
 
 test("default artwork pages are generated through the runtime image pipeline", () => {
-  const homepage = getDefaultArtworkPageForScene("singapore-overview", scrollScenes);
+  const homepage = getDefaultArtworkPageForScene(
+    "singapore-overview",
+    countryPacks.singapore
+  );
   const eastCoastPage = getDefaultArtworkPageForNode(
     "east-coast-park",
     "nature-wildlife-scroll",
-    scrollScenes
+    countryPacks.singapore
   );
   const malaysiaHomepage = getDefaultArtworkPageForScene(
     "malaysia-overview",
-    countryPacks.malaysia.scenes,
-    countryPacks.malaysia.nodes,
-    "malaysia",
-    "Malaysia"
+    countryPacks.malaysia
   );
-  const pages = listDefaultArtworkPages(scrollScenes);
+  const pages = listDefaultArtworkPages(countryPacks.singapore);
 
   assert.equal(homepage.id, "artwork-singapore-overview");
   assert.equal(homepage.status, "generation_required");
@@ -2843,7 +2847,10 @@ test("flipbook generation reuses canonical artwork page ids for scene roots", ()
     nodeId: "singapore-zoo",
     status: "generation_required"
   };
-  const canonical = getCanonicalArtworkPageForGeneration(flipbookPage, scrollScenes, atlasNodes);
+  const canonical = getCanonicalArtworkPageForGeneration(
+    flipbookPage,
+    countryPacks.singapore
+  );
 
   assert.equal(canonical.id, "artwork-singapore-zoo-scroll");
   assert.equal(canonical.nodeId, "singapore-zoo");

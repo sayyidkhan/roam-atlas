@@ -21,6 +21,7 @@ an explicit curated-data change.
 | Workspace | npm workspaces | Independent applications and reusable libraries |
 | Web | React 19, TypeScript, Vite 8, React Router 7 | Browser composition and static production build |
 | Remote state | TanStack Query 5 | Browser cache, polling, mutations, and invalidation |
+| Shared client state | Zustand 5 feature stores | Cross-component workflow state through narrow selectors |
 | API | Hono 4 on Node.js | Feature-owned HTTP routes |
 | Contracts | Zod 4 | Runtime request and response validation |
 | Current persistence | Source-controlled packs and API-owned runtime files | Curated facts, generated media, jobs, and review artifacts |
@@ -28,11 +29,13 @@ an explicit curated-data change.
 | Tests | Node test runner, Vitest, Playwright | Unit, component, contract, and browser coverage |
 
 PostgreSQL with Drizzle, object storage, and a durable job queue remain planned
-production persistence upgrades. They should replace adapters inside
-`apps/api`; they do not require another repository reorganization.
+production persistence upgrades. Redis is future-only and should be introduced
+only when multiple processes require shared job coordination. These upgrades
+replace adapters inside `apps/api`; they do not require another repository
+reorganization. See [TECH_STACK.md](TECH_STACK.md).
 
-Do not introduce microservices, Redis, authentication, payments, or WebGL until
-a concrete product requirement justifies them.
+Do not introduce microservices, authentication, payments, WebGL, or Redis
+infrastructure until a concrete product requirement justifies them.
 
 ## Repository Shape
 
@@ -40,7 +43,7 @@ a concrete product requirement justifies them.
 apps/
   web/                         deployable React/Vite application
     index.html
-    vite.config.js
+    vite.config.ts
     src/
       app/                     React composition and browser runtime adapters
       config/                  browser-safe application policy
@@ -103,6 +106,11 @@ to typed source targets and expose inferred Zod request/response types.
 existing `.js` ESM specifiers while resolving to typed country catalog and
 experience-config implementations. Deployable apps consume those shared types
 without importing package internals.
+
+`atlas-prompts` is TypeScript-only too. Prompt requests, normalized image
+settings, node-to-page inference, and structured prompt outputs share explicit
+types. Stable `.js` ESM specifiers resolve to `.ts` source targets so consumers
+do not depend on library internals or compatibility casts.
 
 ## Deployment Boundary
 
@@ -201,6 +209,9 @@ unchecked runtime modules.
   are also strict TypeScript. Loading progress, country-draft review, and
   non-factual place-image selection now publish typed contracts too. The React
   lifecycle and API place-image service no longer need unsafe domain casts.
+  Place-image selection exposes one stable facade while country/place query
+  configuration, profile construction, candidate ranking, and shared types
+  remain separately retrievable internal modules.
   Country-draft policy is exposed through a typed facade and split into prompt,
   grounding, text-safety, normalization, pack-projection, review, and
   shared-type modules.
@@ -258,8 +269,9 @@ and `runtimeCache` owns country-scoped artifact deletion. Country setup must
 consume these interfaces rather than recreating document, storage, or cache
 behavior.
 
-Artwork prefetch keeps scene/target selection, background job polling, and
-decode-before-cache promotion in separate feature modules. A stale request
+Artwork prefetch keeps scene/target selection, background request startup,
+polling/timer ownership, and decode-before-cache promotion in separate feature
+modules. A stale request
 epoch must be rejected before prefetched generated imagery is promoted into
 the visual cache; that cache remains visual state and never becomes a factual
 source.
@@ -340,15 +352,15 @@ policy runs.
 typed `appToastBridge.ts`; it must not inject notification HTML or bind
 document-level click handlers.
 
-The country setup shell is React-owned. Until its draft command store is fully
-migrated, `countrySetupBridge.ts` is the only allowed state handoff from the
-compatibility runtime; imperative code must not replace the React shell DOM.
+The country setup shell is React-owned. `countrySetupStore.ts` is its
+feature-owned Zustand state boundary while command orchestration is migrated;
+imperative code must not replace the React shell DOM.
 React shell controls call `countrySetupActionController.ts` through typed
 commands. Draft mutations, tool actions, reset actions, and submitted GenAI
 instructions use the typed `countryDraftViewController.ts` contract. Purely
 presentational state, including the selected draft tab, selected GenAI target,
 and whether the country action guide or draft tool menu is expanded, belongs
-to the owning React component. It must not cross `countrySetupBridge.ts` or be
+to the owning React component. It must not enter `countrySetupStore.ts` or be
 stored in the application compatibility state.
 
 `CountryDraftSurface.tsx` owns draft lifecycle states and the unconfirmed
@@ -452,6 +464,10 @@ Secrets, server paths, and provider credentials must never enter it.
 `apps/web/src/styles.css` is an import manifest. Global CSS is limited to
 tokens, document defaults, and accessibility primitives. Feature styles stay
 beside the feature that renders them; React-owned styles should use CSS Modules.
+Country-draft and explorer feature manifests preserve import order without
+widening the global entry. Draft tree, tool/menu, edit-modal, reference-photo,
+and lightbox styles have separate owners; environment layer rules and their
+motion definitions are separated as well.
 
 Country runtime-cache progress is not application state. A feature-owned
 country-scoped external store publishes loading, success, and failure snapshots

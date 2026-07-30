@@ -1,8 +1,14 @@
-import { buildHomepagePrompt } from "./buildHomepagePrompt.js";
-import { buildRegionPrompt } from "./buildRegionPrompt.js";
-import { buildEncyclopediaPrompt } from "./buildEncyclopediaPrompt.js";
+import { buildHomepagePrompt } from "./buildHomepagePrompt.ts";
+import { buildRegionPrompt } from "./buildRegionPrompt.ts";
+import { buildEncyclopediaPrompt } from "./buildEncyclopediaPrompt.ts";
+import type {
+  RoamAtlasPromptInput,
+  RoamAtlasPromptOutput
+} from "./roamAtlasPromptTypes.ts";
 
-export function buildRoamAtlasImagePrompt(input) {
+export function buildRoamAtlasImagePrompt(
+  input: RoamAtlasPromptInput
+): RoamAtlasPromptOutput {
   if (input.pageType === "homepage_overview" || input.zoomLevel === 0) {
     return buildHomepagePrompt({
       ...input,

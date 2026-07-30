@@ -96,6 +96,14 @@ test("React composition root owns the frontend entry without an app monolith bri
   assert.match(htmlSource, /src="\/src\/app\/main\.tsx"/);
   assert.doesNotMatch(htmlSource, /src="\/src\/ui\/app\.js/);
   assert.match(appComposition, /<Routes>/);
+  assert.match(
+    appComposition,
+    /path="\/:countrySlug\/place\/:nodeId"/
+  );
+  assert.doesNotMatch(
+    appComposition,
+    /path="\*" element=\{<ApplicationRuntimeHost/
+  );
   assert.doesNotMatch(appComposition, /ui\/app\.js/);
   assert.match(runtimeHost, /import\("\.\/applicationRuntime"\)/);
   assert.match(runtimeHost, /runtime\.startApplicationRuntime\(\)/);
@@ -280,6 +288,54 @@ test("shared catalog and experience config are TypeScript-owned behind stable pa
   );
 });
 
+test("shared prompt construction is TypeScript-owned behind stable package exports", () => {
+  const promptSourceRoot = new URL(
+    "../libs/prompts/src/",
+    import.meta.url
+  );
+  const javascriptFiles = listSourceFiles(
+    promptSourceRoot
+  ).filter((file) => /\.(?:js|jsx)$/.test(file));
+  const promptPackage = JSON.parse(
+    readFileSync(
+      new URL(
+        "../libs/prompts/package.json",
+        import.meta.url
+      ),
+      "utf8"
+    )
+  );
+  const compilerSource = readFileSync(
+    new URL(
+      "../apps/api/src/data/countryPacks/compiler.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.deepEqual(javascriptFiles, []);
+  assert.ok(
+    Object.keys(promptPackage.exports).every(
+      (specifier) => specifier.endsWith(".js")
+    )
+  );
+  assert.ok(
+    Object.values(promptPackage.exports).every(
+      (target) =>
+        typeof target === "string" &&
+        target.endsWith(".ts")
+    )
+  );
+  assert.equal(
+    promptPackage.exports["./imagePromptBuilder.js"],
+    "./src/imagePromptBuilder.ts"
+  );
+  assert.doesNotMatch(
+    compilerSource,
+    /buildRoamAtlasImagePrompt as unknown as/
+  );
+});
+
 test("country-pack source compilation is TypeScript-owned", () => {
   const compilerSource = readFileSync(
     new URL(
@@ -295,8 +351,15 @@ test("country-pack source compilation is TypeScript-owned", () => {
     ),
     "utf8"
   );
+  const typeSource = readFileSync(
+    new URL(
+      "../apps/api/src/data/countryPacks/countryPackTypes.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
 
-  assert.match(compilerSource, /export type CountryPackSource/);
+  assert.match(typeSource, /export type CountryPackSource/);
   assert.match(compilerSource, /buildTileCacheKey/);
   assert.match(compilerSource, /function compileScene/);
   assert.match(registrySource, /from "\.\/compiler\.ts"/);
@@ -334,8 +397,11 @@ test("API scene and default-artwork data are TypeScript-only", () => {
     new URL("defaultArtworkPages.ts", dataRoot),
     "utf8"
   );
-  const sceneGraphSource = readFileSync(
-    new URL("sceneGraph.ts", dataRoot),
+  const countryPackQueriesSource = readFileSync(
+    new URL(
+      "countryPacks/countryPackQueries.ts",
+      dataRoot
+    ),
     "utf8"
   );
   const sceneArtworkSource = readFileSync(
@@ -353,8 +419,8 @@ test("API scene and default-artwork data are TypeScript-only", () => {
     /CompiledCountryPack/
   );
   assert.match(
-    sceneGraphSource,
-    /query: unknown/
+    countryPackQueriesSource,
+    /nodes: CountryPackNodes,\s*query: unknown/
   );
   assert.match(
     sceneArtworkSource,
@@ -721,6 +787,52 @@ test("shared domain policy is TypeScript-only behind stable package exports", ()
       false
     );
   }
+});
+
+test("place-image selection keeps configuration, profiles, and ranking behind a small facade", () => {
+  const selectionFacade = readFileSync(
+    new URL(
+      "../libs/domain/src/placeImageSelection.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const selectionConfig = readFileSync(
+    new URL(
+      "../libs/domain/src/placeImageSelectionConfig.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const profilePolicy = readFileSync(
+    new URL(
+      "../libs/domain/src/placeImageProfile.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const rankingPolicy = readFileSync(
+    new URL(
+      "../libs/domain/src/placeImageCandidateRanking.ts",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.ok(selectionFacade.split("\n").length <= 30);
+  assert.match(selectionFacade, /from "\.\/placeImageProfile\.ts"/);
+  assert.match(
+    selectionFacade,
+    /from "\.\/placeImageCandidateRanking\.ts"/
+  );
+  assert.doesNotMatch(
+    selectionFacade,
+    /REGION_CAPITALS|PLACE_LANDMARK_QUERIES/
+  );
+  assert.match(selectionConfig, /REGION_CAPITALS/);
+  assert.match(selectionConfig, /PLACE_LANDMARK_QUERIES/);
+  assert.match(profilePolicy, /function inferPlaceImageProfile\(/);
+  assert.match(rankingPolicy, /function scorePlaceImageCandidate\(/);
 });
 
 test("public read-only API boundaries are TypeScript-owned", () => {
@@ -1170,7 +1282,7 @@ test("React draft controls replace the delegated country-shell event controller"
   assert.doesNotMatch(appSource, /countryDraftGenAiOpen/);
 });
 
-test("React owns the country setup shell while compatibility code only publishes state", () => {
+test("React owns the country setup shell through a feature-owned store", () => {
   const shellSource = readFileSync(
     new URL("../apps/web/src/app/ApplicationShell.tsx", import.meta.url),
     "utf8"
@@ -1226,13 +1338,13 @@ test("React owns the country setup shell while compatibility code only publishes
   );
 
   assert.match(shellSource, /<CountrySetupSurface \/>/);
-  assert.match(surfaceSource, /useSyncExternalStore/);
+  assert.match(surfaceSource, /useStore/);
   assert.match(surfaceSource, /function CountrySetupActions/);
   assert.match(surfaceSource, /function ImageQualitySetting/);
   assert.match(surfaceSource, /useState\(false\)/);
   assert.match(
     countryExperienceController,
-    /countrySetupBridge\.publish/
+    /countrySetupStore\.getState\(\)\.setSetup/
   );
   assert.doesNotMatch(
     countryExperienceController,
@@ -1458,11 +1570,16 @@ test("reference-photo workflows are feature-owned instead of embedded in country
     new URL("countryDraft/CountryDraftReferencePhoto.tsx", featureRoot),
     "utf8"
   );
-  const countrySetupBridge = readFileSync(
-    new URL("countrySetup/countrySetupBridge.ts", featureRoot),
+  const countrySetupStore = readFileSync(
+    new URL("countrySetup/countrySetupStore.ts", featureRoot),
     "utf8"
   );
 
+  assert.match(
+    countrySetupStore,
+    /createStore<CountrySetupStoreState>/
+  );
+  assert.doesNotMatch(countrySetupStore, /new Set|listeners/);
   assert.match(countryExperienceController, /createPlaceImageController/);
   assert.match(countryExperienceController, /createDraftPhotoLightboxController/);
   assert.doesNotMatch(countryExperienceController, /function buildPlaceImageUrl\(/);
@@ -1485,7 +1602,7 @@ test("reference-photo workflows are feature-owned instead of embedded in country
   assert.match(lightboxView, /Not verified travel\s+data/);
   assert.match(lightboxFeedbackView, /does not change travel facts/);
   assert.match(draftPhotoView, /onLoad=\{handleLoad\}/);
-  assert.doesNotMatch(countrySetupBridge, /hydrateDraftPhotos/);
+  assert.doesNotMatch(countrySetupStore, /hydrateDraftPhotos/);
 });
 
 test("notifications, browser preferences, and runtime deletion have feature boundaries", () => {
@@ -1591,6 +1708,13 @@ test("artwork prefetch lifecycle is feature-owned instead of embedded in interac
     ),
     "utf8"
   );
+  const prefetchPollingController = readFileSync(
+    new URL(
+      "artwork/artworkPrefetchPollingController.ts",
+      featureRoot
+    ),
+    "utf8"
+  );
   const prefetchCache = readFileSync(
     new URL("artwork/artworkPrefetchCache.ts", featureRoot),
     "utf8"
@@ -1611,12 +1735,24 @@ test("artwork prefetch lifecycle is feature-owned instead of embedded in interac
     prefetchJobController,
     /function prefetchArtworkTarget\(/
   );
+  assert.doesNotMatch(
+    prefetchJobController,
+    /function poll\(/
+  );
   assert.match(
     prefetchJobController,
-    /function pollPrefetchJob\(/
+    /createArtworkPrefetchPollingController/
+  );
+  assert.match(
+    prefetchPollingController,
+    /function poll\(/
   );
   assert.doesNotMatch(
     prefetchJobController,
+    /state\.artworkBy(?:Page|Scene)\.set/
+  );
+  assert.doesNotMatch(
+    prefetchPollingController,
     /state\.artworkBy(?:Page|Scene)\.set/
   );
   assert.match(
@@ -2109,6 +2245,59 @@ test("stateless feature policy does not remain embedded in the application runti
 
 test("CSS entry is an import manifest and React catalog styles are locally owned", () => {
   const styleEntry = readFileSync(new URL("../apps/web/src/styles.css", import.meta.url), "utf8");
+  const countryDraftStyles = readFileSync(
+    new URL(
+      "countryDraft/countryDraftStyles.css",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const explorerStyles = readFileSync(
+    new URL(
+      "explorer/explorerStyles.css",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const explorerChromeStyles = readFileSync(
+    new URL(
+      "explorer/explorerChromeStyles.css",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const draftTreeStyles = readFileSync(
+    new URL("countryDraft/draftTree.css", featureRoot),
+    "utf8"
+  );
+  const draftToolStyles = readFileSync(
+    new URL(
+      "countryDraft/draftTreeTools.css",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const draftLightboxStyles = readFileSync(
+    new URL(
+      "countryDraft/draftPhotoLightbox.css",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const environmentStyles = readFileSync(
+    new URL(
+      "explorer/environmentLayers.css",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const environmentAnimations = readFileSync(
+    new URL(
+      "explorer/environmentLayerAnimations.css",
+      featureRoot
+    ),
+    "utf8"
+  );
   const catalogView = readFileSync(
     new URL("countryCatalog/CountryCatalogView.tsx", featureRoot),
     "utf8"
@@ -2116,8 +2305,21 @@ test("CSS entry is an import manifest and React catalog styles are locally owned
 
   assert.ok(styleEntry.trim().split("\n").length <= 24);
   assert.match(styleEntry, /features\/countrySetup\/countrySetup\.css/);
-  assert.match(styleEntry, /features\/countryDraft\/draftTree\.css/);
-  assert.match(styleEntry, /features\/explorer\/environmentLayers\.css/);
+  assert.match(styleEntry, /features\/countryDraft\/countryDraftStyles\.css/);
+  assert.match(
+    styleEntry,
+    /features\/explorer\/explorerChromeStyles\.css/
+  );
+  assert.match(styleEntry, /features\/explorer\/explorerStyles\.css/);
+  assert.match(countryDraftStyles, /draftTreeTools\.css/);
+  assert.match(countryDraftStyles, /draftPhotoLightbox\.css/);
+  assert.match(explorerChromeStyles, /explorerChrome\.css/);
+  assert.match(explorerStyles, /environmentLayerAnimations\.css/);
+  assert.doesNotMatch(draftTreeStyles, /\.draft-tool-menu/);
+  assert.match(draftToolStyles, /\.draft-tool-menu/);
+  assert.match(draftLightboxStyles, /\.draft-photo-lightbox/);
+  assert.doesNotMatch(environmentStyles, /@keyframes ambient-light/);
+  assert.match(environmentAnimations, /@keyframes ambient-light/);
   assert.doesNotMatch(styleEntry, /\{\s*$/m);
   assert.match(catalogView, /import styles from "\.\/CountryCatalog\.module\.css"/);
   assert.equal(

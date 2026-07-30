@@ -31,17 +31,11 @@ type ArtworkHttpDependencies = {
   getDefaultArtworkPageForNode: (
     nodeId: string,
     sceneId: string | null | undefined,
-    scenes: CompiledCountryPack["scenes"],
-    nodes: CompiledCountryPack["nodes"],
-    countrySlug: string,
-    countryName: string
+    pack: CompiledCountryPack
   ) => DefaultArtworkPage | null;
   getDefaultArtworkPageForScene: (
     sceneId: string,
-    scenes: CompiledCountryPack["scenes"],
-    nodes: CompiledCountryPack["nodes"],
-    countrySlug: string,
-    countryName: string
+    pack: CompiledCountryPack
   ) => DefaultArtworkPage | null;
   normalizeImageQuality: (
     quality: unknown
@@ -117,18 +111,12 @@ export async function handleArtworkHttpRequest({
     ? getDefaultArtworkPageForNode(
         nodeId,
         sceneId,
-        pack.scenes,
-        pack.nodes,
-        pack.countrySlug,
-        pack.title
+        pack
       )
     : sceneId
       ? getDefaultArtworkPageForScene(
           sceneId,
-          pack.scenes,
-          pack.nodes,
-          pack.countrySlug,
-          pack.title
+          pack
         )
       : null;
   if (!page) {

@@ -3,13 +3,19 @@ import {
   CORE_VISUAL_STYLE,
   NEGATIVE_STYLE_TERMS,
   ROAMATLAS_PROMPT_VERSION
-} from "./roamAtlasPromptStyle.js";
+} from "./roamAtlasPromptStyle.ts";
 import {
   getPromptCountryName,
   getPromptWholeAreaPhrase
-} from "./promptContext.js";
+} from "./promptContext.ts";
+import type {
+  RoamAtlasPromptInput,
+  RoamAtlasPromptOutput
+} from "./roamAtlasPromptTypes.ts";
 
-export function buildHomepagePrompt(input) {
+export function buildHomepagePrompt(
+  input: RoamAtlasPromptInput
+): RoamAtlasPromptOutput {
   const countryName = getPromptCountryName(input);
   const wholeAreaPhrase = getPromptWholeAreaPhrase(countryName);
   const anchors =

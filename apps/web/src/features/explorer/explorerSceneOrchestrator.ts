@@ -2,6 +2,12 @@ import type {
   RuntimeNode,
   RuntimePage
 } from "../../app/browserRuntime";
+import type {
+  ArtworkCacheEntry
+} from "../artwork/artworkCacheTypes";
+import type {
+  ArtworkJob
+} from "../artwork/artworkRuntimeTypes";
 import type { ExplorerDestinationInput } from "./explorerDestinationController";
 import type { DestinationScene } from "./explorerDestinationPolicy";
 import type { ExplorerSceneInput } from "./explorerSceneController";
@@ -23,17 +29,7 @@ type ExplorerPack = {
   scenes: Record<string, ExplorerScene>;
 };
 
-type CachedArtwork = {
-  decodedPartialImageUrl?: string | null;
-  environmentUrl?: string | null;
-  imageUrl?: string | null;
-  page?: ExplorerPage;
-};
-
-type ArtworkJob = {
-  decodedPartialImageUrl?: string | null;
-  status?: string | null;
-};
+type CachedArtwork = ArtworkCacheEntry;
 
 type EnvironmentPlan =
   NonNullable<ExplorerSceneInput["environmentPlan"]> &
@@ -41,9 +37,9 @@ type EnvironmentPlan =
 
 type ExplorerSceneState = {
   activePack: ExplorerPack | null;
-  artworkByPage: Map<string, unknown>;
-  artworkByScene: Map<string, unknown>;
-  artworkJobs: Map<string, unknown>;
+  artworkByPage: Map<string, ArtworkCacheEntry>;
+  artworkByScene: Map<string, ArtworkCacheEntry>;
+  artworkJobs: Map<string, ArtworkJob>;
   currentPage: ExplorerPage | null;
   currentSceneId: string | null;
   environmentPlans: Map<string, unknown>;

@@ -3,10 +3,17 @@ import {
   CORE_VISUAL_STYLE,
   NEGATIVE_STYLE_TERMS,
   ROAMATLAS_PROMPT_VERSION
-} from "./roamAtlasPromptStyle.js";
-import { getPromptCountryName } from "./promptContext.js";
+} from "./roamAtlasPromptStyle.ts";
+import { getPromptCountryName } from "./promptContext.ts";
+import type {
+  RoamAtlasPageType,
+  RoamAtlasPromptInput,
+  RoamAtlasPromptOutput
+} from "./roamAtlasPromptTypes.ts";
 
-function getDetailTreatment(pageType) {
+function getDetailTreatment(
+  pageType: RoamAtlasPageType
+): string {
   switch (pageType) {
     case "animal_anatomy_plate":
       return `
@@ -37,7 +44,9 @@ Show one main subject with optional inset diagrams, blank callout panels, fine l
   }
 }
 
-export function buildEncyclopediaPrompt(input) {
+export function buildEncyclopediaPrompt(
+  input: RoamAtlasPromptInput
+): RoamAtlasPromptOutput {
   const detailTreatment = getDetailTreatment(input.pageType);
   const countryName = getPromptCountryName(input, { fallbackToNodeTitle: false });
   const countrySuffix = countryName === "selected country" ? "" : ` in ${countryName}`;
@@ -102,7 +111,9 @@ Aspect ratio: ${input.aspectRatio ?? "3:2"}.
   };
 }
 
-function normalizeCalloutLabels(value) {
+function normalizeCalloutLabels(
+  value: unknown
+): string[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((label) => String(label ?? "").trim())

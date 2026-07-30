@@ -163,3 +163,5 @@ For production, keep job metadata in durable persistence and image files in
 object storage; do not commit generated runtime images to the codebase. See
 [DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current filesystem-backed deployment
 constraint and routing contract.
+See [TECH_STACK.md](docs/TECH_STACK.md) for the local-first browser-state model
+and the explicit conditions that would justify Redis later.

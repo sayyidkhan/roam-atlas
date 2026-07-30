@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import { worldCountries } from "@roamatlas/data/countries.js";
 import {
-  countryPacks,
   initCountryPackRegistry,
   isConfiguredCountryPack
 } from "../../data/countryPacks/index.js";
@@ -10,21 +10,15 @@ import { CountryCatalogView, type CountryCatalogCountry } from "./CountryCatalog
 
 export function CountryCatalogPage() {
   const { dispatch } = useApplicationStore();
-  const [registryVersion, setRegistryVersion] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    initCountryPackRegistry().finally(() => {
-      if (active) setRegistryVersion((version) => version + 1);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const navigate = useNavigate();
+  const registryQuery = useQuery({
+    queryKey: ["country-packs", "registry"],
+    queryFn: initCountryPackRegistry
+  });
 
   const configure = (country: CountryCatalogCountry) => {
     dispatch({ type: "show_country_setup", countrySlug: country.slug });
-    enterLegacyRuntime(`/${country.slug}/config`);
+    navigate(`/${country.slug}/config`);
   };
 
   const open = (country: CountryCatalogCountry) => {
@@ -33,20 +27,20 @@ export function CountryCatalogPage() {
       return;
     }
     dispatch({ type: "show_explorer", countrySlug: country.slug });
-    enterLegacyRuntime(`/${country.slug}`);
+    navigate(`/${country.slug}`);
   };
 
   return (
     <CountryCatalogView
-      key={registryVersion}
       countries={worldCountries}
-      countryPacks={countryPacks as Record<string, { confidence?: string } | undefined>}
+      countryPacks={
+        registryQuery.data as Record<
+          string,
+          { confidence?: string } | undefined
+        > | undefined ?? {}
+      }
       onConfigure={configure}
       onOpen={open}
     />
   );
-}
-
-function enterLegacyRuntime(path: string): void {
-  window.location.assign(path);
 }

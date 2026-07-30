@@ -16,6 +16,7 @@
     "./pagePlanner.js": "./src/pagePlanner.ts",
     "./placeImageSelection.js": "./src/placeImageSelection.ts",
     "./routes.js": "./src/routes.ts",
+    "./savedDiscoveries.js": "./src/savedDiscoveries.ts",
     "./scrollScene.js": "./src/scrollScene.ts"
   },
   "dependencies": {

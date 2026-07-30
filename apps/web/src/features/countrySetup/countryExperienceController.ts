@@ -13,9 +13,9 @@ import type { RuntimePack } from "../../app/browserRuntime";
 import type { AppToastOptions } from "../notifications/appToastController";
 import type { RuntimeCacheScope } from "../runtimeCache/runtimeCacheTypes";
 import {
-  countrySetupBridge,
+  countrySetupStore,
   type ImageQualityOption
-} from "./countrySetupBridge";
+} from "./countrySetupStore";
 import type {
   CountryRuntimeCacheStore
 } from "../runtimeCache/countryRuntimeCacheStore";
@@ -246,7 +246,7 @@ export function createCountryExperienceController(
     const country = state.selectedCountry;
     if (!country) return;
     const canOpenMap = canOpenCountryExplorer(country);
-    countrySetupBridge.publish({
+    countrySetupStore.getState().setSetup({
       buildDraftPhotoUrl: (
         placeName,
         context,

@@ -23,7 +23,7 @@ Global image rules:
 7. Never render app names, product logos, old product names, or brand-like decorative titles.
 `;
 
-export const NEGATIVE_STYLE_TERMS = [
+export const NEGATIVE_STYLE_TERMS: string[] = [
   "crowded travel atlas",
   "dense tourist map",
   "busy panoramic city poster",

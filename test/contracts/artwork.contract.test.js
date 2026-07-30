@@ -20,10 +20,7 @@ describe("artwork and country-pack contracts", () => {
     const pack = countryPacks.singapore;
     const page = getDefaultArtworkPageForScene(
       "singapore-overview",
-      pack.scenes,
-      pack.nodes,
-      pack.countrySlug,
-      pack.title
+      pack
     );
 
     expect(ArtworkResponseSchema.parse({ page }).page.plan.factMode).toBe("curated");

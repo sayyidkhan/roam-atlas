@@ -84,6 +84,7 @@ const runtimeModules = [
   "../../apps/web/src/features/artwork/artworkPartialController.ts",
   "../../apps/web/src/features/artwork/artworkPrefetchController.ts",
   "../../apps/web/src/features/artwork/artworkPrefetchJobController.ts",
+  "../../apps/web/src/features/artwork/artworkPrefetchPollingController.ts",
   "../../apps/web/src/features/artwork/artworkPrefetchCache.ts",
   "../../apps/web/src/features/artwork/artworkPrefetchTypes.ts",
   "../../apps/web/src/app/browserRuntime.ts"

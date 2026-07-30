@@ -73,4 +73,5 @@ router.
 The current API runtime cache is filesystem-backed. A single API instance needs
 a persistent writable volume. Horizontal scaling should wait until generated
 artifacts and job metadata move to shared object storage and durable
-persistence, as tracked in `ARCHITECTURE.md`.
+persistence, as tracked in `ARCHITECTURE.md`. Redis is not required for the
+current single-instance deployment; it is a later job-coordination adapter.

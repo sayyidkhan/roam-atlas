@@ -33,11 +33,7 @@ export type ExplorerEnvironmentScene = {
   [key: string]: unknown;
 };
 
-export type EnvironmentArtworkCache = {
-  environmentUrl?: string | null;
-  page?: ExplorerEnvironmentPage;
-  [key: string]: unknown;
-};
+export type EnvironmentArtworkCache = ArtworkCacheEntry;
 
 export type ExplorerEnvironmentState = {
   activeCountrySlug: string;
@@ -87,3 +83,6 @@ export type EnvironmentControllerDependencies = {
   render: () => void;
   state: ExplorerEnvironmentState;
 };
+import type {
+  ArtworkCacheEntry
+} from "../artwork/artworkCacheTypes";

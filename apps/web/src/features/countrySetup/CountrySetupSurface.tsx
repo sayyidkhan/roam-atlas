@@ -3,6 +3,7 @@ import {
   useState,
   useSyncExternalStore
 } from "react";
+import { useStore } from "zustand";
 import { CountryDraftSurface } from "../countryDraft/CountryDraftSurface";
 import {
   createCountryDraftRenderState
@@ -10,10 +11,10 @@ import {
 import { useCountryDraftState } from "../countryDraft/useCountryDraftState";
 
 import {
-  countrySetupBridge,
-  type CountrySetupSnapshot,
+  countrySetupStore,
+  type CountrySetupState,
   type ImageQualityOption
-} from "./countrySetupBridge";
+} from "./countrySetupStore";
 import type {
   CountryRuntimeCacheStore
 } from "../runtimeCache/countryRuntimeCacheStore";
@@ -22,10 +23,9 @@ import type {
 } from "../runtimeCache/runtimeCacheTypes";
 
 export function CountrySetupSurface() {
-  const snapshot = useSyncExternalStore(
-    countrySetupBridge.subscribe,
-    countrySetupBridge.getSnapshot,
-    () => null
+  const snapshot = useStore(
+    countrySetupStore,
+    (state) => state.setup
   );
   if (!snapshot) return null;
 
@@ -35,7 +35,7 @@ export function CountrySetupSurface() {
 function CountrySetupContent({
   snapshot
 }: {
-  snapshot: CountrySetupSnapshot;
+  snapshot: CountrySetupState;
 }) {
   const flushState = useCountryRuntimeCacheState(
     snapshot.runtimeCacheStore,
@@ -79,7 +79,7 @@ function CountrySetupContent({
 function CountrySetupHero({
   snapshot
 }: {
-  snapshot: CountrySetupSnapshot;
+  snapshot: CountrySetupState;
 }) {
   const [isActionGuideOpen, setActionGuideOpen] =
     useState(false);
@@ -109,7 +109,7 @@ function CountrySetupActions({
   snapshot,
   flushState
 }: {
-  snapshot: CountrySetupSnapshot;
+  snapshot: CountrySetupState;
   flushState: CountryRuntimeCacheState | null;
 }) {
   const { canOpenMap, country } = snapshot;
@@ -249,7 +249,7 @@ function ActionGuide({
   isOpen,
   onToggle
 }: {
-  snapshot: CountrySetupSnapshot;
+  snapshot: CountrySetupState;
   isOpen: boolean;
   onToggle: () => void;
 }) {

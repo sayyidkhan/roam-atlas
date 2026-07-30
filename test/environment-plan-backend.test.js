@@ -11,7 +11,7 @@ import { createOpenAIEnvironmentPlanner } from "../apps/api/src/features/explore
 import {
   ENVIRONMENT_PLAN_PROMPT_VERSION,
   ENVIRONMENT_PLAN_SCHEMA_VERSION
-} from "../libs/prompts/src/buildEnvironmentPlanPrompt.js";
+} from "../libs/prompts/src/buildEnvironmentPlanPrompt.ts";
 
 const page = {
   id: "marina-page",

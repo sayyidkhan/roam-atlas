@@ -1,13 +1,15 @@
 import type { RuntimePage } from "../../app/browserRuntime";
 import { mergePrefetchedArtwork } from "./artworkPrefetchPolicy";
 import type {
-  ArtworkCacheEntry,
   ArtworkJob,
   ArtworkPage,
   ArtworkPrefetchState,
   ArtworkTarget,
   PrefetchRequestIdentity
 } from "./artworkPrefetchTypes";
+import type {
+  ArtworkCacheEntry
+} from "./artworkCacheTypes";
 
 type StorePrefetchedArtworkDependencies = {
   getPageEnvironmentUrl: (

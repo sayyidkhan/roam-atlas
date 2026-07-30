@@ -3,13 +3,19 @@ import {
   CORE_VISUAL_STYLE,
   NEGATIVE_STYLE_TERMS,
   ROAMATLAS_PROMPT_VERSION
-} from "./roamAtlasPromptStyle.js";
+} from "./roamAtlasPromptStyle.ts";
 import {
   getPromptCountryName,
   getPromptWholeAreaPhrase
-} from "./promptContext.js";
+} from "./promptContext.ts";
+import type {
+  RoamAtlasPromptInput,
+  RoamAtlasPromptOutput
+} from "./roamAtlasPromptTypes.ts";
 
-export function buildRegionPrompt(input) {
+export function buildRegionPrompt(
+  input: RoamAtlasPromptInput
+): RoamAtlasPromptOutput {
   const countryName = getPromptCountryName(input, { fallbackToNodeTitle: false });
   const countrySuffix = countryName === "selected country" ? "" : ` in ${countryName}`;
   const wholeAreaPhrase = getPromptWholeAreaPhrase(countryName);
@@ -70,7 +76,9 @@ Aspect ratio: ${input.aspectRatio ?? "3:2"}.
   };
 }
 
-function normalizeCalloutLabels(value) {
+function normalizeCalloutLabels(
+  value: unknown
+): string[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((label) => String(label ?? "").trim())

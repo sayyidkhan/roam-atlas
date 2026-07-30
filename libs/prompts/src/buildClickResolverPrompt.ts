@@ -1,4 +1,4 @@
-export function buildClickResolverPrompt() {
+export function buildClickResolverPrompt(): string {
   return `
 You are the RoamAtlas Click Resolver.
 

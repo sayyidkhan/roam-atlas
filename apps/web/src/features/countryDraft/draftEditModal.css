@@ -1,0 +1,78 @@
+.draft-edit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(31, 44, 42, 0.18);
+  backdrop-filter: blur(3px);
+}
+
+.draft-edit-modal {
+  width: min(640px, 100%);
+  max-height: min(84vh, 720px);
+  overflow: auto;
+  border: 1px solid rgba(31, 44, 42, 0.16);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgba(31, 44, 42, 0.2);
+}
+
+.draft-edit-modal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.draft-edit-modal h3 {
+  margin: 2px 0 0;
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.draft-genai-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(36, 95, 82, 0.22);
+  border-radius: 8px;
+  background: rgba(36, 95, 82, 0.05);
+}
+
+.draft-genai-form .draft-chat-log,
+.draft-genai-form .muted {
+  grid-column: 1 / -1;
+}
+
+.draft-genai-form textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: rgba(255, 250, 240, 0.92);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.draft-genai-form textarea:focus {
+  border-color: rgba(36, 95, 82, 0.5);
+  box-shadow: 0 0 0 3px rgba(36, 95, 82, 0.1);
+  outline: none;
+}
+
+.draft-genai-form .muted {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
