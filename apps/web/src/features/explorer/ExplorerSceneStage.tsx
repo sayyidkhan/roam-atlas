@@ -2,24 +2,24 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type CSSProperties
 } from "react";
+import { useStore } from "zustand";
 
 import { getContainedImageRect } from "./sceneGeometry";
 import { ExplorerEnvironmentLayers } from "./ExplorerEnvironmentLayers";
 import {
-  explorerSceneBridge,
+  explorerSceneStore,
   type ExplorerSceneSnapshot,
   type ExplorerSceneTarget
-} from "./explorerSceneBridge";
+} from "./explorerSceneStore";
 import { toScenePercent } from "./explorerScenePolicy";
 import { ExplorerLoadingBoard } from "./ExplorerDestinationNavigation";
 
 export function ExplorerSceneStage() {
-  const snapshot = useSyncExternalStore(
-    explorerSceneBridge.subscribe,
-    explorerSceneBridge.getSnapshot
+  const snapshot = useStore(
+    explorerSceneStore,
+    (state) => state.snapshot
   );
   const [imageAspect, setImageAspect] = useState<
     number | null

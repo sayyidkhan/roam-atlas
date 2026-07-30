@@ -1022,6 +1022,8 @@ test("application navigation, generated state, and bootstrap have cohesive owner
   assert.match(lifecycleSource, /async function applyRoute\(/);
   assert.match(lifecycleSource, /isRouteCurrent:/);
   assert.match(lifecycleSource, /function dispose\(/);
+  assert.match(lifecycleSource, /stopAllArtworkPolling\(\)/);
+  assert.match(lifecycleSource, /invalidatePrefetchState\(\)/);
   assert.doesNotMatch(
     lifecycleSource,
     /resolveAppRoute as unknown/
@@ -1172,7 +1174,7 @@ test("React owns destination loading and region navigation", () => {
   );
   assert.match(
     destinationController,
-    /explorerDestinationBridge\.publish/
+    /explorerDestinationStore\.getState\(\)\.setSnapshot/
   );
   assert.match(
     destinationNavigation,
@@ -1336,12 +1338,36 @@ test("React owns the country setup shell through a feature-owned store", () => {
     ),
     "utf8"
   );
+  const setupActions = readFileSync(
+    new URL(
+      "countrySetup/components/CountrySetupActions.tsx",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const setupHero = readFileSync(
+    new URL(
+      "countrySetup/components/CountrySetupHero.tsx",
+      featureRoot
+    ),
+    "utf8"
+  );
+  const imageQualitySetting = readFileSync(
+    new URL(
+      "countrySetup/components/ImageQualitySetting.tsx",
+      featureRoot
+    ),
+    "utf8"
+  );
 
   assert.match(shellSource, /<CountrySetupSurface \/>/);
   assert.match(surfaceSource, /useStore/);
-  assert.match(surfaceSource, /function CountrySetupActions/);
-  assert.match(surfaceSource, /function ImageQualitySetting/);
-  assert.match(surfaceSource, /useState\(false\)/);
+  assert.match(surfaceSource, /<CountrySetupActions/);
+  assert.match(surfaceSource, /<ImageQualitySetting/);
+  assert.doesNotMatch(surfaceSource, /function CountrySetupActions/);
+  assert.match(setupActions, /function CountrySetupActions/);
+  assert.match(imageQualitySetting, /function ImageQualitySetting/);
+  assert.match(setupHero, /useState\(false\)/);
   assert.match(
     countryExperienceController,
     /countrySetupStore\.getState\(\)\.setSetup/
@@ -1351,7 +1377,7 @@ test("React owns the country setup shell through a feature-owned store", () => {
     /countryShell\.innerHTML/
   );
   assert.match(
-    surfaceSource,
+    setupActions,
     /snapshot\.commands\.openOrBuildMap/
   );
   assert.match(
@@ -1631,6 +1657,13 @@ test("notifications, browser preferences, and runtime deletion have feature boun
     ),
     "utf8"
   );
+  const countryRuntimeCacheHook = readFileSync(
+    new URL(
+      "countrySetup/useCountryRuntimeCacheState.ts",
+      featureRoot
+    ),
+    "utf8"
+  );
   const applicationState = readFileSync(
     new URL("../apps/web/src/app/applicationRuntimeTypes.ts", import.meta.url),
     "utf8"
@@ -1676,7 +1709,14 @@ test("notifications, browser preferences, and runtime deletion have feature boun
   assert.match(runtimeCacheController, /runtimeCacheStore\.set/);
   assert.match(runtimeCacheStore, /listenersByCountry/);
   assert.match(runtimeCacheStore, /getSnapshot\(countrySlug\)/);
-  assert.match(countrySetupSurface, /store\.subscribe\(countrySlug/);
+  assert.match(
+    countrySetupSurface,
+    /useCountryRuntimeCacheState/
+  );
+  assert.match(
+    countryRuntimeCacheHook,
+    /store\.subscribe\(countrySlug/
+  );
   assert.doesNotMatch(applicationState, /countryCacheFlushes/);
   assert.doesNotMatch(runtimeCacheController, /countryCacheFlushes/);
   assert.match(appToastController, /function show\(/);
@@ -1789,6 +1829,13 @@ test("interactive artwork lifecycles have cohesive feature owners", () => {
     ),
     "utf8"
   );
+  const queryPolling = readFileSync(
+    new URL(
+      "artwork/artworkJobQueryPolling.ts",
+      featureRoot
+    ),
+    "utf8"
+  );
   const lifecycleController = readFileSync(
     new URL("artwork/artworkLifecycleController.ts", featureRoot),
     "utf8"
@@ -1851,6 +1898,11 @@ test("interactive artwork lifecycles have cohesive feature owners", () => {
     pollStateController,
     /function copyArtworkJobStatus\(/
   );
+  assert.match(queryPolling, /new QueryObserver/);
+  assert.match(queryPolling, /refetchInterval: intervalMs/);
+  assert.match(artworkController, /stopAllArtworkPolling/);
+  assert.doesNotMatch(pollStateController, /setInterval/);
+  assert.doesNotMatch(pollingController, /setInterval/);
   assert.doesNotMatch(pollingController, /async function completeSceneArtwork\(/);
   assert.doesNotMatch(pollingController, /async function preparePartialArtwork\(/);
   assert.doesNotMatch(pollingController, /function isCurrentArtworkAttempt\(/);
@@ -1996,7 +2048,7 @@ test("React owns scene artwork, tiles, target overlays, and responsive layout", 
   assert.doesNotMatch(explorerController, /new ResizeObserver\(/);
   assert.match(
     sceneController,
-    /explorerSceneBridge\.publish/
+    /explorerSceneStore\.getState\(\)\.setSnapshot/
   );
   assert.match(
     explorerController,
@@ -2112,9 +2164,9 @@ test("React owns explorer factual detail and detour rendering", () => {
   );
   assert.match(
     detailController,
-    /explorerDetailBridge\.publish/
+    /explorerDetailStore\.getState\(\)\.setSnapshot/
   );
-  assert.match(detailSheet, /useSyncExternalStore/);
+  assert.match(detailSheet, /useStore/);
   assert.match(detailSheet, /hasUnconfirmedNodeFacts/);
   assert.doesNotMatch(detailSheet, /dangerouslySetInnerHTML/);
   assert.equal(
@@ -2153,7 +2205,7 @@ test("React owns explorer HUD, navigation controls, visibility, and busy state",
   );
 
   assert.match(shellSource, /<ExplorerViewport \/>/);
-  assert.match(viewportSource, /useSyncExternalStore/);
+  assert.match(viewportSource, /useStore/);
   assert.match(viewportSource, /snapshot\?\.commands\.countries/);
   assert.match(viewportSource, /snapshot\?\.commands\.back/);
   assert.doesNotMatch(
@@ -2196,10 +2248,10 @@ test("React owns explorer loading feedback while page transitions stay outside b
     "utf8"
   );
 
-  assert.match(feedbackSurface, /useSyncExternalStore/);
+  assert.match(feedbackSurface, /useStore/);
   assert.match(
     feedbackController,
-    /explorerFeedbackBridge\.publish/
+    /explorerFeedbackStore\.getState\(\)\.updateSnapshot/
   );
   assert.match(
     pageTransitionController,

@@ -26,10 +26,6 @@ export function createExplorerPageTransitionController({
   state
 }: ExplorerPageTransitionDependencies) {
   function clearPendingJob(): void {
-    if (state.pendingJob?.intervalId) {
-      window.clearInterval(state.pendingJob.intervalId);
-    }
-    state.pendingJob = null;
     endNavigationFeedback();
   }
 

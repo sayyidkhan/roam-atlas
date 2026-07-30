@@ -31,7 +31,6 @@ export function activateMappedCountry(
   state.currentSceneId = pack.overviewSceneId;
   state.selectedNodeId = null;
   state.history = [];
-  state.pendingJob = null;
   state.routeNotice = null;
 }
 
@@ -43,7 +42,6 @@ export function activateCountryShell(
   state.selectedCountry = country;
   state.selectedNodeId = null;
   state.history = [];
-  state.pendingJob = null;
   state.routeNotice = null;
 }
 
@@ -90,7 +88,6 @@ export function activateCuratedPlace(
   state.selectedNodeId =
     nodeId === pack.rootNodeId ? null : nodeId;
   state.history = [];
-  state.pendingJob = null;
   state.routeNotice = null;
   return true;
 }

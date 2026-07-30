@@ -24,7 +24,6 @@ export function createApplicationState({
     detailPanelMode: "hidden",
     detailOverride: null,
     history: [],
-    pendingJob: null,
     artworkJobs: new Map(),
     artworkByScene: new Map(),
     artworkByPage: new Map(),

@@ -9,11 +9,11 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExplorerViewport } from "../../apps/web/src/features/explorer/ExplorerViewport";
-import { explorerChromeBridge } from "../../apps/web/src/features/explorer/explorerChromeBridge";
+import { explorerChromeStore } from "../../apps/web/src/features/explorer/explorerChromeStore";
 
 afterEach(() => {
   cleanup();
-  act(() => explorerChromeBridge.clear());
+  act(() => explorerChromeStore.getState().clear());
 });
 
 describe("ExplorerViewport", () => {
@@ -25,7 +25,7 @@ describe("ExplorerViewport", () => {
     const { container } = render(<ExplorerViewport />);
 
     act(() => {
-      explorerChromeBridge.publish({
+      explorerChromeStore.getState().setSnapshot({
         backDisabled: false,
         breadcrumb: "Marina Bay · Ready",
         commands,
@@ -61,7 +61,7 @@ describe("ExplorerViewport", () => {
     render(<ExplorerViewport />);
 
     act(() => {
-      explorerChromeBridge.publish({
+      explorerChromeStore.getState().setSnapshot({
         backDisabled: true,
         breadcrumb: "Curated scene",
         commands: {

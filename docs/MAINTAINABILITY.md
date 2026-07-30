@@ -45,15 +45,16 @@ mock-only browser test policy.
   invalidation, and cache promotion are isolated from interactive artwork
   generation in typed feature modules.
 - Speculative prefetch is further divided into scene/target orchestration,
-  background request startup, polling/timer lifecycle, decode-before-cache
+  background request startup, TanStack Query polling, decode-before-cache
   promotion, and shared contracts.
   Stale request epochs remain mandatory before generated visuals enter a cache.
 - Interactive artwork requests, retry, polling transport, shared attempt
   lifecycle, final decode/cache promotion, and partial-preview decoding have
   separate typed feature owners.
 - Interactive artwork is now a small composition module over HTTP job creation
-  and page pending/retry transitions. Poll response handling is separate from
-  interval, timeout, attempt-count, and status-copy bookkeeping.
+  and page pending/retry transitions. TanStack Query owns polling cadence and
+  cancellation; poll policy separately owns timeout, attempt-count, and
+  status-copy bookkeeping.
 - Explorer environment-plan retry, stale-plan recovery, promotion, cache
   updates, and country-scoped invalidation are isolated in a typed controller.
 - Environment-plan acquisition/retry is separate from exact-page promotion and
@@ -68,8 +69,9 @@ mock-only browser test policy.
 - Explorer scene DOM, tile fallbacks, target overlays, image aspect handling,
   and resize synchronization are isolated in a typed view module.
 - React owns explorer factual detail and explicitly labelled detour rendering.
-  Detail visibility and expand/collapse/close commands use a typed bridge; the
-  legacy `innerHTML` detail renderer and delegated detail events are deleted.
+  Detail visibility and expand/collapse/close commands use a feature-scoped
+  Zustand store; the legacy `innerHTML` detail renderer and delegated detail
+  events are deleted.
 - React owns explorer visibility, HUD content, country/back navigation, and
   busy state. The application element registry now retains only the visual
   stage mount for explorer compatibility code.
@@ -122,7 +124,8 @@ mock-only browser test policy.
   compatibility scroll preservation are now TypeScript modules.
 - React owns the country setup hero, actions, image-quality controls, cache
   status, and draft host. The compatibility runtime publishes typed state
-  through a narrow bridge instead of replacing the shell with `innerHTML`.
+  through a feature-scoped store instead of replacing the shell with
+  `innerHTML`.
 - The country action-guide disclosure, draft section tab, draft three-dot menu,
   and GenAI dialog target are local React state. Presentational selection and
   disclosure state must not be added to the application-wide compatibility
@@ -177,15 +180,20 @@ The original 1,154-line controller has been replaced by a typed composition
 controller. React now renders the complete setup experience and invokes typed
 review, drag, approval, image, and GenAI commands directly. The compatibility
 bridge has been replaced by `countrySetupStore.ts`, a feature-owned Zustand
-store. Continue toward:
+store. `CountrySetupSurface.tsx` is now a small composition boundary over the
+hero, command actions, image-quality setting, cache-reset notice, and draft
+surface:
 
 ```text
 countrySetup/
-  CountrySetupPage.tsx
-  useCountryExperience.ts
-  countryExperienceState.ts
-  countryExperienceCommands.ts
+  CountrySetupSurface.tsx
+  countrySetupStore.ts
+  useCountryRuntimeCacheState.ts
   components/
+    CountrySetupHero.tsx
+    CountrySetupActions.tsx
+    ImageQualitySetting.tsx
+    CacheFlushNotice.tsx
 ```
 
 Keep network calls in feature clients and derive display state during render.
@@ -204,18 +212,16 @@ longer maintains a manual effect counter solely to force rerenders.
 ### 2. Artwork
 
 The original controller has been reduced from 1,033 lines to a small
-composition adapter. Speculative prefetch, interactive requests, polling
-transport, attempt/failure lifecycle, final decode/cache promotion, and
+composition adapter. Speculative prefetch, interactive requests, query
+polling, attempt/failure lifecycle, final decode/cache promotion, and
 partial-preview decoding are separate typed modules. Prefetch target selection,
-background request/poll lifecycle, and decode-before-cache promotion are also
+background request lifecycle, and decode-before-cache promotion are also
 separate owners; the public prefetch controller is now a small composition
-surface. Interactive artwork similarly composes request creation and
-pending/retry transitions while poll state owns timer and timeout bookkeeping.
-The next React migration can replace these adapters with TanStack Query hooks
-and stable query keys after artwork job state moves out of the shared
-application state. Until then, the existing poll controller remains the single
-owner; adding a parallel query poller would create conflicting timers and
-completion side effects.
+surface. Interactive and prefetch jobs share stable TanStack Query key policy,
+while independently keyed observers own polling cadence and cancellation.
+Artwork poll-state policy still owns attempts, deadlines, status projection,
+and completion side effects, so server records are not duplicated into a
+general-purpose client store.
 On the API side, artwork queue policy, creation guards, reuse policy, runtime
 context, and the provider worker are strict TypeScript. The worker owns the
 single-job partial/final artifact, retry, cancellation, and visual-only fact
@@ -230,9 +236,11 @@ preloading, factual detail, loading feedback, and all explorer presentation
 surfaces have named feature owners. Click/overlay coordination is separate from
 page materialization, deterministic immediate matching, remote request payloads,
 and result application. Environment acquisition/retry is likewise separate from
-page-specific target-plan promotion and cache synchronization. The remaining
-compatibility responsibility is wiring the application store to those typed
-feature contracts.
+page-specific target-plan promotion and cache synchronization. Observable
+chrome, destination, detail, feedback, and scene snapshots are now
+feature-scoped Zustand stores with narrow React selectors. The remaining
+compatibility responsibility is command orchestration and canonical navigation
+state while those workflows continue moving out of the application state.
 Curated matching remains mandatory before any VLM result affects navigation.
 
 ### 4. Application Runtime

@@ -8,6 +8,7 @@ import {
   ARTWORK_POLL_MAX_ATTEMPTS,
   APPLICATION_RUNTIME_CONFIG
 } from "../../app/applicationRuntimeConfig";
+import { appQueryClient } from "../../app/queryClient";
 import { fetchExperienceConfig } from "../experience/experienceConfigClient";
 import { normalizeImageQuality } from "../experience/imageQualityPolicy";
 import { createArtworkController } from "./artworkController";
@@ -51,6 +52,7 @@ export function createArtworkRuntime(
     isArtworkJobFailed,
     listNextArtworkDestinations,
     normalizeImageQuality,
+    queryClient: appQueryClient,
     toApiUrl,
     ...dependencies
   });

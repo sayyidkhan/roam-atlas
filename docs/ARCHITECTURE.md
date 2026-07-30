@@ -17,9 +17,9 @@ an explicit curated-data change.
 
 | Concern | Current choice | Responsibility |
 | --- | --- | --- |
-| Runtime | Node.js 22.18+ | API runtime, type stripping, and build tooling |
+| Runtime | Node.js 22.22+ | API runtime, React Router 8, type stripping, and build tooling |
 | Workspace | npm workspaces | Independent applications and reusable libraries |
-| Web | React 19, TypeScript, Vite 8, React Router 7 | Browser composition and static production build |
+| Web | React 19, TypeScript, Vite 8, React Router 8.3 | Browser composition and static production build |
 | Remote state | TanStack Query 5 | Browser cache, polling, mutations, and invalidation |
 | Shared client state | Zustand 5 feature stores | Cross-component workflow state through narrow selectors |
 | API | Hono 4 on Node.js | Feature-owned HTTP routes |
@@ -270,17 +270,19 @@ consume these interfaces rather than recreating document, storage, or cache
 behavior.
 
 Artwork prefetch keeps scene/target selection, background request startup,
-polling/timer ownership, and decode-before-cache promotion in separate feature
-modules. A stale request
+query-scheduled polling, and decode-before-cache promotion in separate feature
+modules. TanStack Query observers own polling cadence and cancellation; artwork
+policy modules retain attempt, timeout, status-copy, and completion rules. A stale request
 epoch must be rejected before prefetched generated imagery is promoted into
 the visual cache; that cache remains visual state and never becomes a factual
 source.
 
 Interactive artwork keeps HTTP job creation separate from pending-page/retry
-transitions. Poll response handling delegates timer ownership, timeout policy,
-attempt accounting, and provider-status copying to a dedicated poll-state
-module. All paths share one monotonically increasing attempt id source so stale
-responses cannot complete a newer request.
+transitions. The feature-scoped query polling adapter owns scheduling through
+stable job keys without browser intervals, while a dedicated poll-state module
+owns timeout policy, attempt accounting, and provider-status copying. All paths
+share one monotonically increasing attempt id source so stale responses cannot
+complete a newer request.
 
 Explorer navigation keeps DOM click adaptation, abortable request identity,
 click/overlay workflow coordination, page materialization/result application,
@@ -409,9 +411,11 @@ controllers must not inject factual detail HTML or bind delegated detail
 controls.
 
 `ExplorerViewport.tsx` owns explorer visibility, the scene HUD, breadcrumb,
-busy state, and country/back navigation controls. Compatibility navigation may
-publish typed chrome state through `explorerChromeBridge.ts`; it must not query
-those controls or mutate viewport presentation classes directly.
+busy state, and country/back navigation controls. Explorer chrome, destination,
+detail, feedback, and scene presentation snapshots live in feature-scoped
+Zustand stores consumed through narrow selectors. Compatibility controllers may
+publish to those stores, but they must not query controls or mutate viewport
+presentation classes directly.
 `ExplorerDestinationNavigation.tsx` owns illustration loading guidance,
 destination readiness cards, and the fixed region rail. Stateless target
 ordering, hotspot-to-click geometry, and readiness labels live in
@@ -423,6 +427,11 @@ deterministic target buttons. `explorerScenePolicy.ts` maps structured scene
 and environment-plan data into typed tile and target models. Explorer
 orchestration may publish those models, but it must not create or replace scene
 DOM.
+
+`CountrySetupSurface.tsx` is a composition boundary only. The setup hero,
+commands, image-quality setting, and cache-reset notice are independently
+retrievable components, while `useCountryRuntimeCacheState.ts` adapts the
+country-scoped runtime-cache store into render state.
 
 `ExplorerEnvironmentLayers.tsx` owns code-rendered ambient particles.
 `explorerEnvironmentLayerPolicy.ts` owns safe fallback selection, normalized

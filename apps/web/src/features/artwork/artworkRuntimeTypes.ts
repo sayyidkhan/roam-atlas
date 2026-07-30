@@ -30,7 +30,6 @@ export type ArtworkJob = {
   environmentUrl?: string | null;
   error?: unknown;
   imageUrl?: string | null;
-  intervalId?: number | null;
   jobKind?: string;
   jobUrl?: string | null;
   lastPollError?: string;

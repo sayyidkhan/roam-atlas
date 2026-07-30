@@ -73,7 +73,6 @@ export function createExplorerNavigationController(
   ): Promise<void> {
     if (
       state.isResolvingClick ||
-      state.pendingJob ||
       !state.currentPage ||
       !state.activePack
     ) {
@@ -160,7 +159,6 @@ export function createExplorerNavigationController(
   ): Promise<void> {
     if (
       state.isResolvingClick ||
-      state.pendingJob ||
       !state.activePack
     ) {
       return;

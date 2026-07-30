@@ -1,5 +1,8 @@
+import type { QueryClient } from "@tanstack/react-query";
+
 import { createArtworkCompletionController } from "./artworkCompletionController";
 import { createArtworkInteractiveController } from "./artworkInteractiveController";
+import { createArtworkJobQueryPolling } from "./artworkJobQueryPolling";
 import { createArtworkLifecycleController } from "./artworkLifecycleController";
 import { createArtworkPartialController } from "./artworkPartialController";
 import { createArtworkPollingController } from "./artworkPollingController";
@@ -41,7 +44,10 @@ type ArtworkControllerDependencies =
     InteractiveDependencies,
     "artworkRuntimeController" | "state"
   > &
-  Omit<LifecycleDependencies, "state"> &
+  Omit<
+    LifecycleDependencies,
+    "state" | "stopArtworkPolling"
+  > &
   Omit<
     CompletionDependencies,
     "artworkLifecycleController" | "state"
@@ -53,6 +59,7 @@ type ArtworkControllerDependencies =
   Omit<
     PollingDependencies,
     | "artworkCompletionController"
+    | "artworkJobQueryPolling"
     | "artworkLifecycleController"
     | "artworkPartialController"
     | "state"
@@ -63,6 +70,7 @@ type ArtworkControllerDependencies =
     }) => Promise<BrowserExperienceConfig>;
     hasStoredImageQualityPreference: () => boolean;
     normalizeImageQuality: (value: unknown) => string;
+    queryClient: QueryClient;
     state: ArtworkControllerState;
   };
 
@@ -86,6 +94,7 @@ export function createArtworkController(
     isArtworkJobFailed,
     listNextArtworkDestinations,
     preloadArtworkImage,
+    queryClient,
     render,
     normalizeImageQuality,
     toApiUrl
@@ -102,18 +111,25 @@ export function createArtworkController(
     isArtworkJobFailed,
     listNextArtworkDestinations,
     preloadArtworkImage,
+    queryClient,
     render,
     state,
     toApiUrl
   });
   const { prefetchNextDestinations } =
     artworkPrefetchController;
+  const artworkJobQueryPolling =
+    createArtworkJobQueryPolling({
+      intervalMs: ARTWORK_POLL_INTERVAL_MS,
+      queryClient
+    });
   const artworkLifecycleController =
     createArtworkLifecycleController({
       getArtworkFailureMessage,
       getPageArtworkJobKey,
       render,
-      state
+      state,
+      stopArtworkPolling: artworkJobQueryPolling.stop
     });
   const artworkCompletionController =
     createArtworkCompletionController({
@@ -134,10 +150,10 @@ export function createArtworkController(
       state
     });
   const artworkPollingController = createArtworkPollingController({
-    ARTWORK_POLL_INTERVAL_MS,
     ARTWORK_POLL_MAX_ATTEMPTS,
     ARTWORK_POLL_TIMEOUT_MS,
     artworkCompletionController,
+    artworkJobQueryPolling,
     artworkLifecycleController,
     artworkPartialController,
     explainClickError,
@@ -195,6 +211,8 @@ export function createArtworkController(
     ...artworkPrefetchController,
     requestSceneArtwork,
     requestCurrentPageArtwork,
+    stopAllArtworkPolling:
+      artworkJobQueryPolling.stopAll,
     stopArtworkPoller,
     renderImageGenerationPending,
     requestArtworkForCurrentPage,

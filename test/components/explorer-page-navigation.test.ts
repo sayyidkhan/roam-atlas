@@ -46,8 +46,7 @@ function createState(): ExplorerNavigationState {
     currentSceneId: "overview",
     environmentPlans: new Map(),
     imageQuality: "high",
-    isResolvingClick: false,
-    pendingJob: null
+    isResolvingClick: false
   };
 }
 

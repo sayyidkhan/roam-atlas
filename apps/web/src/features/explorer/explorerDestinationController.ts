@@ -1,9 +1,9 @@
 import type { CountrySummary } from "../../app/applicationRuntimeTypes";
 import {
-  explorerDestinationBridge,
+  explorerDestinationStore,
   type DestinationPhase,
   type ExplorerDestinationItem
-} from "./explorerDestinationBridge";
+} from "./explorerDestinationStore";
 import {
   findDestinationHotspot,
   getDestinationMapNumber,
@@ -91,7 +91,7 @@ export function createExplorerDestinationController({
 }: ExplorerDestinationDependencies) {
   function publish(input: ExplorerDestinationInput): void {
     const items = buildDestinationItems(input);
-    explorerDestinationBridge.publish({
+    explorerDestinationStore.getState().setSnapshot({
       board:
         input.mode === "loading"
           ? buildLoadingBoard(input, items)

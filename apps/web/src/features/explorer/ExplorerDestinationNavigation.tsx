@@ -2,23 +2,23 @@ import {
   useEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type CSSProperties
 } from "react";
+import { useStore } from "zustand";
 
 import {
-  explorerDestinationBridge,
+  explorerDestinationStore,
   type ExplorerDestinationItem
-} from "./explorerDestinationBridge";
+} from "./explorerDestinationStore";
 
 const READY_PROGRESS_STYLE = {
   "--prefetch-progress": "100%"
 } as CSSProperties;
 
 export function ExplorerLoadingBoard() {
-  const snapshot = useSyncExternalStore(
-    explorerDestinationBridge.subscribe,
-    explorerDestinationBridge.getSnapshot
+  const snapshot = useStore(
+    explorerDestinationStore,
+    (state) => state.snapshot
   );
   const board = snapshot?.board;
   if (!board) return null;
@@ -128,9 +128,9 @@ export function ExplorerLoadingBoard() {
 }
 
 export function ExplorerRegionRail() {
-  const snapshot = useSyncExternalStore(
-    explorerDestinationBridge.subscribe,
-    explorerDestinationBridge.getSnapshot
+  const snapshot = useStore(
+    explorerDestinationStore,
+    (state) => state.snapshot
   );
   const rail = snapshot?.rail;
   const listRef = useRef<HTMLDivElement>(null);

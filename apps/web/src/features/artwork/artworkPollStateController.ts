@@ -6,7 +6,6 @@ import type {
 } from "./artworkRuntimeTypes";
 
 type ArtworkPollStateDependencies = {
-  artworkPollIntervalMs: number;
   artworkPollMaxAttempts: number;
   artworkPollTimeoutMs: number;
   artworkLifecycleController: ArtworkLifecycleController;
@@ -18,7 +17,6 @@ export function createArtworkPollStateController(
   dependencies: ArtworkPollStateDependencies
 ) {
   const {
-    artworkPollIntervalMs,
     artworkPollMaxAttempts,
     artworkPollTimeoutMs,
     artworkLifecycleController,
@@ -29,38 +27,6 @@ export function createArtworkPollStateController(
     markArtworkJobFailed,
     stopArtworkPoller
   } = artworkLifecycleController;
-
-  function startArtworkPoller(
-    artworkJobKey: string,
-    tick: (attemptId: number) => Promise<void>,
-    attemptId: number
-  ): void {
-    stopArtworkPoller(artworkJobKey);
-    const current =
-      state.artworkJobs.get(artworkJobKey) ?? {};
-    let pollInFlight = false;
-    const guardedTick = async (): Promise<void> => {
-      if (pollInFlight) return;
-      pollInFlight = true;
-      try {
-        await tick(attemptId);
-      } finally {
-        pollInFlight = false;
-      }
-    };
-    const intervalId = window.setInterval(
-      guardedTick,
-      artworkPollIntervalMs
-    );
-    state.artworkJobs.set(artworkJobKey, {
-      ...current,
-      attemptId,
-      intervalId,
-      startedAt: current.startedAt ?? Date.now(),
-      attempts: current.attempts ?? 0
-    });
-    void guardedTick();
-  }
 
   function recordArtworkPollAttempt(
     artworkJobKey: string,
@@ -131,7 +97,6 @@ export function createArtworkPollStateController(
       ...current,
       ...job,
       page: current.page ?? page,
-      intervalId: current.intervalId,
       startedAt: current.startedAt,
       attempts: current.attempts
     });
@@ -141,7 +106,6 @@ export function createArtworkPollStateController(
   return {
     copyArtworkJobStatus,
     recordArtworkPollAttempt,
-    shouldStopArtworkPolling,
-    startArtworkPoller
+    shouldStopArtworkPolling
   };
 }

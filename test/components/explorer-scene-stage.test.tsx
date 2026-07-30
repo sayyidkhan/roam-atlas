@@ -9,11 +9,11 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExplorerSceneStage } from "../../apps/web/src/features/explorer/ExplorerSceneStage";
-import { explorerSceneBridge } from "../../apps/web/src/features/explorer/explorerSceneBridge";
+import { explorerSceneStore } from "../../apps/web/src/features/explorer/explorerSceneStore";
 
 afterEach(() => {
   cleanup();
-  act(() => explorerSceneBridge.clear());
+  act(() => explorerSceneStore.getState().clear());
 });
 
 describe("ExplorerSceneStage", () => {
@@ -22,7 +22,7 @@ describe("ExplorerSceneStage", () => {
     const { container } = render(<ExplorerSceneStage />);
 
     act(() => {
-      explorerSceneBridge.publish({
+      explorerSceneStore.getState().setSnapshot({
         commands: { openTarget },
         displayImage: {
           isPreview: false,

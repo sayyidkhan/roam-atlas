@@ -1,3 +1,5 @@
+import type { QueryClient } from "@tanstack/react-query";
+
 import type { RuntimePage } from "../../app/browserRuntime";
 import { mergeCachedPrefetchedArtwork } from "./artworkPrefetchCache";
 import { createArtworkPrefetchJobController } from "./artworkPrefetchJobController";
@@ -38,6 +40,7 @@ type ArtworkPrefetchDependencies = {
     limit: number;
   }) => ArtworkTarget[];
   preloadArtworkImage: (imageUrl: string) => Promise<unknown>;
+  queryClient: QueryClient;
   render: () => void;
   state: ArtworkPrefetchState;
   toApiUrl: (path: string) => string;
@@ -57,6 +60,7 @@ export function createArtworkPrefetchController(
     isArtworkJobFailed,
     listNextArtworkDestinations,
     preloadArtworkImage,
+    queryClient,
     render,
     state,
     toApiUrl
@@ -83,6 +87,7 @@ export function createArtworkPrefetchController(
       isArtworkJobFailed,
       isTargetReady,
       preloadArtworkImage,
+      queryClient,
       render,
       state,
       toApiUrl

@@ -1,3 +1,5 @@
+import { createStore } from "zustand/vanilla";
+
 export type SceneBounds = {
   height: number;
   width: number;
@@ -48,28 +50,15 @@ export type ExplorerSceneTarget = {
   };
 };
 
-type Listener = () => void;
-
-let currentSnapshot: ExplorerSceneSnapshot | null = null;
-const listeners = new Set<Listener>();
-
-export const explorerSceneBridge = {
-  clear(): void {
-    currentSnapshot = null;
-    listeners.forEach((listener) => listener());
-  },
-
-  getSnapshot(): ExplorerSceneSnapshot | null {
-    return currentSnapshot;
-  },
-
-  publish(snapshot: ExplorerSceneSnapshot): void {
-    currentSnapshot = snapshot;
-    listeners.forEach((listener) => listener());
-  },
-
-  subscribe(listener: Listener): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }
+type ExplorerSceneStoreState = {
+  clear: () => void;
+  setSnapshot: (snapshot: ExplorerSceneSnapshot) => void;
+  snapshot: ExplorerSceneSnapshot | null;
 };
+
+export const explorerSceneStore =
+  createStore<ExplorerSceneStoreState>((set) => ({
+    snapshot: null,
+    clear: () => set({ snapshot: null }),
+    setSnapshot: (snapshot) => set({ snapshot })
+  }));

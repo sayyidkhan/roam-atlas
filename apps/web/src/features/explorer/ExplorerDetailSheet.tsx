@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useStore } from "zustand";
 
 import {
   factConfidenceLabel,
@@ -6,15 +6,15 @@ import {
 } from "@roamatlas/domain/guardrails.js";
 
 import {
-  explorerDetailBridge,
+  explorerDetailStore,
   type ExplorerDetailNode,
   type ExplorerDetailSnapshot
-} from "./explorerDetailBridge";
+} from "./explorerDetailStore";
 
 export function ExplorerDetailSheet() {
-  const snapshot = useSyncExternalStore(
-    explorerDetailBridge.subscribe,
-    explorerDetailBridge.getSnapshot
+  const snapshot = useStore(
+    explorerDetailStore,
+    (state) => state.snapshot
   );
   const isVisible = Boolean(
     snapshot?.detailOverride ||

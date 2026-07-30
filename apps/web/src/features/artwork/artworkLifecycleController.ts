@@ -8,6 +8,7 @@ type ArtworkLifecycleDependencies = {
   getPageArtworkJobKey: (page: ArtworkPage | null) => string;
   render: () => void;
   state: ArtworkState;
+  stopArtworkPolling: (artworkJobKey: string) => void;
 };
 
 export function createArtworkLifecycleController(
@@ -17,18 +18,12 @@ export function createArtworkLifecycleController(
     getArtworkFailureMessage,
     getPageArtworkJobKey,
     render,
-    state
+    state,
+    stopArtworkPolling
   } = dependencies;
 
   function stopArtworkPoller(artworkJobKey: string): void {
-    const current = state.artworkJobs.get(artworkJobKey);
-    if (current?.intervalId) {
-      window.clearInterval(current.intervalId);
-      state.artworkJobs.set(artworkJobKey, {
-        ...current,
-        intervalId: null
-      });
-    }
+    stopArtworkPolling(artworkJobKey);
   }
 
   function isCurrentArtworkAttempt(
@@ -77,8 +72,7 @@ export function createArtworkLifecycleController(
     state.artworkJobs.set(artworkJobKey, {
       ...current,
       status,
-      error: getArtworkFailureMessage(error),
-      intervalId: null
+      error: getArtworkFailureMessage(error)
     });
     if (
       state.currentPage &&

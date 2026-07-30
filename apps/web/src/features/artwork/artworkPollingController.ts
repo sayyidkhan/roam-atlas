@@ -1,6 +1,9 @@
 import type { ArtworkCompletionController } from "./artworkCompletionController";
 import type { ArtworkLifecycleController } from "./artworkLifecycleController";
 import type { ArtworkPartialController } from "./artworkPartialController";
+import type {
+  ArtworkJobQueryPolling
+} from "./artworkJobQueryPolling";
 import { createArtworkPollStateController } from "./artworkPollStateController";
 import type {
   ArtworkJob,
@@ -9,10 +12,10 @@ import type {
 } from "./artworkRuntimeTypes";
 
 type ArtworkPollingDependencies = {
-  ARTWORK_POLL_INTERVAL_MS: number;
   ARTWORK_POLL_MAX_ATTEMPTS: number;
   ARTWORK_POLL_TIMEOUT_MS: number;
   artworkCompletionController: ArtworkCompletionController;
+  artworkJobQueryPolling: ArtworkJobQueryPolling;
   artworkLifecycleController: ArtworkLifecycleController;
   artworkPartialController: ArtworkPartialController;
   explainClickError: (error: unknown) => string;
@@ -30,10 +33,10 @@ export function createArtworkPollingController(
   dependencies: ArtworkPollingDependencies
 ) {
   const {
-    ARTWORK_POLL_INTERVAL_MS,
     ARTWORK_POLL_MAX_ATTEMPTS,
     ARTWORK_POLL_TIMEOUT_MS,
     artworkCompletionController,
+    artworkJobQueryPolling,
     artworkLifecycleController,
     artworkPartialController,
     explainClickError,
@@ -57,7 +60,6 @@ export function createArtworkPollingController(
     artworkPartialController;
   const artworkPollStateController =
     createArtworkPollStateController({
-      artworkPollIntervalMs: ARTWORK_POLL_INTERVAL_MS,
       artworkPollMaxAttempts: ARTWORK_POLL_MAX_ATTEMPTS,
       artworkPollTimeoutMs: ARTWORK_POLL_TIMEOUT_MS,
       artworkLifecycleController,
@@ -67,9 +69,30 @@ export function createArtworkPollingController(
   const {
     copyArtworkJobStatus,
     recordArtworkPollAttempt,
-    shouldStopArtworkPolling,
-    startArtworkPoller
+    shouldStopArtworkPolling
   } = artworkPollStateController;
+
+  function startArtworkPoller(
+    artworkJobKey: string,
+    tick: (attemptId: number) => Promise<void>,
+    attemptId: number
+  ): void {
+    stopArtworkPoller(artworkJobKey);
+    const current =
+      state.artworkJobs.get(artworkJobKey) ?? {};
+    state.artworkJobs.set(artworkJobKey, {
+      ...current,
+      attemptId,
+      startedAt: current.startedAt ?? Date.now(),
+      attempts: current.attempts ?? 0
+    });
+    artworkJobQueryPolling.start({
+      identity: attemptId,
+      jobUrl: current.jobUrl ?? artworkJobKey,
+      poll: () => tick(attemptId),
+      pollKey: artworkJobKey
+    });
+  }
 
   async function pollArtworkJob(
     sceneId: string,

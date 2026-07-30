@@ -2,7 +2,7 @@ import type {
   ExplorerSceneSnapshot,
   ExplorerSceneTarget,
   SceneBounds
-} from "./explorerSceneBridge";
+} from "./explorerSceneStore";
 
 export type SceneInput = {
   ambientLayers?: unknown[];

@@ -1,10 +1,14 @@
+// @vitest-environment jsdom
+
 import {
   describe,
   expect,
   it,
   vi
 } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
 
+import { createArtworkJobQueryPolling } from "../../apps/web/src/features/artwork/artworkJobQueryPolling";
 import { createArtworkPendingController } from "../../apps/web/src/features/artwork/artworkPendingController";
 import { createArtworkPollStateController } from "../../apps/web/src/features/artwork/artworkPollStateController";
 import { createArtworkRequestController } from "../../apps/web/src/features/artwork/artworkRequestController";
@@ -142,7 +146,6 @@ describe("artwork poll state", () => {
       status: "processing"
     });
     const controller = createArtworkPollStateController({
-      artworkPollIntervalMs: 100,
       artworkPollMaxAttempts: 10,
       artworkPollTimeoutMs: 500,
       artworkLifecycleController: runtime,
@@ -162,18 +165,16 @@ describe("artwork poll state", () => {
     );
   });
 
-  it("copies provider status without replacing local timer accounting", () => {
+  it("copies provider status without replacing local attempt accounting", () => {
     const state = createState();
     const runtime = createRuntimeController();
     state.artworkJobs.set("overview", {
       attemptId: 8,
       attempts: 3,
-      intervalId: 42,
       startedAt: 100,
       status: "processing"
     });
     const controller = createArtworkPollStateController({
-      artworkPollIntervalMs: 100,
       artworkPollMaxAttempts: 10,
       artworkPollTimeoutMs: 10_000,
       artworkLifecycleController: runtime,
@@ -187,7 +188,6 @@ describe("artwork poll state", () => {
         {
           attempts: 99,
           imageUrl: "/partial.png",
-          intervalId: 99,
           startedAt: 999,
           status: "partial"
         },
@@ -200,9 +200,45 @@ describe("artwork poll state", () => {
     expect(state.artworkJobs.get("overview")).toMatchObject({
       attempts: 3,
       imageUrl: "/partial.png",
-      intervalId: 42,
       startedAt: 100,
       status: "partial"
     });
+  });
+});
+
+describe("artwork job query polling", () => {
+  it("uses the query scheduler and stops a keyed poll cleanly", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false }
+        }
+      });
+      const polling = createArtworkJobQueryPolling({
+        intervalMs: 100,
+        queryClient
+      });
+      const poll = vi.fn(async () => {});
+
+      polling.start({
+        identity: 4,
+        jobUrl: "/api/artwork/jobs/overview",
+        poll,
+        pollKey: "overview"
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(poll).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(100);
+      expect(poll).toHaveBeenCalledTimes(2);
+
+      polling.stop("overview", 4);
+      await vi.advanceTimersByTimeAsync(300);
+      expect(poll).toHaveBeenCalledTimes(2);
+      queryClient.clear();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

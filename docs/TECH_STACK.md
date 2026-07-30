@@ -12,8 +12,8 @@ global store:
 | State category | Current owner | Examples |
 | --- | --- | --- |
 | Route state | React Router | Country, place, and configuration URLs |
-| Remote/API state | TanStack Query | Country-pack registry and later job polling |
-| Shared browser workflow state | Zustand feature stores | Country setup and later explorer/artwork UI state |
+| Remote/API state | TanStack Query | Country-pack registry and artwork job polling |
+| Shared browser workflow state | Zustand feature stores | Country setup and explorer presentation state |
 | Component presentation state | React state and reducers | Dialogs, tabs, disclosure, and focus |
 | Browser preferences | Typed storage adapters | Image quality and other user preferences |
 | Server job state | API-owned repositories and runtime files | Artwork status, metadata, and generated artifacts |
@@ -36,7 +36,7 @@ Zustand feature stores
   -> local workflow and cross-component UI state
 
 TanStack Query
-  -> API reads, cache, invalidation, and later polling
+  -> API reads, cache, invalidation, and artwork job polling
 
 Hono API
   -> job creation and factual/visual policy

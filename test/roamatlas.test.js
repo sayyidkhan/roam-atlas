@@ -1682,6 +1682,20 @@ test("country shell uses starter map wording instead of generated draft wording"
     new URL("../apps/web/src/features/countrySetup/CountrySetupSurface.tsx", import.meta.url),
     "utf8"
   );
+  const countrySetupActionsSource = readFileSync(
+    new URL(
+      "../apps/web/src/features/countrySetup/components/CountrySetupActions.tsx",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const countrySetupHeroSource = readFileSync(
+    new URL(
+      "../apps/web/src/features/countrySetup/components/CountrySetupHero.tsx",
+      import.meta.url
+    ),
+    "utf8"
+  );
   const countrySetupActionSource = readFileSync(
     new URL(
       "../apps/web/src/features/countrySetup/countrySetupActionController.ts",
@@ -1711,8 +1725,8 @@ test("country shell uses starter map wording instead of generated draft wording"
   );
   const styleSource = readFrontendStylesSource();
 
-  assert.match(countrySetupViewSource, /Back to countries/);
-  assert.match(countrySetupViewSource, /Reset Generated Visuals/);
+  assert.match(countrySetupActionsSource, /Back to countries/);
+  assert.match(countrySetupActionsSource, /Reset Generated Visuals/);
   assert.match(countryDraftToolbarSource, /Rebuild starter info/);
   assert.match(countryDraftToolbarSource, /function DraftToolMenu/);
   assert.match(countryDraftToolbarSource, /function ResetIcon/);
@@ -1727,13 +1741,13 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(countryDraftToolbarSource, /useState\(false\)/);
   assert.match(countryDraftToolbarSource, /<strong>\{label\}<\/strong>/);
   assert.match(countryDraftToolbarSource, /draft-button-tooltip-title/);
-  assert.match(countrySetupViewSource, /Action guide/);
-  assert.match(countrySetupViewSource, /toggle-action-guide/);
+  assert.match(countrySetupHeroSource, /Action guide/);
+  assert.match(countrySetupHeroSource, /toggle-action-guide/);
   assert.doesNotMatch(appSource, /countryActionLegendOpen/);
-  assert.match(countrySetupViewSource, /useState\(false\)/);
-  assert.match(countrySetupViewSource, /aria-expanded/);
-  assert.match(countrySetupViewSource, /function ActionGuide/);
-  assert.match(countrySetupViewSource, /className="country-action-legend"/);
+  assert.match(countrySetupHeroSource, /useState\(false\)/);
+  assert.match(countrySetupHeroSource, /aria-expanded/);
+  assert.match(countrySetupHeroSource, /function CountryActionGuide/);
+  assert.match(countrySetupHeroSource, /className="country-action-legend"/);
   assert.match(countryDraftToolbarSource, /Refresh regions, summary, and themes/);
   assert.match(countryDraftToolbarSource, /Clear cached thumbnails and search again/);
   assert.match(countryDraftViewControllerSource, /preserveScroll: true/);
@@ -1748,7 +1762,7 @@ test("country shell uses starter map wording instead of generated draft wording"
     countryDraftViewControllerSource,
     /captureScroll|restoreScroll/
   );
-  assert.match(countrySetupViewSource, /reset-generated-visuals/);
+  assert.match(countrySetupActionsSource, /reset-generated-visuals/);
   assert.match(countryDraftViewControllerSource, /function rebuildMetadata/);
   assert.match(countryDraftViewControllerSource, /function resetReferencePhotos/);
   assert.match(countryDraftToolbarSource, /Reset photos/);
@@ -2726,7 +2740,10 @@ test("server persists country starter maps in country-scoped runtime storage", (
     countryDraftContextSource
   ].join("\n");
   const countrySetupViewSource = readFileSync(
-    new URL("../apps/web/src/features/countrySetup/CountrySetupSurface.tsx", import.meta.url),
+    new URL(
+      "../apps/web/src/features/countrySetup/components/CountrySetupActions.tsx",
+      import.meta.url
+    ),
     "utf8"
   );
   const countryDraftSurfaceSource = readFileSync(

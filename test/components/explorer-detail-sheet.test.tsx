@@ -9,11 +9,11 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ExplorerDetailSheet } from "../../apps/web/src/features/explorer/ExplorerDetailSheet";
-import { explorerDetailBridge } from "../../apps/web/src/features/explorer/explorerDetailBridge";
+import { explorerDetailStore } from "../../apps/web/src/features/explorer/explorerDetailStore";
 
 afterEach(() => {
   cleanup();
-  act(() => explorerDetailBridge.clear());
+  act(() => explorerDetailStore.getState().clear());
 });
 
 describe("ExplorerDetailSheet", () => {
@@ -26,7 +26,7 @@ describe("ExplorerDetailSheet", () => {
     render(<ExplorerDetailSheet />);
 
     act(() => {
-      explorerDetailBridge.publish({
+      explorerDetailStore.getState().setSnapshot({
         commands,
         detailOverride: null,
         mode: "expanded",
@@ -62,7 +62,7 @@ describe("ExplorerDetailSheet", () => {
     render(<ExplorerDetailSheet />);
 
     act(() => {
-      explorerDetailBridge.publish({
+      explorerDetailStore.getState().setSnapshot({
         commands: {
           close: vi.fn(),
           collapse: vi.fn(),

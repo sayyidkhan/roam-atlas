@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useStore } from "zustand";
 
 import { ExplorerDetailSheet } from "./ExplorerDetailSheet";
 import {
@@ -6,12 +6,12 @@ import {
 } from "./ExplorerDestinationNavigation";
 import { ExplorerSceneStage } from "./ExplorerSceneStage";
 import { ExplorerNavigationFeedback } from "./ExplorerNavigationFeedback";
-import { explorerChromeBridge } from "./explorerChromeBridge";
+import { explorerChromeStore } from "./explorerChromeStore";
 
 export function ExplorerViewport() {
-  const snapshot = useSyncExternalStore(
-    explorerChromeBridge.subscribe,
-    explorerChromeBridge.getSnapshot
+  const snapshot = useStore(
+    explorerChromeStore,
+    (state) => state.snapshot
   );
 
   return (

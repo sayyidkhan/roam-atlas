@@ -1,3 +1,5 @@
+import { createStore } from "zustand/vanilla";
+
 export type DestinationPhase =
   | "failed"
   | "idle"
@@ -46,28 +48,15 @@ export type ExplorerDestinationSnapshot = {
   } | null;
 };
 
-type Listener = () => void;
-
-let currentSnapshot: ExplorerDestinationSnapshot | null = null;
-const listeners = new Set<Listener>();
-
-export const explorerDestinationBridge = {
-  clear(): void {
-    currentSnapshot = null;
-    listeners.forEach((listener) => listener());
-  },
-
-  getSnapshot(): ExplorerDestinationSnapshot | null {
-    return currentSnapshot;
-  },
-
-  publish(snapshot: ExplorerDestinationSnapshot): void {
-    currentSnapshot = snapshot;
-    listeners.forEach((listener) => listener());
-  },
-
-  subscribe(listener: Listener): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }
+type ExplorerDestinationStoreState = {
+  clear: () => void;
+  setSnapshot: (snapshot: ExplorerDestinationSnapshot) => void;
+  snapshot: ExplorerDestinationSnapshot | null;
 };
+
+export const explorerDestinationStore =
+  createStore<ExplorerDestinationStoreState>((set) => ({
+    snapshot: null,
+    clear: () => set({ snapshot: null }),
+    setSnapshot: (snapshot) => set({ snapshot })
+  }));

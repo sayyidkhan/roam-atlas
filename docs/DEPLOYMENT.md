@@ -16,6 +16,9 @@ Deploy `dist/web/` to a static host or CDN. Configure SPA fallback to
 `index.html` for application routes such as `/singapore` and
 `/singapore/config`.
 
+The workspace install and frontend build require Node.js 22.22 or newer to
+match React Router 8's runtime baseline.
+
 The frontend owns bundled assets under `public/`, including
 `/country-cards/*`. It does not require provider credentials.
 

@@ -27,7 +27,6 @@ export type ExplorerNavigationState = {
   environmentPlans: Map<string, EnvironmentPlan>;
   imageQuality: string;
   isResolvingClick: boolean;
-  pendingJob: unknown;
 };
 
 export type EnvironmentPlan = {

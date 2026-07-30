@@ -13,7 +13,10 @@ const explorerClientSource = readFileSync(
   "utf8"
 );
 const countrySetupViewSource = readFileSync(
-  new URL("../apps/web/src/features/countrySetup/CountrySetupSurface.tsx", import.meta.url),
+  new URL(
+    "../apps/web/src/features/countrySetup/components/ImageQualitySetting.tsx",
+    import.meta.url
+  ),
   "utf8"
 );
 const imageQualityPreferenceSource = readFileSync(
@@ -153,7 +156,7 @@ test("visible artwork is interactive while speculative generation is narrowly bo
 
 test("current artwork polling copies server state and has terminal cleanup", () => {
   const scenePoll = sourceBetween("async function pollArtworkJob", "async function pollCurrentPageArtworkJob");
-  const pagePoll = sourceBetween("async function pollCurrentPageArtworkJob", "function startArtworkPoller");
+  const pagePoll = sourceBetween("async function pollCurrentPageArtworkJob", "return {");
 
   assert.match(
     scenePoll,
@@ -165,7 +168,9 @@ test("current artwork polling copies server state and has terminal cleanup", () 
   );
   assert.match(appSource, /ARTWORK_POLL_TIMEOUT_MS/);
   assert.match(appSource, /ARTWORK_POLL_MAX_ATTEMPTS/);
-  assert.match(appSource, /window\.clearInterval\(current\.intervalId\)/);
+  assert.match(appSource, /new QueryObserver/);
+  assert.match(appSource, /refetchInterval: intervalMs/);
+  assert.doesNotMatch(appSource, /window\.setInterval/);
   assert.match(appSource, /markArtworkJobFailed/);
   assert.match(appSource, /function retryArtwork/);
   assert.match(appSource, /function fetchArtworkResource/);

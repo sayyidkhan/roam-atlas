@@ -8,12 +8,12 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ExplorerNavigationFeedback } from "../../apps/web/src/features/explorer/ExplorerNavigationFeedback";
-import { explorerFeedbackBridge } from "../../apps/web/src/features/explorer/explorerFeedbackBridge";
+import { explorerFeedbackStore } from "../../apps/web/src/features/explorer/explorerFeedbackStore";
 import { createExplorerFeedbackController } from "../../apps/web/src/features/explorer/explorerFeedbackController";
 
 afterEach(() => {
   cleanup();
-  act(() => explorerFeedbackBridge.clear());
+  act(() => explorerFeedbackStore.getState().clear());
 });
 
 describe("ExplorerNavigationFeedback", () => {

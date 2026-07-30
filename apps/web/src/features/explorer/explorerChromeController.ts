@@ -2,7 +2,7 @@ import type {
   ApplicationState
 } from "../../app/applicationRuntimeTypes";
 import type { RuntimePack } from "../../app/browserRuntime";
-import { explorerChromeBridge } from "./explorerChromeBridge";
+import { explorerChromeStore } from "./explorerChromeStore";
 
 type ExplorerChromeControllerDependencies = {
   cancelPendingNavigation: () => void;
@@ -34,15 +34,14 @@ export function createExplorerChromeController({
   let breadcrumb = "Curated facts. Generated-style visuals.";
 
   function publish(): void {
-    explorerChromeBridge.publish({
+    explorerChromeStore.getState().setSnapshot({
       backDisabled: state.history.length === 0,
       breadcrumb,
       commands: {
         back,
         countries: enterCountryLanding
       },
-      isBusy:
-        state.isResolvingClick || Boolean(state.pendingJob),
+      isBusy: state.isResolvingClick,
       isVisible: state.currentView === "explorer",
       title
     });

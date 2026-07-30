@@ -1,4 +1,4 @@
-import type { DestinationPhase } from "./explorerDestinationBridge";
+import type { DestinationPhase } from "./explorerDestinationStore";
 
 export type DestinationArtworkJob = {
   error?: unknown;

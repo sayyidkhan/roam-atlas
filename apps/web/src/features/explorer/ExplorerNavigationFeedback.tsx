@@ -1,11 +1,11 @@
-import { useSyncExternalStore } from "react";
+import { useStore } from "zustand";
 
-import { explorerFeedbackBridge } from "./explorerFeedbackBridge";
+import { explorerFeedbackStore } from "./explorerFeedbackStore";
 
 export function ExplorerNavigationFeedback() {
-  const snapshot = useSyncExternalStore(
-    explorerFeedbackBridge.subscribe,
-    explorerFeedbackBridge.getSnapshot
+  const snapshot = useStore(
+    explorerFeedbackStore,
+    (state) => state.snapshot
   );
 
   return (

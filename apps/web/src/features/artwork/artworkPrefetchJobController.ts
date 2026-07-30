@@ -1,3 +1,5 @@
+import type { QueryClient } from "@tanstack/react-query";
+
 import { storePrefetchedArtwork } from "./artworkPrefetchCache";
 import { createArtworkPrefetchPollingController } from "./artworkPrefetchPollingController";
 import type {
@@ -24,6 +26,7 @@ type ArtworkPrefetchJobDependencies = {
   isArtworkJobFailed: (job: ArtworkJob) => boolean;
   isTargetReady: (target: ArtworkTarget) => boolean;
   preloadArtworkImage: (imageUrl: string) => Promise<unknown>;
+  queryClient: QueryClient;
   render: () => void;
   state: ArtworkPrefetchState;
   toApiUrl: (path: string) => string;
@@ -43,6 +46,7 @@ export function createArtworkPrefetchJobController(
     isArtworkJobFailed,
     isTargetReady,
     preloadArtworkImage,
+    queryClient,
     render,
     state,
     toApiUrl
@@ -58,6 +62,7 @@ export function createArtworkPrefetchJobController(
       fetchArtworkResource,
       isArtworkJobFailed,
       isCurrentRequest: isCurrentPrefetchRequest,
+      queryClient,
       scheduleRender: schedulePrefetchRailRender,
       state,
       storeCache,

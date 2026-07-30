@@ -124,6 +124,7 @@ export function composeApplicationRuntime() {
     renderImageGenerationPending,
     requestCurrentPageArtwork,
     requestSceneArtwork,
+    stopAllArtworkPolling,
     stopArtworkPoller
   } = artworkController;
 
@@ -221,6 +222,7 @@ export function composeApplicationRuntime() {
       render,
       setBrowserPath,
       state,
+      stopAllArtworkPolling,
       stopArtworkPoller
     })
   );

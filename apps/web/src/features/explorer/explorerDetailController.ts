@@ -1,10 +1,10 @@
 import type { RuntimePack } from "../../app/browserRuntime";
 import {
-  explorerDetailBridge,
+  explorerDetailStore,
   type ExplorerDetailMode,
   type ExplorerDetailNode,
   type ExplorerDetailOverride
-} from "./explorerDetailBridge";
+} from "./explorerDetailStore";
 
 type ExplorerDetailState = {
   activePack: RuntimePack | null;
@@ -39,7 +39,7 @@ export function createExplorerDetailController({
   }
 
   function renderNodeDetail(): void {
-    explorerDetailBridge.publish({
+    explorerDetailStore.getState().setSnapshot({
       commands: {
         close,
         collapse,

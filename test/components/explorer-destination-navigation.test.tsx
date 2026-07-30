@@ -12,11 +12,11 @@ import {
   ExplorerLoadingBoard,
   ExplorerRegionRail
 } from "../../apps/web/src/features/explorer/ExplorerDestinationNavigation";
-import { explorerDestinationBridge } from "../../apps/web/src/features/explorer/explorerDestinationBridge";
+import { explorerDestinationStore } from "../../apps/web/src/features/explorer/explorerDestinationStore";
 
 afterEach(() => {
   cleanup();
-  act(() => explorerDestinationBridge.clear());
+  act(() => explorerDestinationStore.getState().clear());
 });
 
 describe("ExplorerDestinationNavigation", () => {
@@ -44,7 +44,7 @@ describe("ExplorerDestinationNavigation", () => {
     );
 
     act(() => {
-      explorerDestinationBridge.publish({
+      explorerDestinationStore.getState().setSnapshot({
         board: {
           artworkJobKey: "page:overview",
           detail: "The factual page remains available.",
@@ -86,7 +86,7 @@ describe("ExplorerDestinationNavigation", () => {
     render(<ExplorerRegionRail />);
 
     act(() => {
-      explorerDestinationBridge.publish({
+      explorerDestinationStore.getState().setSnapshot({
         board: null,
         commands: {
           openCountrySetup: vi.fn(),

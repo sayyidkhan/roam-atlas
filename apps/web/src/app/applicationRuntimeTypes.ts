@@ -44,9 +44,6 @@ export type ApplicationState = ExplorerControllerState & {
     page: RuntimePage | null;
     nodeId: string | null;
   }>;
-  pendingJob: {
-    intervalId?: number;
-  } | null;
   selectedCountry: CountrySummary | null;
   prefetchRequests: Set<string>;
   prefetchJobs: Map<string, PrefetchArtworkJob>;

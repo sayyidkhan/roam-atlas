@@ -1,3 +1,5 @@
+import { createStore } from "zustand/vanilla";
+
 export type ExplorerFact = {
   confidence?: string;
   sourceUrl?: string;
@@ -33,28 +35,15 @@ export type ExplorerDetailSnapshot = {
   node: ExplorerDetailNode | null;
 };
 
-type Listener = () => void;
-
-let currentSnapshot: ExplorerDetailSnapshot | null = null;
-const listeners = new Set<Listener>();
-
-export const explorerDetailBridge = {
-  clear(): void {
-    currentSnapshot = null;
-    listeners.forEach((listener) => listener());
-  },
-
-  getSnapshot(): ExplorerDetailSnapshot | null {
-    return currentSnapshot;
-  },
-
-  publish(snapshot: ExplorerDetailSnapshot): void {
-    currentSnapshot = snapshot;
-    listeners.forEach((listener) => listener());
-  },
-
-  subscribe(listener: Listener): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }
+type ExplorerDetailStoreState = {
+  clear: () => void;
+  setSnapshot: (snapshot: ExplorerDetailSnapshot) => void;
+  snapshot: ExplorerDetailSnapshot | null;
 };
+
+export const explorerDetailStore =
+  createStore<ExplorerDetailStoreState>((set) => ({
+    snapshot: null,
+    clear: () => set({ snapshot: null }),
+    setSnapshot: (snapshot) => set({ snapshot })
+  }));

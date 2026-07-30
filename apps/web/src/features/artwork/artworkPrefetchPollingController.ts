@@ -1,3 +1,6 @@
+import type { QueryClient } from "@tanstack/react-query";
+
+import { createArtworkJobQueryPolling } from "./artworkJobQueryPolling";
 import type {
   ArtworkJob,
   ArtworkPage,
@@ -27,15 +30,11 @@ type ArtworkPrefetchPollingDependencies = {
     requestEpoch: number,
     requestSceneId: string | null
   ) => boolean;
+  queryClient: QueryClient;
   scheduleRender: () => void;
   state: ArtworkPrefetchState;
   storeCache: StorePrefetchCache;
   toApiUrl: (path: string) => string;
-};
-
-type PrefetchPoller = {
-  intervalId: number;
-  requestEpoch: number;
 };
 
 export function createArtworkPrefetchPollingController({
@@ -46,12 +45,16 @@ export function createArtworkPrefetchPollingController({
   fetchArtworkResource,
   isArtworkJobFailed,
   isCurrentRequest,
+  queryClient,
   scheduleRender,
   state,
   storeCache,
   toApiUrl
 }: ArtworkPrefetchPollingDependencies) {
-  const pollers = new Map<string, PrefetchPoller>();
+  const queryPolling = createArtworkJobQueryPolling({
+    intervalMs: artworkPollIntervalMs,
+    queryClient
+  });
 
   function poll(
     target: ArtworkTarget,
@@ -60,7 +63,7 @@ export function createArtworkPrefetchPollingController({
     requestEpoch: number,
     requestSceneId: string
   ): void {
-    stop(target.key);
+    queryPolling.stop(target.key);
     const tick = async (): Promise<void> => {
       if (
         !isCurrentRequest(
@@ -209,23 +212,11 @@ export function createArtworkPrefetchPollingController({
       }
     };
 
-    let pollInFlight = false;
-    const guardedTick = async (): Promise<void> => {
-      if (pollInFlight) return;
-      pollInFlight = true;
-      try {
-        await tick();
-      } finally {
-        pollInFlight = false;
-      }
-    };
-    void guardedTick();
-    pollers.set(target.key, {
-      intervalId: window.setInterval(
-        guardedTick,
-        artworkPollIntervalMs
-      ),
-      requestEpoch
+    queryPolling.start({
+      identity: requestEpoch,
+      jobUrl,
+      poll: tick,
+      pollKey: target.key
     });
   }
 
@@ -233,22 +224,11 @@ export function createArtworkPrefetchPollingController({
     key: string,
     expectedEpoch: number | null = null
   ): void {
-    const poller = pollers.get(key);
-    if (
-      !poller ||
-      (expectedEpoch != null &&
-        poller.requestEpoch !== expectedEpoch)
-    ) {
-      return;
-    }
-    window.clearInterval(poller.intervalId);
-    pollers.delete(key);
+    queryPolling.stop(key, expectedEpoch);
   }
 
   function stopAll(): void {
-    for (const key of [...pollers.keys()]) {
-      stop(key);
-    }
+    queryPolling.stopAll();
   }
 
   return { poll, stopAll };

@@ -32,6 +32,7 @@ type ApplicationLifecycleDependencies =
   };
   explainClickError: (error: unknown) => string;
   loadExperienceConfig: () => void | Promise<void>;
+  stopAllArtworkPolling: () => void;
 };
 
 const resolveRuntimeRoute = (
@@ -62,6 +63,7 @@ export function createApplicationLifecycleController(
     render,
     setBrowserPath,
     state,
+    stopAllArtworkPolling,
     stopArtworkPoller
   } = dependencies;
   let unbindPageClick: (() => void) | null = null;
@@ -147,6 +149,9 @@ export function createApplicationLifecycleController(
     routeRequestSequence += 1;
     unbindPageClick?.();
     unbindPageClick = null;
+    stopAllArtworkPolling();
+    invalidatePrefetchState();
+    cancelPendingNavigation();
   }
 
   return {

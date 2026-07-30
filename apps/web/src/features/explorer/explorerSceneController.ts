@@ -1,4 +1,4 @@
-import { explorerSceneBridge } from "./explorerSceneBridge";
+import { explorerSceneStore } from "./explorerSceneStore";
 import {
   buildSceneTargets,
   buildSceneTiles,
@@ -54,7 +54,7 @@ export function createExplorerSceneController({
   resolveOverlayTarget
 }: ExplorerSceneControllerDependencies) {
   function publish(input: ExplorerSceneInput): void {
-    explorerSceneBridge.publish({
+    explorerSceneStore.getState().setSnapshot({
       commands: {
         openTarget: (target) => {
           void resolveOverlayTarget({

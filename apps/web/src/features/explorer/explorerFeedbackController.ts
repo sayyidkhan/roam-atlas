@@ -1,4 +1,4 @@
-import { explorerFeedbackBridge } from "./explorerFeedbackBridge";
+import { explorerFeedbackStore } from "./explorerFeedbackStore";
 
 export type LoadingJob = {
   status: string;
@@ -60,7 +60,7 @@ export function createExplorerFeedbackController({
         },
       pageTitle
     });
-    explorerFeedbackBridge.publish({
+    explorerFeedbackStore.getState().updateSnapshot({
       loadingPanel: {
         detail: trail.current.detail,
         message: trail.current.message,
@@ -78,7 +78,7 @@ export function createExplorerFeedbackController({
 
   function clearLoadingPanel(): void {
     scrollStatusSequence += 1;
-    explorerFeedbackBridge.publish({
+    explorerFeedbackStore.getState().updateSnapshot({
       loadingPanel: null,
       scrollStatus: null
     });
@@ -86,21 +86,21 @@ export function createExplorerFeedbackController({
 
   function renderScrollStatus(message: string): void {
     scrollStatusSequence += 1;
-    explorerFeedbackBridge.publish({
+    explorerFeedbackStore.getState().updateSnapshot({
       scrollStatus: message
     });
   }
 
   function clearScrollStatus(): void {
     scrollStatusSequence += 1;
-    explorerFeedbackBridge.publish({
+    explorerFeedbackStore.getState().updateSnapshot({
       scrollStatus: null
     });
   }
 
   function renderTransientScrollStatus(message: string): void {
     const sequence = ++scrollStatusSequence;
-    explorerFeedbackBridge.publish({
+    explorerFeedbackStore.getState().updateSnapshot({
       scrollStatus: message
     });
     window.setTimeout(() => {
