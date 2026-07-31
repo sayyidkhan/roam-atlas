@@ -4,7 +4,8 @@ import {
   cleanup,
   fireEvent,
   render,
-  screen
+  screen,
+  within
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -44,6 +45,17 @@ describe("ExplorerViewport", () => {
       screen.getByRole("heading", { name: "Marina Bay" })
     ).toBeTruthy();
     expect(screen.getByText("Marina Bay · Ready")).toBeTruthy();
+    const navigation = screen.getByRole("navigation", {
+      name: "Explorer navigation"
+    });
+    expect(
+      within(navigation)
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toEqual(["Back", "Countries"]);
+    expect(
+      screen.getByLabelText("Current explorer location")
+    ).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Countries" })

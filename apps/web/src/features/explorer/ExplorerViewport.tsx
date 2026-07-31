@@ -27,38 +27,76 @@ export function ExplorerViewport() {
       aria-label="RoamAtlas visual explorer"
     >
       <header className="scene-hud">
-        <div>
-          <p className="eyebrow">RoamAtlas</p>
+        <nav
+          className="hud-actions"
+          aria-label="Explorer navigation"
+        >
+          <button
+            type="button"
+            className="ghost-button explorer-header-action"
+            disabled={snapshot?.backDisabled ?? true}
+            onClick={snapshot?.commands.back}
+          >
+            <BackIcon />
+            <span>Back</span>
+          </button>
+          <button
+            type="button"
+            className="ghost-button explorer-header-action"
+            onClick={snapshot?.commands.countries}
+          >
+            <CountriesIcon />
+            <span>Countries</span>
+          </button>
+        </nav>
+
+        <div
+          className="scene-hud-info"
+          aria-label="Current explorer location"
+        >
+          <p className="eyebrow scene-hud-brand">RoamAtlas</p>
           <h1>{snapshot?.title ?? "Country Overview Scroll"}</h1>
-          <p>
+          <p className="scene-hud-breadcrumb">
             {snapshot?.breadcrumb ??
               "Curated facts. Generated-style visuals."}
           </p>
         </div>
       </header>
 
-      <div className="corner-actions">
-        <button
-          type="button"
-          className="ghost-button"
-          onClick={snapshot?.commands.countries}
-        >
-          Countries
-        </button>
-        <button
-          type="button"
-          className="ghost-button"
-          disabled={snapshot?.backDisabled ?? true}
-          onClick={snapshot?.commands.back}
-        >
-          Back
-        </button>
-      </div>
-
       <ExplorerSceneStage />
       <ExplorerRegionRail />
       <ExplorerDetailSheet />
       <ExplorerNavigationFeedback />
     </section>
+  );
+}
+
+function BackIcon() {
+  return (
+    <svg
+      className="explorer-header-action-icon"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M11.75 4.75 6.5 10l5.25 5.25" />
+      <path d="M7 10h7" />
+    </svg>
+  );
+}
+
+function CountriesIcon() {
+  return (
+    <svg
+      className="explorer-header-action-icon"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="4" y="4" width="4" height="4" rx="0.75" />
+      <rect x="12" y="4" width="4" height="4" rx="0.75" />
+      <rect x="4" y="12" width="4" height="4" rx="0.75" />
+      <rect x="12" y="12" width="4" height="4" rx="0.75" />
+    </svg>
   );
 }

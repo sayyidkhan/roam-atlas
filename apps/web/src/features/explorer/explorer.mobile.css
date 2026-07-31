@@ -31,26 +31,33 @@
   }
 
   .scene-hud {
-    left: 12px;
-    right: auto;
-    flex-direction: column;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 12px;
+  }
+
+  .scene-hud-info {
+    min-width: 0;
+    max-width: min(420px, calc(100vw - 220px));
+    padding: 8px 11px 9px;
   }
 
   .scene-hud h1 {
-    max-width: calc(100vw - 24px);
-    font-size: 18px;
+    font-size: 17px;
   }
 
-  .corner-actions {
-    top: 102px;
-    left: 12px;
-    right: 12px;
-    bottom: auto;
-    justify-content: flex-start;
+  .scene-hud .scene-hud-breadcrumb {
+    font-size: 12px;
   }
 
-  .corner-actions .ghost-button {
-    min-width: 0;
+  .hud-actions {
+    flex: 0 0 auto;
+  }
+
+  .explorer-header-action {
+    height: 36px;
+    padding: 0 9px;
   }
 
   .scroll-stage.has-local-art .scene-canvas,
@@ -101,5 +108,21 @@
     right: auto;
     bottom: 12px;
     width: min(320px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 540px) {
+  .scene-hud {
+    flex-wrap: wrap;
+  }
+
+  .scene-hud-info {
+    width: min(100%, 360px);
+    max-width: 100%;
+    margin-left: auto;
+  }
+
+  .scroll-stage {
+    --scene-safe-top: 176px;
   }
 }
