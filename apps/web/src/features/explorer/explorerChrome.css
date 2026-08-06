@@ -21,7 +21,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 0;
   box-sizing: border-box;
   height: var(--explorer-header-card-height);
   width: fit-content;
@@ -30,7 +30,7 @@
   max-width: min(640px, calc(100vw - 320px));
   border: 1px solid rgba(31, 44, 42, 0.12);
   border-radius: 12px;
-  padding: 4px 6px 4px 14px;
+  padding: 8px 16px;
   background: rgba(255, 250, 240, 0.92);
   box-shadow: 0 8px 24px rgba(31, 44, 42, 0.08);
   text-align: left;
@@ -51,8 +51,8 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  height: 32px;
+  gap: 3px;
+  height: 30px;
   min-width: 0;
 }
 
@@ -153,17 +153,17 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 3px;
-  height: 32px;
-  padding-left: 7px;
+  height: 30px;
+  margin-left: 12px;
+  padding-left: 12px;
   border-left: 1px solid rgba(31, 44, 42, 0.12);
 }
 
 .scene-hud-detail-button {
-  height: 30px;
+  height: 28px;
   border: 0;
   border-radius: 8px;
-  padding: 0 9px;
+  padding: 0 12px;
   background: rgba(36, 95, 82, 0.1);
   color: var(--accent);
   font-size: 11px;

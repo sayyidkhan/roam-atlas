@@ -40,12 +40,21 @@
   .scene-hud-info {
     min-width: 0;
     max-width: min(420px, calc(100vw - 220px));
-    padding: 5px 11px;
+    padding: 8px 12px;
   }
 
   .scene-hud-breadcrumb h1 {
     max-width: calc(100vw - 310px);
     font-size: 13px;
+  }
+
+  .scene-hud-detail-actions {
+    margin-left: 8px;
+    padding-left: 8px;
+  }
+
+  .scene-hud-detail-button {
+    padding: 0 10px;
   }
 
   .hud-actions {
