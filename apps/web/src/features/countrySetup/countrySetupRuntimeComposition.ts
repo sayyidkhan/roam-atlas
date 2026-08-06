@@ -43,6 +43,9 @@ import { createPlaceImageSessionStore } from "../placeImages/placeImageSessionSt
 import { createCountryRuntimeCacheController } from "../runtimeCache/countryRuntimeCacheController";
 import { createCountryRuntimeCacheStore } from "../runtimeCache/countryRuntimeCacheStore";
 import { flushCountryRuntimeCache } from "../runtimeCache/runtimeCacheClient";
+import { createCountryArtworkQualityLockController } from "../artwork/countryArtworkQualityLockController";
+import { fetchCountryArtworkQualityLock } from "../artwork/artworkQualityLockClient";
+import { createCountryArtworkQualityLockStore } from "../artwork/countryArtworkQualityLockStore";
 import { createCountryExperienceController } from "./countryExperienceController";
 
 type ApplicationLifecycleBridge = ReturnType<
@@ -88,6 +91,19 @@ export function createCountrySetupRuntime({
     createPlaceImageSessionStore();
   const runtimeCacheStore =
     createCountryRuntimeCacheStore();
+  const artworkQualityLockStore =
+    createCountryArtworkQualityLockStore();
+  const artworkQualityLockController =
+    createCountryArtworkQualityLockController({
+      fetchCountryArtworkQualityLock: ({ countrySlug }) =>
+        fetchCountryArtworkQualityLock({
+          apiPath,
+          countrySlug,
+          fetchFn: fetch
+        }),
+      qualityLockStore: artworkQualityLockStore,
+      render
+    });
   const countryRuntimeCacheController =
     createCountryRuntimeCacheController({
       apiPath,
@@ -99,6 +115,8 @@ export function createCountrySetupRuntime({
       explainError,
       flushCountryRuntimeCache,
       placeImageSessionStore,
+      refreshArtworkQualityLock:
+        artworkQualityLockController.refresh,
       runtimeCacheStore,
       render,
       showToast: showAppToast
@@ -116,6 +134,8 @@ export function createCountrySetupRuntime({
     clearCountryGeneratedState:
       lifecycleBridge.clearCountryGeneratedState,
     countryDraftClient,
+    artworkQualityLockController,
+    artworkQualityLockStore,
     draftStore,
     createCountryPackStarterMap,
     elements,

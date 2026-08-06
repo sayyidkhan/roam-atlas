@@ -15,6 +15,9 @@ test("artwork creation persists a pending job without calling the image provider
   let providerCalls = 0;
   let processingRequests = 0;
   const service = createArtworkJobCreationService({
+    countryArtworkQualityLockService: {
+      lockImageQuality: async (_, quality) => quality
+    },
     runtimeCacheRoot: cacheRoot,
     imageConfig: {
       quality: "medium",

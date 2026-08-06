@@ -26,6 +26,9 @@ import type {
 import type {
   EnvironmentPlanQueue
 } from "./environmentPlanQueue.ts";
+import type {
+  CountryArtworkQualityLockService
+} from "./countryArtworkQualityLockService.ts";
 
 type ArtworkServiceJob =
   ArtworkJobRecord & {
@@ -53,6 +56,7 @@ type ArtworkServiceJob =
   };
 
 type ArtworkJobServiceDependencies = {
+  countryArtworkQualityLockService: CountryArtworkQualityLockService;
   configuredImageProvider: ReturnType<
     typeof createConfiguredImageProvider
   >;
@@ -97,6 +101,7 @@ type ArtworkJobServiceDependencies = {
 };
 
 export function createArtworkJobService({
+  countryArtworkQualityLockService,
   runtimeCacheRoot,
   imageConfig,
   experienceConfig,
@@ -129,6 +134,7 @@ export function createArtworkJobService({
   });
   const creationService =
     createArtworkJobCreationService({
+      countryArtworkQualityLockService,
       runtimeCacheRoot,
       imageConfig,
       configuredImageProvider,

@@ -42,10 +42,19 @@ export const ArtworkResponseSchema = z.object({
   page: ArtworkPageSchema
 });
 
+export const ArtworkQualityLockResponseSchema = z.object({
+  countrySlug: nonEmptyText,
+  imageQuality: z.enum(["low", "medium", "high"]).nullable(),
+  locked: z.boolean()
+});
+
 export type ArtworkRequestQuery = z.infer<
   typeof ArtworkRequestQuerySchema
 >;
 export type ArtworkPage = z.infer<typeof ArtworkPageSchema>;
 export type ArtworkResponse = z.infer<
   typeof ArtworkResponseSchema
+>;
+export type ArtworkQualityLockResponse = z.infer<
+  typeof ArtworkQualityLockResponseSchema
 >;

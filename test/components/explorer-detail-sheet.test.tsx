@@ -49,12 +49,11 @@ describe("ExplorerDetailSheet", () => {
       screen.getByRole("link", { name: "Source" })
     ).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: "Collapse detail" })
-    );
-    fireEvent.click(
       screen.getByRole("button", { name: "Close detail" })
     );
-    expect(commands.collapse).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "Collapse detail" })
+    ).toBeNull();
     expect(commands.close).toHaveBeenCalledTimes(1);
   });
 

@@ -5,6 +5,7 @@ import {
   createCountryDraftRenderState
 } from "../countryDraft/countryDraftViewModel";
 import { useCountryDraftState } from "../countryDraft/useCountryDraftState";
+import { useCountryArtworkQualityLock } from "../artwork/useCountryArtworkQualityLock";
 import { CacheFlushNotice } from "./components/CacheFlushNotice";
 import { CountrySetupActions } from "./components/CountrySetupActions";
 import { CountrySetupHero } from "./components/CountrySetupHero";
@@ -38,6 +39,10 @@ function CountrySetupContent({
     snapshot.draftStore,
     snapshot.country.slug
   );
+  const artworkQualityLock = useCountryArtworkQualityLock(
+    snapshot.artworkQualityLockStore,
+    snapshot.country.slug
+  );
   const draft = createCountryDraftRenderState(draftState);
 
   return (
@@ -53,6 +58,7 @@ function CountrySetupContent({
       <ImageQualitySetting
         selectedValue={snapshot.imageQuality}
         options={snapshot.imageQualityOptions}
+        lockState={artworkQualityLock}
         onChange={snapshot.commands.setImageQuality}
       />
       <CacheFlushNotice state={flushState} />

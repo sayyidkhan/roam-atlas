@@ -122,12 +122,17 @@ function requiresCountryPack(
 ): route is Extract<
   AppRoute,
   {
-    type: "country_overview" | "curated_place" | "invalid_place";
+    type:
+      | "country_overview"
+      | "curated_place"
+      | "invalid_place"
+      | "country_unmapped_place";
   }
 > {
   return (
     route.type === "country_overview" ||
     route.type === "curated_place" ||
-    route.type === "invalid_place"
+    route.type === "invalid_place" ||
+    route.type === "country_unmapped_place"
   );
 }

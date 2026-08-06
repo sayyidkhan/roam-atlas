@@ -6,10 +6,11 @@
 .detail-sheet {
   position: fixed;
   z-index: 30;
-  left: 18px;
-  right: auto;
-  bottom: 18px;
-  width: min(320px, calc(100vw - 36px));
+  left: auto;
+  right: 12px;
+  top: 72px;
+  bottom: auto;
+  width: min(300px, calc(100vw - 36px));
   max-height: min(38vh, 280px);
   overflow: auto;
   border: 1px solid rgba(31, 44, 42, 0.1);
@@ -18,16 +19,10 @@
   background: rgba(255, 250, 240, 0.92);
   backdrop-filter: blur(12px);
   box-shadow: 0 12px 32px rgba(31, 44, 42, 0.12);
-  transform: translateY(calc(100% + 24px));
+  transform: translateX(calc(100% + 24px));
   transition:
     transform 180ms ease,
     max-height 180ms ease;
-}
-
-.detail-sheet.is-compact {
-  max-height: none;
-  overflow: hidden;
-  padding: 10px 12px;
 }
 
 .detail-sheet.is-expanded {
@@ -35,7 +30,7 @@
 }
 
 .detail-sheet.is-open {
-  transform: translateY(0);
+  transform: translateX(0);
 }
 
 .sheet-close {
@@ -76,22 +71,6 @@
   font-size: 15px;
   line-height: 1.2;
   font-weight: 760;
-}
-
-.detail-sheet-icon-button {
-  flex: none;
-  border: 1px solid rgba(36, 95, 82, 0.18);
-  border-radius: 999px;
-  padding: 5px 10px;
-  background: rgba(36, 95, 82, 0.08);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 760;
-}
-
-.detail-sheet-icon-button--ghost {
-  background: rgba(255, 250, 240, 0.72);
-  color: var(--muted);
 }
 
 .detail-sheet-fact {

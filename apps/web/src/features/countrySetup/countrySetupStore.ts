@@ -10,6 +10,9 @@ import type {
   CountryRuntimeCacheStore
 } from "../runtimeCache/countryRuntimeCacheStore";
 import type {
+  CountryArtworkQualityLockStore
+} from "../artwork/countryArtworkQualityLockStore";
+import type {
   CountrySetupCommands
 } from "./countrySetupActionController";
 
@@ -34,6 +37,7 @@ export type CountrySetupState = {
   imageQuality: string;
   imageQualityOptions: readonly ImageQualityOption[];
   isSourceControlled: boolean;
+  artworkQualityLockStore: CountryArtworkQualityLockStore;
   runtimeCacheStore: CountryRuntimeCacheStore;
 };
 

@@ -77,19 +77,6 @@ export function ExplorerSceneStage() {
         onImageAspectChange={setImageAspect}
       />
       <ExplorerLoadingBoard />
-      {snapshot.isArtworkPending ? (
-        <div
-          className="artwork-pending"
-          role="status"
-          aria-live="polite"
-        >
-          <span
-            className="scroll-status-dot"
-            aria-hidden="true"
-          />
-          <span>{snapshot.pageTitle}</span>
-        </div>
-      ) : null}
     </div>
   );
 }

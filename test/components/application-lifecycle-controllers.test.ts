@@ -9,9 +9,15 @@ const pack: RuntimePack = {
   countrySlug: "singapore",
   nodes: {
     singapore: {
-      childIds: [],
+      childIds: ["marina-bay"],
       id: "singapore",
       title: "Singapore"
+    },
+    "marina-bay": {
+      childIds: [],
+      id: "marina-bay",
+      parentId: "singapore",
+      title: "Marina Bay"
     }
   },
   overviewSceneId: "singapore-overview",
@@ -73,6 +79,57 @@ describe("application lifecycle collaborators", () => {
       "not mapped in RoamAtlas' verified Singapore graph"
     );
     expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves traversal state when React Router reapplies the active place route", () => {
+    const state = createState();
+    const currentPage = {
+      id: "node-marina-bay",
+      nodeId: "marina-bay",
+      sceneId: "singapore-overview",
+      status: "ready"
+    };
+    state.currentView = "explorer";
+    state.activeCountrySlug = "singapore";
+    state.activePack = pack;
+    state.currentPage = currentPage;
+    state.history = [
+      {
+        nodeId: null,
+        page: {
+          id: "root",
+          nodeId: "singapore",
+          sceneId: "singapore-overview",
+          status: "ready"
+        }
+      }
+    ];
+    const cancelPendingNavigation = vi.fn();
+    const render = vi.fn();
+    const navigation =
+      createApplicationNavigationController({
+        cancelPendingNavigation,
+        clearPendingJob: vi.fn(),
+        invalidatePrefetchState: vi.fn(),
+        loadStoredCountryDraft: vi.fn(),
+        render,
+        setBrowserPath: vi.fn(),
+        state
+      });
+
+    navigation.enterCuratedPlace(
+      {
+        countrySlug: "singapore",
+        nodeId: "marina-bay",
+        pack
+      },
+      { updateUrl: false }
+    );
+
+    expect(state.currentPage).toBe(currentPage);
+    expect(state.history).toHaveLength(1);
+    expect(cancelPendingNavigation).not.toHaveBeenCalled();
+    expect(render).toHaveBeenCalledOnce();
   });
 
   it("clears only generated visual state", () => {

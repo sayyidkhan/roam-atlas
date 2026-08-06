@@ -65,10 +65,6 @@ type ExplorerSceneOrchestratorDependencies = {
   getPageEnvironmentUrl: (
     page: ExplorerPage | CachedArtwork | null | undefined
   ) => string | null;
-  getPageReadinessLabel: (
-    status: string | null | undefined,
-    hasImage: boolean
-  ) => string;
   isArtworkJobPending: (job: ArtworkJob | null) => boolean;
   listNextArtworkDestinations: (input: {
     currentPage: ExplorerPage;
@@ -82,7 +78,6 @@ type ExplorerSceneOrchestratorDependencies = {
     imageUrl: string
   ) => void | Promise<void>;
   publishExplorerChromeContent: (content: {
-    breadcrumb: string;
     title: string;
   }) => void;
   publishExplorerDestinations: (
@@ -111,7 +106,6 @@ export function createExplorerSceneOrchestrator(
     getPageArtworkCacheKey,
     getPageArtworkJobKey,
     getPageEnvironmentUrl,
-    getPageReadinessLabel,
     isArtworkJobPending,
     listNextArtworkDestinations,
     prefetchNextDestinations,
@@ -133,7 +127,6 @@ export function createExplorerSceneOrchestrator(
     const scene = pack.scenes[sceneId];
     if (!scene) return;
 
-    const rootNode = pack.nodes[scene.rootNodeId];
     const pageNode = currentPage.nodeId
       ? pack.nodes[currentPage.nodeId]
       : null;
@@ -159,17 +152,8 @@ export function createExplorerSceneOrchestrator(
             : pageArtwork?.imageUrl) ??
           null
         : sceneArtwork?.imageUrl ?? null;
-    const breadcrumbTitle =
-      pageNode?.title ?? rootNode?.title;
-
     publishExplorerChromeContent({
-      title: pageTitle,
-      breadcrumb: breadcrumbTitle
-        ? `${breadcrumbTitle} · ${getPageReadinessLabel(
-            currentPage.status,
-            Boolean(imageUrl)
-          )}`
-        : "Curated scene"
+      title: pageTitle
     });
 
     const environmentUrl = getSceneEnvironmentUrl(

@@ -140,6 +140,7 @@ describe("browser feature adapters", () => {
       explainError: (error) => String(error),
       flushCountryRuntimeCache: vi.fn().mockResolvedValue({ ok: true }),
       placeImageSessionStore,
+      refreshArtworkQualityLock: vi.fn().mockResolvedValue(undefined),
       runtimeCacheStore,
       render,
       showToast

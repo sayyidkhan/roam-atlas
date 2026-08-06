@@ -88,6 +88,12 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
               aria-label={`${country.name}, ${isMapped ? "source-reviewed explorer" : "starter explorer"}`}
             >
               <CountryCardPhoto country={country} />
+              <button
+                type="button"
+                className={styles["country-card-hitbox"]}
+                aria-label={`Open ${country.name}`}
+                onClick={() => onOpen(country)}
+              />
               <CountryCardFlag country={country} />
               <button
                 type="button"
@@ -102,6 +108,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
                 <button
                   type="button"
                   className={styles["country-status"]}
+                  aria-label={`Open ${country.name} explorer`}
                   onClick={() => onOpen(country)}
                 >
                   Open

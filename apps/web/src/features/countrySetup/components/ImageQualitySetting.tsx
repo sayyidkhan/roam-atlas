@@ -1,16 +1,31 @@
 import type {
   ImageQualityOption
 } from "../countrySetupStore";
+import type {
+  CountryArtworkQualityLockState
+} from "../../artwork/countryArtworkQualityLockStore";
 
 export function ImageQualitySetting({
   selectedValue,
   options,
+  lockState,
   onChange
 }: {
   selectedValue: string;
   options: readonly ImageQualityOption[];
+  lockState: CountryArtworkQualityLockState;
   onChange: (value: string) => void;
 }) {
+  const isLocked =
+    lockState.status === "ready" && lockState.lock.locked;
+  const isLoading =
+    lockState.status === "idle" || lockState.status === "loading";
+  const isUnavailable = lockState.status === "failed";
+  const activeValue =
+    lockState.status === "ready" && lockState.lock.imageQuality
+      ? lockState.lock.imageQuality
+      : selectedValue;
+
   return (
     <section
       className="country-image-quality"
@@ -20,18 +35,18 @@ export function ImageQualitySetting({
         <p className="eyebrow">Illustration quality</p>
         <h2 id="image-quality-title">Generated image detail</h2>
         <p>
-          Choose the quality for new and regenerated map
-          illustrations. High is recommended for the clearest atlas
-          artwork.
+          {isLocked
+            ? `This country is locked to ${activeValue} quality so every generated illustration stays visually consistent. Reset generated visuals to choose another quality.`
+            : "Choose the quality before generating map illustrations. High is recommended for the clearest atlas artwork."}
         </p>
       </div>
       <div
-        className="image-quality-options"
+        className={`image-quality-options${isLocked ? " is-locked" : ""}`}
         role="radiogroup"
         aria-label="Generated image quality"
       >
         {options.map((option) => {
-          const isActive = selectedValue === option.value;
+          const isActive = activeValue === option.value;
           return (
             <button
               key={option.value}
@@ -41,6 +56,8 @@ export function ImageQualitySetting({
               data-image-quality={option.value}
               role="radio"
               aria-checked={isActive}
+              aria-disabled={isLocked || isLoading || isUnavailable}
+              disabled={isLocked || isLoading || isUnavailable}
               onClick={() => onChange(option.value)}
             >
               <span className="image-quality-option-title">
@@ -56,6 +73,29 @@ export function ImageQualitySetting({
           );
         })}
       </div>
+      {isLocked ? (
+        <div className="image-quality-status" role="status">
+          <strong>Locked to {activeValue} quality</strong>
+          <span>
+            Generated visuals use one quality. Reset generated visuals to
+            change it.
+          </span>
+        </div>
+      ) : isLoading ? (
+        <div className="image-quality-status" role="status">
+          <strong>Checking existing visuals</strong>
+          <span>
+            Quality selection unlocks once this check completes.
+          </span>
+        </div>
+      ) : isUnavailable ? (
+        <div className="image-quality-status is-unavailable" role="status">
+          <strong>Couldn’t verify generated visuals</strong>
+          <span>
+            Refresh to check the quality setting again.
+          </span>
+        </div>
+      ) : null}
     </section>
   );
 }

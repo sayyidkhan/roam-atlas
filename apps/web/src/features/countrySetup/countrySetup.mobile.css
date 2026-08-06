@@ -36,6 +36,11 @@
     width: 100%;
   }
 
+  .image-quality-status {
+    grid-column: 1;
+    margin: -8px 4px 0;
+  }
+
   .country-action-legend dl {
     grid-template-columns: 1fr;
   }

@@ -40,6 +40,11 @@ export type CountryStarterMapCachePathsOptions = {
   countrySlug?: string;
 };
 
+export type CountryArtworkQualityLockPathsOptions = {
+  cacheRoot: string;
+  countrySlug?: string;
+};
+
 export function resolveRuntimeCacheRoot(
   environment: Record<string, string | undefined> = process.env
 ): string {
@@ -250,6 +255,26 @@ export function createCountryStarterMapCachePaths({
     ),
     countryPackDraftUrl:
       `${countryUrlPrefix}/country-pack-draft/country.json`
+  };
+}
+
+export function createCountryArtworkQualityLockPaths({
+  cacheRoot,
+  countrySlug = DEFAULT_RUNTIME_COUNTRY_SLUG
+}: CountryArtworkQualityLockPathsOptions) {
+  const countryCacheSlug = sanitizeCacheSlug(
+    countrySlug || DEFAULT_RUNTIME_COUNTRY_SLUG
+  );
+  const countryCacheRoot = path.join(cacheRoot, countryCacheSlug);
+
+  return {
+    countrySlug: countryCacheSlug,
+    countryCacheRoot,
+    qualityLockPath: path.join(
+      countryCacheRoot,
+      "image-jobs",
+      "quality-lock.json"
+    )
   };
 }
 

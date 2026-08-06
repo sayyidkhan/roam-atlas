@@ -3,7 +3,7 @@ export type CountryRouteSummary = {
 };
 
 export type CountryRoutePack = {
-  nodes: Readonly<Record<string, unknown>>;
+  nodes?: Readonly<Record<string, unknown>>;
   registration?: unknown;
   rootNodeId: string;
 };
@@ -108,7 +108,11 @@ export function canonicalRouteForNode(
       : routeForCountryLanding();
   }
 
-  if (!nodeId || nodeId === pack.rootNodeId || !pack.nodes[nodeId]) {
+  if (
+    !nodeId ||
+    nodeId === pack.rootNodeId ||
+    !pack.nodes?.[nodeId]
+  ) {
     return `/${String(countrySlug)}`;
   }
 
@@ -137,7 +141,7 @@ export function resolveAppRoute<
     const countrySlug = placeMatch[1];
     const nodeId = decodeURIComponent(placeMatch[2]);
     const pack = countryPacks[countrySlug] ?? null;
-    if (!pack) {
+    if (!pack?.nodes) {
       return { type: "country_unmapped_place", countrySlug, nodeId };
     }
     if (pack.nodes[nodeId]) {

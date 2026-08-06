@@ -98,6 +98,19 @@ export function createApplicationNavigationController(
       shouldRender = true
     }: NavigationOptions = {}
   ): void {
+    const isCurrentRoute =
+      state.currentView === "explorer" &&
+      state.activeCountrySlug === countrySlug &&
+      state.currentPage?.nodeId === nodeId;
+    if (isCurrentRoute) {
+      if (updateUrl) {
+        setBrowserPath(
+          canonicalRouteForNode(countrySlug, nodeId, pack)
+        );
+      }
+      if (shouldRender) render();
+      return;
+    }
     cancelPendingNavigation();
     invalidatePrefetchState();
     const activated = activateCuratedPlace(

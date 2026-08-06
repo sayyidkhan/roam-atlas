@@ -18,7 +18,7 @@ export function ExplorerDetailSheet() {
   );
   const isVisible = Boolean(
     snapshot?.detailOverride ||
-      (snapshot?.node && snapshot.mode !== "hidden")
+      (snapshot?.node && snapshot.mode === "expanded")
   );
   const mode = snapshot?.detailOverride
     ? "expanded"
@@ -29,12 +29,12 @@ export function ExplorerDetailSheet() {
       className={[
         "detail-sheet",
         isVisible ? "is-open" : "",
-        mode === "expanded" ? "is-expanded" : "",
-        mode === "compact" ? "is-compact" : ""
+        mode === "expanded" ? "is-expanded" : ""
       ]
         .filter(Boolean)
         .join(" ")}
       aria-label="Selected detail"
+      hidden={!isVisible}
     >
       <button
         className="sheet-close"
@@ -69,41 +69,11 @@ function ExplorerDetailContent({
   }
 
   const { node, mode } = snapshot;
-  if (!node || mode === "hidden") return null;
-  if (mode === "compact") {
-    return (
-      <section>
-        <DetailHeader
-          action={
-            <button
-              type="button"
-              className="detail-sheet-icon-button"
-              aria-label={`Show facts for ${node.title}`}
-              onClick={snapshot.commands.expand}
-            >
-              Facts
-            </button>
-          }
-          title={node.title ?? "Untitled place"}
-          type={formatNodeType(node.type)}
-        />
-      </section>
-    );
-  }
+  if (!node || mode !== "expanded") return null;
 
   return (
     <section>
       <DetailHeader
-        action={
-          <button
-            type="button"
-            className="detail-sheet-icon-button detail-sheet-icon-button--ghost"
-            aria-label="Collapse detail"
-            onClick={snapshot.commands.collapse}
-          >
-            Less
-          </button>
-        }
         title={node.title ?? "Untitled place"}
         type={formatNodeType(node.type)}
       />
@@ -113,11 +83,9 @@ function ExplorerDetailContent({
 }
 
 function DetailHeader({
-  action,
   title,
   type
 }: {
-  action?: React.ReactNode;
   title: string;
   type: string;
 }) {
@@ -127,7 +95,6 @@ function DetailHeader({
         <span className="detail-sheet-type">{type}</span>
         <strong className="detail-sheet-title">{title}</strong>
       </div>
-      {action}
     </div>
   );
 }

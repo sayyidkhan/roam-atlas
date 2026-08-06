@@ -248,7 +248,6 @@
   .loading-panel-progress--indeterminate span,
   .loading-destination-card--loading .loading-destination-progress,
   .draft-photo-spinner,
-  .artwork-pending,
   .scroll-status-dot {
     animation: none !important;
   }

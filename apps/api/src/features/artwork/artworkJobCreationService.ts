@@ -23,6 +23,9 @@ import type {
 import type {
   EnvironmentPlanQueue
 } from "./environmentPlanQueue.ts";
+import type {
+  CountryArtworkQualityLockService
+} from "./countryArtworkQualityLockService.ts";
 
 export type ArtworkCreationPage =
   Record<string, unknown> & {
@@ -47,6 +50,7 @@ export type ArtworkCreationOptions = {
 };
 
 type ArtworkJobCreationDependencies = {
+  countryArtworkQualityLockService: CountryArtworkQualityLockService;
   configuredImageProvider: ReturnType<
     typeof createConfiguredImageProvider
   >;
@@ -74,6 +78,7 @@ type ArtworkJobCreationDependencies = {
 };
 
 export function createArtworkJobCreationService({
+  countryArtworkQualityLockService,
   runtimeCacheRoot,
   imageConfig,
   configuredImageProvider,
@@ -146,6 +151,11 @@ export function createArtworkJobCreationService({
       );
     const countrySlug =
       getCountrySlugForPage(page);
+    imageQuality =
+      await countryArtworkQualityLockService.lockImageQuality(
+        countrySlug,
+        imageQuality
+      );
     const prompt =
       page.plan?.imagePrompt ?? "";
     const assetVersion =

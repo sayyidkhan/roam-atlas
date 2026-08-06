@@ -297,6 +297,23 @@ test("app routes only open configured country packs directly in the explorer", (
     nodeId: "not-real",
     pack: singaporePack
   });
+  assert.deepEqual(
+    resolveAppRoute("/singapore/place/giraffe", {
+      countries: worldCountries,
+      countryPacks: {
+        singapore: {
+          countrySlug: "singapore",
+          registration: "source_controlled",
+          rootNodeId: "singapore"
+        }
+      }
+    }),
+    {
+      type: "country_unmapped_place",
+      countrySlug: "singapore",
+      nodeId: "giraffe"
+    }
+  );
   assert.equal(routeForPlace("singapore", "giraffe"), "/singapore/place/giraffe");
   assert.equal(routeForPlace("malaysia", "malaysia-johor"), "/malaysia/place/malaysia-johor");
   assert.equal(routeForNode("singapore", "giraffe"), "/singapore/place/giraffe");
@@ -825,6 +842,18 @@ test("country packs load source data dynamically instead of hardcoding every pac
   assert.equal(singaporeData.countrySlug, "singapore");
   assert.equal(singaporeData.graphSource, undefined);
   assert.ok(singaporeData.nodes.singapore);
+  assert.deepEqual(
+    singaporeData.nodes["marina-bay-scroll"].facts.map(
+      ({ sourceUrl, checkedAt }) => ({ sourceUrl, checkedAt })
+    ),
+    [
+      {
+        sourceUrl:
+          "https://www.ura.gov.sg/place-management/placemaking/marina-bay/",
+        checkedAt: "2026-08-06"
+      }
+    ]
+  );
   assert.ok(singaporeData.scenes["singapore-overview"]);
   assert.equal(singaporeData.scenes["singapore-overview"].ambientLayers.length, 4);
   assert.equal(singaporeData.scenes["singapore-overview"].cameraPresets[0].id, "overview");

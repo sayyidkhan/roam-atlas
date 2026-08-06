@@ -216,6 +216,38 @@
   pointer-events: none;
 }
 
+.country-card-hitbox,
+:global(.country-card-hitbox) {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
+.country-card-hitbox:hover,
+.country-card-hitbox:active,
+:global(.country-card-hitbox):hover,
+:global(.country-card-hitbox):active {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.country-card-hitbox:focus-visible,
+:global(.country-card-hitbox):focus-visible {
+  background: transparent;
+  outline: 3px solid rgba(36, 95, 82, 0.48);
+  outline-offset: 3px;
+}
+
 .country-card:hover,
 .country-card:focus-visible,
 :global(.country-card):hover,
@@ -253,12 +285,13 @@
   position: absolute;
   top: 10px;
   right: 10px;
-  z-index: 3;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: center;
   max-width: 45%;
   min-height: 32px;
+  pointer-events: none;
 }
 
 .country-card-visual--fallback,
@@ -278,7 +311,7 @@
   position: absolute;
   top: 14px;
   left: 14px;
-  z-index: 4;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -374,13 +407,14 @@
 .country-card-footer,
 :global(.country-card-footer) {
   position: relative;
-  z-index: 3;
+  z-index: 4;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
   gap: 6px;
   width: 100%;
   min-width: 0;
+  pointer-events: none;
 }
 
 .country-status,
@@ -403,6 +437,7 @@
   font-weight: 800;
   line-height: 1.2;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .country-status:hover,

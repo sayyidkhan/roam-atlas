@@ -2,10 +2,7 @@ import type { ExplorerDestinationInput } from "./explorerDestinationController";
 import type { ExplorerSceneInput } from "./explorerSceneController";
 
 type ExplorerPublishers = {
-  chromeContent: (content: {
-    breadcrumb: string;
-    title: string;
-  }) => void;
+  chromeContent: (content: { title: string }) => void;
   chromeState: () => void;
   destinations: (input: ExplorerDestinationInput) => void;
   scene: (input: ExplorerSceneInput) => void;
@@ -27,10 +24,7 @@ export function createExplorerPublisherRegistry() {
     attach(nextPublishers: ExplorerPublishers): void {
       publishers = nextPublishers;
     },
-    publishChromeContent(content: {
-      breadcrumb: string;
-      title: string;
-    }): void {
+    publishChromeContent(content: { title: string }): void {
       requirePublishers().chromeContent(content);
     },
     publishChromeState(): void {

@@ -8,8 +8,10 @@ import { createConfiguredImageProvider } from "./features/artwork/configuredImag
 import { createArtworkJobPolicy } from "./features/artwork/artworkJobProcessingPolicy.ts";
 import { createArtworkJobRepository } from "./features/artwork/artworkJobRepository.ts";
 import { createArtworkJobService } from "./features/artwork/artworkJobService.ts";
+import { createCountryArtworkQualityLockService } from "./features/artwork/countryArtworkQualityLockService.ts";
 import { createEnvironmentPlanQueue } from "./features/artwork/environmentPlanQueue.ts";
 import { createArtworkRoutes } from "./features/artwork/artworkHttpHandler.ts";
+import { createArtworkQualityLockRoutes } from "./features/artwork/artworkQualityLockHttpHandler.ts";
 import { createRuntimeArtworkContext } from "./features/artwork/runtimeArtworkContext.ts";
 import { createCountryPackRoutes } from "./features/countryCatalog/countryPackHttpHandler.ts";
 import { createCountryDraftFeature } from "./features/countryDraft/countryDraftFeature.ts";
@@ -180,6 +182,12 @@ const artworkJobRepository = createArtworkJobRepository({
   assertJobWritable: (jobPath: string) =>
     artworkJobService?.assertWritable(jobPath)
 });
+const countryArtworkQualityLockService =
+  createCountryArtworkQualityLockService({
+    runtimeCacheRoot,
+    jobRepository: artworkJobRepository,
+    normalizeImageQuality: normalizeRequestedImageQuality
+  });
 const runtimeCacheService = createRuntimeCacheService({
   repository: createRuntimeCacheRepository({ runtimeCacheRoot }),
   waitForArtworkCreations: (countrySlug: string) =>
@@ -201,6 +209,7 @@ const environmentPlanQueue = createEnvironmentPlanQueue({
   isPathBeingFlushed: runtimeCacheService.isPathBeingFlushed
 });
 const artworkJobService = createArtworkJobService({
+  countryArtworkQualityLockService,
   runtimeCacheRoot,
   imageConfig: appConfig.image,
   experienceConfig: appExperienceConfig,
@@ -236,6 +245,11 @@ const api = createRoamAtlasApi({
       getDefaultArtworkPageForScene,
       createImageJob: artworkJobService.createImageJob,
       normalizeImageQuality: normalizeRequestedImageQuality
+    }),
+    createArtworkQualityLockRoutes({
+      defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
+      getCountryPack,
+      qualityLockService: countryArtworkQualityLockService
     }),
     createExperienceConfigRoutes({
       experienceConfig: appExperienceConfig,

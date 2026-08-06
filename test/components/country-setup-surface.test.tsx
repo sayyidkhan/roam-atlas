@@ -12,6 +12,7 @@ import { CountrySetupSurface } from "../../apps/web/src/features/countrySetup/Co
 import { countrySetupStore } from "../../apps/web/src/features/countrySetup/countrySetupStore";
 import { createCountryRuntimeCacheStore } from "../../apps/web/src/features/runtimeCache/countryRuntimeCacheStore";
 import { createCountryDraftStore } from "../../apps/web/src/features/countryDraft/countryDraftStore";
+import { createCountryArtworkQualityLockStore } from "../../apps/web/src/features/artwork/countryArtworkQualityLockStore";
 
 afterEach(() => {
   cleanup();
@@ -19,11 +20,48 @@ afterEach(() => {
 });
 
 describe("CountrySetupSurface", () => {
+  it("explains why quality controls are disabled while the lock is loading", () => {
+    const runtimeCacheStore = createCountryRuntimeCacheStore();
+    const draftStore = createCountryDraftStore();
+    const artworkQualityLockStore = createCountryArtworkQualityLockStore();
+    render(<CountrySetupSurface />);
+
+    act(() => {
+      countrySetupStore.getState().setSetup({
+        buildDraftPhotoUrl: vi.fn(() => "/reference.jpg"),
+        country: { code: "SG", name: "Singapore", slug: "singapore" },
+        canOpenMap: true,
+        draftStore,
+        draftCommands: createDraftCommandMocks(),
+        imageQuality: "high",
+        imageQualityOptions: [
+          { value: "high", label: "High", description: "Best detail" }
+        ],
+        isSourceControlled: true,
+        artworkQualityLockStore,
+        runtimeCacheStore,
+        commands: createCommandMocks()
+      });
+    });
+
+    expect(
+      screen.getByText("Checking existing visuals")
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("radio", { name: /High/ })
+    ).toHaveProperty("disabled", true);
+  });
+
   it("renders the setup shell from feature-owned store state", () => {
     const commands = createCommandMocks();
     const runtimeCacheStore =
       createCountryRuntimeCacheStore();
     const draftStore = createCountryDraftStore();
+    const artworkQualityLockStore = createCountryArtworkQualityLockStore();
+    artworkQualityLockStore.set("singapore", {
+      status: "ready",
+      lock: { countrySlug: "singapore", imageQuality: null, locked: false }
+    });
     draftStore.set("singapore", {
       status: "ready",
       draft: {
@@ -57,6 +95,7 @@ describe("CountrySetupSurface", () => {
           }
         ],
         isSourceControlled: true,
+        artworkQualityLockStore,
         runtimeCacheStore,
         commands
       });
@@ -129,6 +168,11 @@ describe("CountrySetupSurface", () => {
     const runtimeCacheStore =
       createCountryRuntimeCacheStore();
     const draftStore = createCountryDraftStore();
+    const artworkQualityLockStore = createCountryArtworkQualityLockStore();
+    artworkQualityLockStore.set("malaysia", {
+      status: "ready",
+      lock: { countrySlug: "malaysia", imageQuality: "medium", locked: true }
+    });
     draftStore.set("malaysia", {
       status: "ready",
       draft: {
@@ -158,8 +202,15 @@ describe("CountrySetupSurface", () => {
         draftStore,
         draftCommands: createDraftCommandMocks(),
         imageQuality: "medium",
-        imageQualityOptions: [],
+        imageQualityOptions: [
+          {
+            value: "medium",
+            label: "Medium",
+            description: "Balanced"
+          }
+        ],
         isSourceControlled: false,
+        artworkQualityLockStore,
         runtimeCacheStore,
         commands: createCommandMocks()
       });
@@ -172,6 +223,15 @@ describe("CountrySetupSurface", () => {
     expect(
       screen.getByText("Reviewed draft remains available")
     ).toBeTruthy();
+    expect(
+      screen.getByText("Locked to medium quality")
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Generated visuals use one quality/)
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("radio", { name: /Medium/ })
+    ).toHaveProperty("disabled", true);
   });
 });
 

@@ -40,15 +40,12 @@
   .scene-hud-info {
     min-width: 0;
     max-width: min(420px, calc(100vw - 220px));
-    padding: 8px 11px 9px;
+    padding: 5px 11px;
   }
 
-  .scene-hud h1 {
-    font-size: 17px;
-  }
-
-  .scene-hud .scene-hud-breadcrumb {
-    font-size: 12px;
+  .scene-hud-breadcrumb h1 {
+    max-width: calc(100vw - 310px);
+    font-size: 13px;
   }
 
   .hud-actions {
@@ -104,10 +101,16 @@
   }
 
   .detail-sheet {
+    top: auto;
     left: 12px;
     right: auto;
     bottom: 12px;
     width: min(320px, calc(100vw - 24px));
+    transform: translateY(calc(100% + 24px));
+  }
+
+  .detail-sheet.is-open {
+    transform: translateY(0);
   }
 }
 

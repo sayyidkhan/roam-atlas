@@ -26,6 +26,7 @@ type CountryRuntimeCacheControllerDependencies = {
     fetchFn: typeof fetch;
   }) => Promise<unknown>;
   placeImageSessionStore: PlaceImageSessionStore;
+  refreshArtworkQualityLock: (countrySlug: string) => Promise<void>;
   runtimeCacheStore: CountryRuntimeCacheStore;
   render: () => void;
   showToast: (options: AppToastOptions) => void;
@@ -46,6 +47,7 @@ export function createCountryRuntimeCacheController({
   explainError,
   flushCountryRuntimeCache,
   placeImageSessionStore,
+  refreshArtworkQualityLock,
   runtimeCacheStore,
   render,
   showToast
@@ -83,6 +85,9 @@ export function createCountryRuntimeCacheController({
       });
       clearCountryGeneratedState(country.slug);
       clearFeatureState(country.slug, visualsOnly);
+      if (visualsOnly) {
+        void refreshArtworkQualityLock(country.slug);
+      }
       runtimeCacheStore.set(country.slug, {
         status: "ready",
         scope,

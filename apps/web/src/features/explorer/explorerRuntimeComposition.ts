@@ -12,7 +12,6 @@ import {
 import {
   getPageArtworkCacheKey,
   getPageArtworkJobKey,
-  getPageReadinessLabel,
   isArtworkJobPending
 } from "../artwork/artworkJobPolicy";
 import {
@@ -75,7 +74,6 @@ export function createExplorerRuntime(
     getContainedImageRect,
     getPageArtworkCacheKey,
     getPageArtworkJobKey,
-    getPageReadinessLabel,
     isArtworkJobPending,
     isCurrentEnvironmentPlan,
     listNextArtworkDestinations,

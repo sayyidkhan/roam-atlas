@@ -30,6 +30,12 @@ import type {
 import {
   scopeInstructionToCandidate
 } from "./countryExperiencePolicy";
+import type {
+  CountryArtworkQualityLockStore
+} from "../artwork/countryArtworkQualityLockStore";
+import type {
+  createCountryArtworkQualityLockController
+} from "../artwork/countryArtworkQualityLockController";
 
 type DraftControllerDependencies = Parameters<
   typeof createCountryDraftController
@@ -51,6 +57,10 @@ type CountryExperienceDependencies = {
   appendUnconfirmedRegionCandidates:
     DraftControllerDependencies["appendUnconfirmedRegionCandidates"];
   apiPath: (path: string) => string;
+  artworkQualityLockController: ReturnType<
+    typeof createCountryArtworkQualityLockController
+  >;
+  artworkQualityLockStore: CountryArtworkQualityLockStore;
   clearCountryGeneratedState: (countrySlug: string) => void;
   countryDraftClient:
     DraftControllerDependencies["countryDraftClient"];
@@ -111,6 +121,8 @@ export function createCountryExperienceController(
     PLACE_IMAGE_SELECTION_VERSION,
     appendUnconfirmedRegionCandidates,
     apiPath,
+    artworkQualityLockController,
+    artworkQualityLockStore,
     clearCountryGeneratedState,
     countryDraftClient,
     draftStore,
@@ -262,6 +274,7 @@ export function createCountryExperienceController(
       draftStore,
       imageQuality: state.imageQuality,
       imageQualityOptions: IMAGE_QUALITY_OPTIONS,
+      artworkQualityLockStore,
       isSourceControlled: isConfiguredCountryPack(
         country.slug
       ),
@@ -269,6 +282,7 @@ export function createCountryExperienceController(
       draftCommands: countryDraftViewController.commands,
       commands: countrySetupCommands
     });
+    void artworkQualityLockController.load(country.slug);
   }
   
   async function resetCountryAndOpenMap(

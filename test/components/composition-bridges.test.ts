@@ -79,12 +79,10 @@ describe("runtime composition bridges", () => {
     });
 
     registry.publishChromeContent({
-      breadcrumb: "Singapore",
       title: "Overview"
     });
     registry.publishChromeState();
     expect(chromeContent).toHaveBeenCalledWith({
-      breadcrumb: "Singapore",
       title: "Overview"
     });
     expect(chromeState).toHaveBeenCalledOnce();

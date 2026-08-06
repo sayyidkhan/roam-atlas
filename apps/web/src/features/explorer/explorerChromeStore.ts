@@ -1,11 +1,16 @@
 import { createStore } from "zustand/vanilla";
 
+import type {
+  ExplorerBreadcrumbItem
+} from "./explorerBreadcrumbPolicy";
+
 export type ExplorerChromeSnapshot = {
   backDisabled: boolean;
-  breadcrumb: string;
+  breadcrumbs: ExplorerBreadcrumbItem[];
   commands: {
     back: () => void;
     countries: () => void;
+    openBreadcrumb: (nodeId: string) => void;
   };
   isBusy: boolean;
   isVisible: boolean;

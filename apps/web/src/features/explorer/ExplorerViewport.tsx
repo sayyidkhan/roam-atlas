@@ -1,6 +1,8 @@
 import { useStore } from "zustand";
 
 import { ExplorerDetailSheet } from "./ExplorerDetailSheet";
+import { ExplorerCompactDetailActions } from "./ExplorerCompactDetailActions";
+import { ExplorerBreadcrumbTrail } from "./ExplorerBreadcrumbTrail";
 import {
   ExplorerRegionRail
 } from "./ExplorerDestinationNavigation";
@@ -13,7 +15,6 @@ export function ExplorerViewport() {
     explorerChromeStore,
     (state) => state.snapshot
   );
-
   return (
     <section
       className={[
@@ -54,12 +55,18 @@ export function ExplorerViewport() {
           className="scene-hud-info"
           aria-label="Current explorer location"
         >
-          <p className="eyebrow scene-hud-brand">RoamAtlas</p>
-          <h1>{snapshot?.title ?? "Country Overview Scroll"}</h1>
-          <p className="scene-hud-breadcrumb">
-            {snapshot?.breadcrumb ??
-              "Curated facts. Generated-style visuals."}
-          </p>
+          <div className="scene-hud-copy">
+            <ExplorerBreadcrumbTrail
+              currentLabel={
+                snapshot?.title ?? "Country Overview Scroll"
+              }
+              items={snapshot?.breadcrumbs ?? []}
+              onSelect={
+                snapshot?.commands.openBreadcrumb ?? (() => {})
+              }
+            />
+          </div>
+          <ExplorerCompactDetailActions />
         </div>
       </header>
 
