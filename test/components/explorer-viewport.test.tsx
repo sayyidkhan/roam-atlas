@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -75,7 +76,7 @@ describe("ExplorerViewport", () => {
       within(navigation)
         .getAllByRole("button")
         .map((button) => button.textContent)
-    ).toEqual(["Back", "Countries"]);
+    ).toEqual(["Back", "Countries", "Full screen"]);
     expect(
       screen.getByLabelText("Current explorer location")
     ).toBeTruthy();
@@ -90,6 +91,132 @@ describe("ExplorerViewport", () => {
     expect(commands.countries).toHaveBeenCalledTimes(1);
     expect(commands.back).toHaveBeenCalledTimes(1);
     expect(container.querySelector("#scroll-stage")).toBeTruthy();
+  });
+
+  it("enters and exits fullscreen from the explorer header", async () => {
+    const fullscreenEnabledDescriptor =
+      Object.getOwnPropertyDescriptor(
+        document,
+        "fullscreenEnabled"
+      );
+    const fullscreenElementDescriptor =
+      Object.getOwnPropertyDescriptor(
+        document,
+        "fullscreenElement"
+      );
+    const exitFullscreenDescriptor =
+      Object.getOwnPropertyDescriptor(
+        document,
+        "exitFullscreen"
+      );
+    const requestFullscreenDescriptor =
+      Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "requestFullscreen"
+      );
+    let fullscreenElement: Element | null = null;
+    const exitFullscreen = vi.fn(async () => {
+      fullscreenElement = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    const requestFullscreen = vi.fn(async () => {
+      fullscreenElement = document.getElementById(
+        "scroll-viewport"
+      );
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+
+    Object.defineProperty(document, "fullscreenEnabled", {
+      configurable: true,
+      value: true
+    });
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => fullscreenElement
+    });
+    Object.defineProperty(document, "exitFullscreen", {
+      configurable: true,
+      value: exitFullscreen
+    });
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "requestFullscreen",
+      {
+        configurable: true,
+        value: requestFullscreen
+      }
+    );
+
+    try {
+      render(<ExplorerViewport />);
+      act(() => {
+        explorerChromeStore.getState().setSnapshot({
+          backDisabled: false,
+          breadcrumbs: [],
+          commands: {
+            back: vi.fn(),
+            countries: vi.fn(),
+            openBreadcrumb: vi.fn()
+          },
+          isBusy: false,
+          isVisible: true,
+          title: "Singapore"
+        });
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Enter full screen"
+        })
+      );
+      await waitFor(() => {
+        expect(requestFullscreen).toHaveBeenCalledTimes(1);
+        expect(
+          screen
+            .getByRole("button", {
+              name: "Exit full screen"
+            })
+            .getAttribute("aria-pressed")
+        ).toBe("true");
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Exit full screen"
+        })
+      );
+      await waitFor(() => {
+        expect(exitFullscreen).toHaveBeenCalledTimes(1);
+        expect(
+          screen
+            .getByRole("button", {
+              name: "Enter full screen"
+            })
+            .getAttribute("aria-pressed")
+        ).toBe("false");
+      });
+    } finally {
+      restoreProperty(
+        document,
+        "fullscreenEnabled",
+        fullscreenEnabledDescriptor
+      );
+      restoreProperty(
+        document,
+        "fullscreenElement",
+        fullscreenElementDescriptor
+      );
+      restoreProperty(
+        document,
+        "exitFullscreen",
+        exitFullscreenDescriptor
+      );
+      restoreProperty(
+        HTMLElement.prototype,
+        "requestFullscreen",
+        requestFullscreenDescriptor
+      );
+    }
   });
 
   it("hides the explorer and reflects disabled back state", () => {
@@ -234,3 +361,15 @@ describe("ExplorerViewport", () => {
     ).toBeNull();
   });
 });
+
+function restoreProperty(
+  target: object,
+  property: string,
+  descriptor: PropertyDescriptor | undefined
+) {
+  if (descriptor) {
+    Object.defineProperty(target, property, descriptor);
+    return;
+  }
+  Reflect.deleteProperty(target, property);
+}

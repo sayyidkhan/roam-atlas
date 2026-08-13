@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useStore } from "zustand";
 
 import { ExplorerDetailSheet } from "./ExplorerDetailSheet";
@@ -8,15 +9,18 @@ import {
 } from "./ExplorerDestinationNavigation";
 import { ExplorerSceneStage } from "./ExplorerSceneStage";
 import { ExplorerNavigationFeedback } from "./ExplorerNavigationFeedback";
+import { ExplorerFullscreenButton } from "./ExplorerFullscreenButton";
 import { explorerChromeStore } from "./explorerChromeStore";
 
 export function ExplorerViewport() {
+  const viewportRef = useRef<HTMLElement>(null);
   const snapshot = useStore(
     explorerChromeStore,
     (state) => state.snapshot
   );
   return (
     <section
+      ref={viewportRef}
       className={[
         "scroll-viewport",
         snapshot?.isVisible ? "" : "is-hidden",
@@ -35,20 +39,27 @@ export function ExplorerViewport() {
           <button
             type="button"
             className="ghost-button explorer-header-action"
+            aria-label="Back"
+            data-tooltip="Back"
             disabled={snapshot?.backDisabled ?? true}
             onClick={snapshot?.commands.back}
           >
             <BackIcon />
-            <span>Back</span>
+            <span className="explorer-header-action-label">Back</span>
           </button>
           <button
             type="button"
             className="ghost-button explorer-header-action"
+            aria-label="Countries"
+            data-tooltip="Countries"
             onClick={snapshot?.commands.countries}
           >
             <CountriesIcon />
-            <span>Countries</span>
+            <span className="explorer-header-action-label">
+              Countries
+            </span>
           </button>
+          <ExplorerFullscreenButton targetRef={viewportRef} />
         </nav>
 
         <div

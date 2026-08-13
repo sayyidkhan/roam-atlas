@@ -52,8 +52,9 @@ export function createExplorerDetailController({
   }
 
   function close(): void {
+    const detailNode = getDetailNode();
     state.detailOverride = null;
-    state.detailPanelMode = "hidden";
+    state.detailPanelMode = detailNode ? "compact" : "hidden";
     renderNodeDetail();
   }
 

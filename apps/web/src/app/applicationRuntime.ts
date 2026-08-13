@@ -1,19 +1,22 @@
 import { composeApplicationRuntime } from "./applicationRuntimeComposition";
 import { createApplicationRuntimeLifecycle } from "./applicationRuntimeLifecycle";
+import { createApplicationRuntimeManager } from "./applicationRuntimeManager";
 
-const applicationRuntimeLifecycle =
-  createApplicationRuntimeLifecycle(
-    composeApplicationRuntime()
+const applicationRuntimeManager =
+  createApplicationRuntimeManager(() =>
+    createApplicationRuntimeLifecycle(
+      composeApplicationRuntime()
+    )
   );
 
 export function startApplicationRuntime(): Promise<
   () => void
 > {
-  return applicationRuntimeLifecycle.start();
+  return applicationRuntimeManager.start();
 }
 
 export function applyApplicationRuntimeRoute(
   pathname: string
 ): Promise<void> {
-  return applicationRuntimeLifecycle.applyRoute(pathname);
+  return applicationRuntimeManager.applyRoute(pathname);
 }

@@ -26,6 +26,8 @@ export function ApplicationRuntimeHost({
   loadRuntime = loadApplicationRuntime
 }: ApplicationRuntimeHostProps) {
   const { pathname } = useLocation();
+  const [activeRuntime, setActiveRuntime] =
+    useState<ApplicationRuntimeModule | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,13 +35,17 @@ export function ApplicationRuntimeHost({
     let stopRuntime: (() => void) | null = null;
 
     void loadRuntime()
-      .then((runtime) => runtime.startApplicationRuntime())
-      .then((stop) => {
+      .then(async (runtime) => ({
+        runtime,
+        stop: await runtime.startApplicationRuntime()
+      }))
+      .then(({ runtime, stop }) => {
         if (isDisposed) {
           stop();
           return;
         }
         stopRuntime = stop;
+        setActiveRuntime(runtime);
       })
       .catch((error: unknown) => {
         if (isDisposed) return;
@@ -57,12 +63,11 @@ export function ApplicationRuntimeHost({
   }, [loadRuntime]);
 
   useEffect(() => {
+    if (!activeRuntime) return;
     let isDisposed = false;
 
-    void loadRuntime()
-      .then((runtime) =>
-        runtime.applyApplicationRuntimeRoute(pathname)
-      )
+    void activeRuntime
+      .applyApplicationRuntimeRoute(pathname)
       .then(() => {
         if (!isDisposed) setBootstrapError(null);
       })
@@ -78,7 +83,7 @@ export function ApplicationRuntimeHost({
     return () => {
       isDisposed = true;
     };
-  }, [loadRuntime, pathname]);
+  }, [activeRuntime, pathname]);
 
   return (
     <>

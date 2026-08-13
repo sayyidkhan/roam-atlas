@@ -109,4 +109,59 @@ describe("ApplicationRuntimeHost", () => {
       );
     });
   });
+
+  it("waits for startup and applies only the latest route", async () => {
+    let finishStartup!: (stop: () => void) => void;
+    const startApplicationRuntime = vi.fn(
+      () =>
+        new Promise<() => void>((resolve) => {
+          finishStartup = resolve;
+        })
+    );
+    const applyApplicationRuntimeRoute = vi
+      .fn()
+      .mockResolvedValue(undefined);
+    const loadRuntime = vi.fn().mockResolvedValue({
+      applyApplicationRuntimeRoute,
+      startApplicationRuntime
+    });
+
+    function RouteDriver() {
+      const navigate = useNavigate();
+      return (
+        <button
+          type="button"
+          onClick={() => navigate("/singapore")}
+        >
+          Open Singapore
+        </button>
+      );
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/argentina/config"]}>
+        <RouteDriver />
+        <ApplicationRuntimeHost loadRuntime={loadRuntime} />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(startApplicationRuntime).toHaveBeenCalledTimes(1);
+    });
+    expect(applyApplicationRuntimeRoute).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Singapore"
+      })
+    );
+    finishStartup(vi.fn());
+
+    await waitFor(() => {
+      expect(applyApplicationRuntimeRoute).toHaveBeenCalledTimes(1);
+      expect(applyApplicationRuntimeRoute).toHaveBeenCalledWith(
+        "/singapore"
+      );
+    });
+  });
 });

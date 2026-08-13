@@ -109,7 +109,7 @@ test("React composition root owns the frontend entry without an app monolith bri
   assert.match(runtimeHost, /runtime\.startApplicationRuntime\(\)/);
   assert.match(
     runtimeHost,
-    /runtime\.applyApplicationRuntimeRoute\(pathname\)/
+    /activeRuntime[\s\S]*\.applyApplicationRuntimeRoute\(pathname\)/
   );
   assert.match(runtimeHost, /useLocation\(\)/);
   assert.match(runtimeHost, /stopRuntime\?\.\(\)/);

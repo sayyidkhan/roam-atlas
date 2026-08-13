@@ -14,7 +14,7 @@ export function ApplicationShell() {
       />
 
       <section
-        className="country-shell"
+        className="country-shell is-hidden"
         id="country-shell"
         aria-label="Country overview"
       >
