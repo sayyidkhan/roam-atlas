@@ -28,7 +28,7 @@ describe("explorer navigation boundaries", () => {
       clamp: (value, minimum, maximum) =>
         Math.min(maximum, Math.max(minimum, value)),
       clamp01: (value) => Math.min(1, Math.max(0, value)),
-      getContainedImageRect: () =>
+      getRenderedImageRect: () =>
         new DOMRect(10, 20, 200, 100),
       stage,
       viewport

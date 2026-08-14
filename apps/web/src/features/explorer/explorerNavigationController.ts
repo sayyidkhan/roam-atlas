@@ -19,7 +19,7 @@ export function createExplorerNavigationController(
     clearLoadingPanel,
     elements,
     enterReadyPage,
-    getContainedImageRect,
+    getRenderedImageRect,
     getPageEnvironmentUrl,
     publishExplorerChromeState,
     renderDetour,
@@ -31,7 +31,7 @@ export function createExplorerNavigationController(
   const pageClickAdapter = createExplorerPageClickAdapter({
     clamp,
     clamp01,
-    getContainedImageRect,
+    getRenderedImageRect,
     stage: elements.stage,
     viewport: elements.viewport
   });

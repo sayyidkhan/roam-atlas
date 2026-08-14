@@ -69,15 +69,14 @@
 
   .scroll-stage.has-local-art .scene-canvas,
   .scroll-stage.has-artwork-preview .scene-canvas {
-    left: 12px;
-    width: min(calc(100vw - 24px), 366px);
-    height: calc(min(calc(100vw - 24px), 366px) / var(--scene-display-aspect, 1.5));
-    top: 43%;
-    transform: translateY(-50%);
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
   }
 
   .scroll-stage {
-    --scene-art-inset: 12px;
+    --scene-art-inset: 0px;
     --scene-safe-inline: 12px;
     --scene-safe-top: 156px;
     --scene-safe-bottom: 68px;

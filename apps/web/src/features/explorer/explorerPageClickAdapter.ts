@@ -27,7 +27,7 @@ type ExplorerPageClickAdapterDependencies = {
     maximum: number
   ) => number;
   clamp01: (value: number) => number;
-  getContainedImageRect: (
+  getRenderedImageRect: (
     image: HTMLImageElement
   ) => ExplorerClientRect;
   stage: HTMLElement;
@@ -43,7 +43,7 @@ export function createExplorerPageClickAdapter(
   const {
     clamp,
     clamp01,
-    getContainedImageRect,
+    getRenderedImageRect,
     stage,
     viewport
   } = dependencies;
@@ -90,7 +90,7 @@ export function createExplorerPageClickAdapter(
       return null;
     }
 
-    const imageRect = getContainedImageRect(image);
+    const imageRect = getRenderedImageRect(image);
     const scale = imageRect.width / image.naturalWidth;
     const imageX =
       clamp(event.clientX - imageRect.left, 0, imageRect.width) /
@@ -120,7 +120,7 @@ export function createExplorerPageClickAdapter(
     const image =
       stage.querySelector<HTMLImageElement>(".scene-image");
     if (image?.naturalWidth && image.naturalHeight) {
-      return getContainedImageRect(image);
+      return getRenderedImageRect(image);
     }
     return (
       stage

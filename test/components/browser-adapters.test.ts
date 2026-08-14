@@ -54,7 +54,7 @@ describe("browser feature adapters", () => {
       clamp: (value, minimum, maximum) =>
         Math.min(maximum, Math.max(minimum, value)),
       clamp01: (value) => Math.min(1, Math.max(0, value)),
-      getContainedImageRect: () => ({
+      getRenderedImageRect: () => ({
         height: 100,
         left: 0,
         top: 0,

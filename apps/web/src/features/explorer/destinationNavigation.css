@@ -1,7 +1,6 @@
 .scroll-stage.has-local-art {
-  margin-bottom: 52px;
   background:
-    linear-gradient(180deg, rgba(255, 250, 240, 0.5), rgba(248, 237, 216, 0.64)),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.1), rgba(248, 237, 216, 0.18)),
     #f8edd8;
 }
 
@@ -12,7 +11,12 @@
   right: 0;
   bottom: 0;
   padding: 18px 20px 14px;
-  background: linear-gradient(180deg, rgba(255, 250, 240, 0) 0%, rgba(255, 250, 240, 0.88) 38%, rgba(255, 250, 240, 0.96) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 250, 240, 0) 0%,
+    rgba(232, 244, 243, 0.12) 30%,
+    rgba(255, 250, 240, 0.72) 100%
+  );
   pointer-events: none;
 }
 

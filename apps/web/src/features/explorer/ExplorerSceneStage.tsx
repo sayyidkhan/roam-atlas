@@ -158,33 +158,43 @@ function SceneCanvas({
       ref={canvasRef}
     >
       {snapshot.displayImage ? (
-        <img
-          className={[
-            "scene-image",
-            snapshot.displayImage.isPreview
-              ? "scene-image--preview"
-              : ""
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          src={snapshot.displayImage.url}
-          alt={
-            snapshot.displayImage.isPreview
-              ? `${snapshot.scene.title} illustration preview`
-              : `${snapshot.scene.title} illustration`
-          }
-          decoding="async"
-          draggable={false}
-          ref={imageRef}
-          onLoad={(event) => {
-            const image = event.currentTarget;
-            if (image.naturalWidth && image.naturalHeight) {
-              onImageAspectChange(
-                image.naturalWidth / image.naturalHeight
-              );
+        <>
+          <img
+            aria-hidden="true"
+            className="scene-image scene-image--backdrop"
+            src={snapshot.displayImage.url}
+            alt=""
+            decoding="async"
+            draggable={false}
+          />
+          <img
+            className={[
+              "scene-image",
+              snapshot.displayImage.isPreview
+                ? "scene-image--preview"
+                : ""
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            src={snapshot.displayImage.url}
+            alt={
+              snapshot.displayImage.isPreview
+                ? `${snapshot.scene.title} illustration preview`
+                : `${snapshot.scene.title} illustration`
             }
-          }}
-        />
+            decoding="async"
+            draggable={false}
+            ref={imageRef}
+            onLoad={(event) => {
+              const image = event.currentTarget;
+              if (image.naturalWidth && image.naturalHeight) {
+                onImageAspectChange(
+                  image.naturalWidth / image.naturalHeight
+                );
+              }
+            }}
+          />
+        </>
       ) : null}
 
       {snapshot.tiles.map((tile) => (

@@ -84,7 +84,7 @@ export type ExplorerNavigationDependencies = {
       options: { signal?: AbortSignal }
     ) => Promise<FlipbookResult>;
   };
-  getContainedImageRect: (
+  getRenderedImageRect: (
     image: HTMLImageElement
   ) => ExplorerClientRect;
   getPageArtworkCacheKey: (

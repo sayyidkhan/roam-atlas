@@ -335,19 +335,19 @@
 .scroll-viewport:fullscreen {
   width: 100vw;
   height: 100vh;
-  background: var(--paper);
+  background: #f8edd8;
 }
 
 .scroll-stage {
   position: absolute;
   inset: 0;
 
-  --scene-art-inset: clamp(18px, 3vw, 48px);
+  --scene-art-inset: 0px;
   --scene-safe-inline: clamp(20px, 3vw, 56px);
   --scene-safe-top: clamp(104px, 12vh, 148px);
   --scene-safe-bottom: clamp(72px, 9vh, 112px);
-  --scene-art-max-width: calc(100vw - (var(--scene-art-inset) * 2));
-  --scene-art-max-height: calc(100vh - (var(--scene-art-inset) * 2));
+  --scene-art-max-width: 100vw;
+  --scene-art-max-height: 100vh;
   --scene-space-aspect: 1.5;
   --scene-display-aspect: var(--scene-space-aspect);
   --scene-fit-width: min(
@@ -391,8 +391,10 @@
 }
 
 .scroll-stage.has-local-art .scene-canvas {
-  width: var(--scene-fit-width);
-  height: var(--scene-fit-height);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
 }
 
 .scroll-stage--placeholder .scene-canvas {
@@ -409,13 +411,10 @@
 }
 
 .scroll-stage--placeholder.has-artwork-preview .scene-canvas {
-  left: 50%;
-  right: auto;
-  top: 50%;
-  bottom: auto;
-  width: var(--scene-fit-width);
-  height: var(--scene-fit-height);
-  transform: translate(-50%, -50%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
   border: 0;
   background: transparent;
   box-shadow: none;

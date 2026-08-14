@@ -71,7 +71,7 @@ export function createExplorerRuntime(
     clamp01,
     environmentPlanNeedsTargetRecovery,
     fetchArtworkResource,
-    getContainedImageRect,
+    getRenderedImageRect: getContainedImageRect,
     getPageArtworkCacheKey,
     getPageArtworkJobKey,
     isArtworkJobPending,

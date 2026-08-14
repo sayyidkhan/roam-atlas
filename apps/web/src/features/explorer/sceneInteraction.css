@@ -26,8 +26,20 @@
   filter: drop-shadow(0 0 26px rgba(31, 44, 42, 0.12));
 }
 
+.scene-canvas--artwork .scene-image--backdrop {
+  z-index: 0;
+  object-fit: cover;
+  opacity: 0.62;
+  transform: scale(1.08);
+  filter: blur(24px) saturate(0.82) brightness(1.06);
+}
+
 .scene-canvas--artwork .scene-image {
   object-fit: contain;
+}
+
+.scene-canvas--artwork .scene-image:not(.scene-image--backdrop) {
+  z-index: 1;
 }
 
 .scene-canvas .scene-image--preview {
@@ -65,8 +77,8 @@
   border: 0;
   border-radius: 18px;
   padding: 0;
-  background: rgba(36, 95, 82, 0.025);
-  box-shadow: inset 0 0 0 2px rgba(36, 95, 82, 0.22);
+  background: transparent;
+  box-shadow: none;
   cursor: pointer;
   pointer-events: auto;
   transition: background-color 140ms ease, box-shadow 140ms ease;
@@ -79,12 +91,18 @@
 
 .image-target-hotspot:hover,
 .image-target-hotspot:focus-visible {
-  background: rgba(36, 95, 82, 0.09);
-  box-shadow: inset 0 0 0 3px rgba(36, 95, 82, 0.48);
+  background: rgba(36, 95, 82, 0.06);
+  box-shadow: inset 0 0 0 2px rgba(36, 95, 82, 0.42);
   outline: none;
 }
 
 .image-target-hotspot.is-active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.image-target-hotspot.is-active:hover,
+.image-target-hotspot.is-active:focus-visible {
   background: rgba(36, 95, 82, 0.08);
-  box-shadow: inset 0 0 0 3px rgba(36, 95, 82, 0.44);
+  box-shadow: inset 0 0 0 2px rgba(36, 95, 82, 0.5);
 }
