@@ -1,5 +1,7 @@
 import { createStore } from "zustand/vanilla";
 
+import type { SceneOutlinePoint } from "./sceneOutlineGeometry";
+
 export type SceneBounds = {
   height: number;
   width: number;
@@ -48,6 +50,7 @@ export type ExplorerSceneTarget = {
     x: number;
     y: number;
   };
+  visualOutline?: SceneOutlinePoint[];
 };
 
 type ExplorerSceneStoreState = {

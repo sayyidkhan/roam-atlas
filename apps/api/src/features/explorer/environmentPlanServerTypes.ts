@@ -44,6 +44,7 @@ export type RawEnvironmentTarget = {
   nodeId?: unknown;
   reason?: unknown;
   visualBounds?: BoundsInput | null;
+  visualOutline?: unknown;
 };
 
 export type RawEnvironmentLayer = {

@@ -3,6 +3,10 @@ import type {
   ExplorerSceneTarget,
   SceneBounds
 } from "./explorerSceneStore";
+import {
+  normalizeSceneOutline,
+  type SceneOutlinePoint
+} from "./sceneOutlineGeometry";
 
 export type SceneInput = {
   ambientLayers?: unknown[];
@@ -24,6 +28,7 @@ type EnvironmentTarget = {
   labelBounds?: SceneBounds;
   nodeId?: string;
   visualBounds?: SceneBounds;
+  visualOutline?: SceneOutlinePoint[];
 };
 
 type GeneratedTile = {
@@ -62,7 +67,8 @@ export function buildSceneTargets({
         isActive: target.nodeId === selectedNodeId,
         mode: "visual",
         nodeId: target.nodeId,
-        nodeTitle
+        nodeTitle,
+        visualOutline: target.visualOutline
       }),
       buildSceneTarget({
         bounds: target.labelBounds,
@@ -104,13 +110,15 @@ function buildSceneTarget({
   isActive,
   mode,
   nodeId,
-  nodeTitle
+  nodeTitle,
+  visualOutline
 }: {
   bounds: SceneBounds;
   isActive: boolean;
   mode: "label" | "visual";
   nodeId: string;
   nodeTitle: string;
+  visualOutline?: SceneOutlinePoint[];
 }): ExplorerSceneTarget {
   return {
     ariaLabel:
@@ -124,7 +132,11 @@ function buildSceneTarget({
     normalizedClick: {
       x: clamp01(bounds.x + bounds.width / 2),
       y: clamp01(bounds.y + bounds.height / 2)
-    }
+    },
+    visualOutline:
+      mode === "visual"
+        ? normalizeSceneOutline(visualOutline, bounds)
+        : undefined
   };
 }
 

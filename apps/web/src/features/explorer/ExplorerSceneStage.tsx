@@ -8,6 +8,7 @@ import { useStore } from "zustand";
 
 import { getContainedImageRect } from "./sceneGeometry";
 import { ExplorerEnvironmentLayers } from "./ExplorerEnvironmentLayers";
+import { ExplorerSceneBoundaries } from "./ExplorerSceneBoundaries";
 import {
   explorerSceneStore,
   type ExplorerSceneSnapshot,
@@ -92,6 +93,8 @@ function SceneCanvas({
   const imageRef = useRef<HTMLImageElement>(null);
   const [overlayStyle, setOverlayStyle] =
     useState<CSSProperties>();
+  const [highlightedNodeId, setHighlightedNodeId] =
+    useState<string | null>(null);
 
   useLayoutEffect(() => {
     if (!snapshot.showImageOverlays) {
@@ -215,10 +218,15 @@ function SceneCanvas({
             environmentPlan={snapshot.environmentPlan}
             scene={snapshot.scene}
           />
+          <ExplorerSceneBoundaries
+            highlightedNodeId={highlightedNodeId}
+            targets={snapshot.targets}
+          />
           {snapshot.targets.map((target) => (
             <SceneTarget
               key={`${target.nodeId}:${target.mode}`}
               onOpen={snapshot.commands.openTarget}
+              onHighlight={setHighlightedNodeId}
               target={target}
             />
           ))}
@@ -292,9 +300,11 @@ function SceneTile({
 }
 
 function SceneTarget({
+  onHighlight,
   onOpen,
   target
 }: {
+  onHighlight: (nodeId: string | null) => void;
   onOpen: (target: ExplorerSceneTarget) => void;
   target: ExplorerSceneTarget;
 }) {
@@ -323,6 +333,10 @@ function SceneTarget({
         event.stopPropagation();
         onOpen(target);
       }}
+      onFocus={() => onHighlight(target.nodeId)}
+      onBlur={() => onHighlight(null)}
+      onPointerEnter={() => onHighlight(target.nodeId)}
+      onPointerLeave={() => onHighlight(null)}
     />
   );
 }

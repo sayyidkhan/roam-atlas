@@ -4,6 +4,7 @@ import {
   buildSceneTiles,
   type SceneInput
 } from "./explorerScenePolicy";
+import type { SceneOutlinePoint } from "./sceneOutlineGeometry";
 
 type GeneratedTile = {
   imageUrl?: string | null;
@@ -27,6 +28,7 @@ export type ExplorerSceneInput = {
         x: number;
         y: number;
       };
+      visualOutline?: SceneOutlinePoint[];
     }>;
   } | null;
   hasFinalArtwork: boolean;

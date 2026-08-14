@@ -37,6 +37,10 @@ export function normalizeEnvironmentTarget(
       maxHeight: 0.12
     }
   );
+  const visualOutline = normalizeTargetOutline(
+    target?.visualOutline,
+    visualBounds
+  );
   if (
     !candidate ||
     !visualBounds ||
@@ -50,6 +54,7 @@ export function normalizeEnvironmentTarget(
     nodeId,
     mapNumber: expectedMapNumber,
     visualBounds,
+    ...(visualOutline ? { visualOutline } : {}),
     labelBounds,
     coordinateSpace: "normalized",
     confidence: ["high", "medium", "low"].includes(
@@ -59,6 +64,36 @@ export function normalizeEnvironmentTarget(
       : "low",
     reason: String(target?.reason ?? "").slice(0, 180)
   };
+}
+
+function normalizeTargetOutline(
+  value: unknown,
+  bounds: NormalizedBounds | null
+) {
+  if (!bounds || !Array.isArray(value) || value.length < 3 || value.length > 12) {
+    return undefined;
+  }
+  const tolerance = 0.02;
+  const points = value.map((item) => {
+    if (!item || typeof item !== "object") return null;
+    const point = item as { x?: unknown; y?: unknown };
+    const x = Number(point.x);
+    const y = Number(point.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return null;
+    if (
+      x < bounds.x - tolerance ||
+      x > bounds.x + bounds.width + tolerance ||
+      y < bounds.y - tolerance ||
+      y > bounds.y + bounds.height + tolerance
+    ) {
+      return null;
+    }
+    return { x, y };
+  });
+  return points.some((point) => point === null)
+    ? undefined
+    : points;
 }
 
 export function normalizeEnvironmentLayer(

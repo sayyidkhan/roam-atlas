@@ -84,6 +84,11 @@ describe("stateless frontend feature policies", () => {
         {
           nodeId: "mandai",
           visualBounds: { x: 0.1, y: 0.2, width: 0.8, height: 0.8 },
+          visualOutline: [
+            { x: 0.27, y: 0.35 },
+            { x: 0.7, y: 0.4 },
+            { x: 0.45, y: 0.78 }
+          ],
           labelBounds: { x: 0.1, y: 0.2, width: 0.4, height: 0.2 }
         }
       ]
@@ -91,6 +96,11 @@ describe("stateless frontend feature policies", () => {
 
     expect(plan.targets).toHaveLength(1);
     expect(plan.targets[0].visualBounds?.width).toBe(0.48);
+    expect(plan.targets[0].visualOutline).toEqual([
+      { x: 0.27, y: 0.35 },
+      { x: 0.7, y: 0.4 },
+      { x: 0.45, y: 0.78 }
+    ]);
     expect(
       environmentPlanNeedsTargetRecovery(
         { targets: [] },

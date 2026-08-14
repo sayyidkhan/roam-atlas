@@ -1,6 +1,7 @@
 import { APP_CONFIG } from "../../config/appConfig.js";
 import { normalizeEnvironmentKind } from "./explorerEnvironmentLayerPolicy";
 import { normalizeEnvironmentPlanBounds, type Bounds } from "./sceneGeometry";
+import { normalizeSceneOutline } from "./sceneOutlineGeometry";
 
 type JsonRecord = Record<string, unknown>;
 type NodeLookup = Record<string, { childIds?: unknown[] } | undefined>;
@@ -11,14 +12,18 @@ export function normalizeEnvironmentPlan(plan: unknown) {
     ? source.targets
         .map((value) => {
           const target = asRecord(value);
+          const visualBounds = normalizeEnvironmentPlanBounds(asBounds(target.visualBounds), {
+            maxWidth: 0.48,
+            maxHeight: 0.52
+          });
           return {
             ...target,
             nodeId: String(target.nodeId ?? ""),
             coordinateSpace: "normalized",
-            visualBounds: normalizeEnvironmentPlanBounds(asBounds(target.visualBounds), {
-              maxWidth: 0.48,
-              maxHeight: 0.52
-            }),
+            visualBounds,
+            visualOutline: visualBounds
+              ? normalizeSceneOutline(target.visualOutline, visualBounds)
+              : undefined,
             labelBounds: normalizeEnvironmentPlanBounds(asBounds(target.labelBounds), {
               maxWidth: 0.24,
               maxHeight: 0.12

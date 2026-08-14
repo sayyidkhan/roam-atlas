@@ -84,6 +84,11 @@ describe("ExplorerSceneStage", () => {
         ?.classList.contains("has-local-art")
     ).toBe(true);
     expect(container.querySelector(".tile-art")).toBeTruthy();
+    expect(
+      container.querySelector(
+        ".scene-target-boundary.is-active"
+      )
+    ).toBeTruthy();
 
     fireEvent.click(
       screen.getByRole("button", {
