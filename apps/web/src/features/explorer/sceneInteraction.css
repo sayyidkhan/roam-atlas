@@ -58,58 +58,75 @@
   pointer-events: none;
 }
 
-.scene-target-boundaries {
+.scene-target-selection-layer {
   position: absolute;
   inset: 0;
   z-index: 3;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
   pointer-events: none;
 }
 
-.scene-target-boundary {
-  fill: transparent;
-  stroke: rgba(38, 93, 82, 0.7);
-  stroke-width: 1.25px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
+.scene-target-ripple {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%) scale(0.729);
   opacity: 0;
+  transition: opacity 160ms ease;
 }
 
-.scene-target-boundary.is-active,
-.scene-target-boundary.is-highlighted {
-  fill: rgba(37, 62, 58, 0.02);
+.scene-target-ripple.is-active,
+.scene-target-ripple.is-highlighted {
   opacity: 1;
-  transition: fill 180ms ease, opacity 180ms ease;
 }
 
-.scene-target-boundary-pulse {
-  fill: transparent;
-  stroke: rgba(38, 93, 82, 0.36);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  vector-effect: non-scaling-stroke;
-  opacity: 0;
-  pointer-events: none;
+.scene-target-ripple-ring,
+.scene-target-ripple-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
-.scene-target-boundary-pulse.is-active,
-.scene-target-boundary-pulse.is-highlighted {
-  animation: scene-target-boundary-pulse 1.9s cubic-bezier(0.2, 0.66, 0.25, 1) infinite;
+.scene-target-ripple-ring {
+  width: 38px;
+  height: 38px;
+  border: 2px solid rgba(20, 91, 75, 0.82);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 5px rgba(252, 248, 232, 0.58),
+    0 2px 8px rgba(26, 62, 55, 0.12);
 }
 
-@keyframes scene-target-boundary-pulse {
-  0% {
-    opacity: 0.5;
-    stroke-width: 1px;
+.scene-target-ripple-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(20, 91, 75, 0.9);
+  box-shadow: 0 0 0 4px rgba(252, 248, 232, 0.72);
+}
+
+.scene-target-ripple.is-active .scene-target-ripple-ring,
+.scene-target-ripple.is-highlighted .scene-target-ripple-ring {
+  animation: scene-target-ripple 1.9s ease-in-out infinite;
+}
+
+.scene-target-ripple.is-highlighted .scene-target-ripple-ring {
+  border-color: rgba(15, 77, 64, 0.94);
+}
+
+@keyframes scene-target-ripple {
+  0%,
+  100% {
+    opacity: 0.76;
+    transform: translate(-50%, -50%) scale(0.9);
   }
 
-  68%,
-  100% {
-    opacity: 0;
-    stroke-width: 15px;
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
   }
 }
 
@@ -179,14 +196,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scene-target-boundary.is-active,
-  .scene-target-boundary.is-highlighted,
-  .scene-target-boundary-pulse.is-active,
-  .scene-target-boundary-pulse.is-highlighted {
+  .scene-target-ripple.is-active .scene-target-ripple-ring,
+  .scene-target-ripple.is-highlighted .scene-target-ripple-ring {
     animation: none;
-  }
-
-  .scene-target-boundary-pulse {
-    display: none;
+    opacity: 1;
+    transform: translate(-50%, -50%);
   }
 }

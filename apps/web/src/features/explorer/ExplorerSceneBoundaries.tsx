@@ -1,5 +1,4 @@
 import type { ExplorerSceneTarget } from "./explorerSceneStore";
-import { sceneOutlinePath } from "./sceneOutlineGeometry";
 
 export function ExplorerSceneBoundaries({
   highlightedNodeId,
@@ -13,49 +12,36 @@ export function ExplorerSceneBoundaries({
   );
   if (!visualTargets.length) return null;
 
+  const targetStateClasses = (target: ExplorerSceneTarget) =>
+    [
+      target.isActive ? "is-active" : "",
+      highlightedNodeId === target.nodeId
+        ? "is-highlighted"
+        : ""
+    ]
+      .filter(Boolean)
+      .join(" ");
+
   return (
-    <svg
-      aria-hidden="true"
-      className="scene-target-boundaries"
-      preserveAspectRatio="none"
-      viewBox="0 0 1 1"
-    >
-      {visualTargets.map((target) => {
-        const stateClasses = [
-          target.isActive ? "is-active" : "",
-          highlightedNodeId === target.nodeId
-            ? "is-highlighted"
-            : ""
-        ]
-          .filter(Boolean)
-          .join(" ");
-        const path = sceneOutlinePath({
-          bounds: target.bounds,
-          outline: target.visualOutline
-        });
-        return (
-          <g key={target.nodeId}>
-            <path
-              className={[
-                "scene-target-boundary",
-                stateClasses
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              d={path}
-            />
-            <path
-              className={[
-                "scene-target-boundary-pulse",
-                stateClasses
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              d={path}
-            />
-          </g>
-        );
-      })}
-    </svg>
+    <div aria-hidden="true" className="scene-target-selection-layer">
+      {visualTargets.map((target) => (
+        <span
+          className={[
+            "scene-target-ripple",
+            targetStateClasses(target)
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          key={target.nodeId}
+          style={{
+            left: `${target.normalizedClick.x * 100}%`,
+            top: `${target.normalizedClick.y * 100}%`
+          }}
+        >
+          <span className="scene-target-ripple-ring" />
+          <span className="scene-target-ripple-dot" />
+        </span>
+      ))}
+    </div>
   );
 }

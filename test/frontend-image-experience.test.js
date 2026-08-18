@@ -324,7 +324,9 @@ test("responsive image overlays use the rendered artwork bounds", () => {
   );
   assert.match(styleSource, /\.scene-image-overlay-frame\s*\{[^}]*position: absolute;[^}]*pointer-events: none;/s);
   assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*pointer-events: auto;/s);
-  assert.match(styleSource, /\.image-target-hotspot\s*\{[^}]*box-shadow: inset 0 0 0 2px rgba\(36, 95, 82, 0\.22\);/s);
+  assert.match(styleSource, /\.scene-target-selection-layer\s*\{[^}]*pointer-events: none;/s);
+  assert.match(styleSource, /\.scene-target-ripple-ring\s*\{[^}]*border: 2px solid rgba\(20, 91, 75, 0\.82\);/s);
+  assert.match(styleSource, /\.scene-target-ripple-dot\s*\{[^}]*border-radius: 50%;/s);
   assert.match(styleSource, /\.image-target-hotspot\.is-active\s*\{/);
   assert.match(explorerScenePolicySource, /target\.visualBounds/);
   assert.match(explorerScenePolicySource, /target\.labelBounds/);
