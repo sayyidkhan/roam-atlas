@@ -136,7 +136,8 @@ Rules:
 
 Owns:
 
-- `gpt-image-2` image generation through the configured image provider.
+- `gpt-image-2.5-flare-2026-09-08` image generation through the configured
+  image provider.
 - Scene prompts.
 - Style consistency.
 - Image generation.
@@ -146,9 +147,10 @@ Owns:
 
 Rules:
 
-- Use `gpt-image-2` as the preferred target model for image generation. If the
-  runtime does not support it, use only an explicitly configured fallback and
-  surface that fallback in logs or metadata.
+- Use the pinned `gpt-image-2.5-flare-2026-09-08` snapshot as the preferred
+  target model for image generation. If the runtime does not support it, use
+  only an explicitly configured fallback and surface that fallback in logs or
+  metadata.
 - Keep the image model behind a provider adapter. Do not scatter raw model names
   through UI components or product logic.
 - Generate images from node facts, not the other way around.
@@ -396,7 +398,7 @@ The image agent should generate tiles through a queue.
 ```text
 Scene plan
   -> tile prompts
-  -> gpt-image-2 provider adapter
+ -> gpt-image-2.5-flare-2026-09-08 provider adapter
   -> image artifact storage
   -> tile cache record
   -> frontend loads ready tiles

@@ -392,11 +392,12 @@ limits, the agent must ask the user before using them.
 
 ## Image Generation Strategy
 
-Use `gpt-image-2` as the preferred target image model for RoamAtlas image
-generation. Because image model availability can vary by environment, implement
-this through a configurable image provider adapter instead of scattering the
-model string through product code. If the runtime cannot access `gpt-image-2`,
-the app must fail clearly or use an explicitly configured fallback model.
+Use the pinned `gpt-image-2.5-flare-2026-09-08` snapshot as the preferred
+target image model for RoamAtlas image generation. Because image model
+availability can vary by environment, implement this through a configurable
+image provider adapter instead of scattering the model string through product
+code. If the runtime cannot access the preferred model, the app must fail
+clearly or use an explicitly configured fallback model.
 
 Use a hybrid strategy.
 

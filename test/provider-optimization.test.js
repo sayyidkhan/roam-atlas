@@ -22,7 +22,7 @@ import {
 test("image defaults use the recommended high-quality output profile", () => {
   assert.deepEqual(ROAMATLAS_CONFIG.image, {
     provider: "openai",
-    model: "gpt-image-2",
+    model: "gpt-image-2.5-flare-2026-09-08",
     fallbackModel: null,
     size: "1536x1024",
     quality: "high",

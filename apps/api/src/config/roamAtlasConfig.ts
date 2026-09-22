@@ -36,7 +36,7 @@ export const ROAMATLAS_CONFIG = {
   },
   image: {
     provider: "openai",
-    model: "gpt-image-2",
+    model: "gpt-image-2.5-flare-2026-09-08",
     fallbackModel: null,
     // Use the widest landscape size supported by the Images API. The browser
     // preserves this 3:2 composition so generated pixels are not cropped.

@@ -971,6 +971,10 @@ test("tile cache key changes across fact, prompt, style, and model versions", ()
 
 test("image model aliases normalize for OpenAI provider", () => {
   assert.equal(normalizeImageModel("image2"), "gpt-image-2");
+  assert.equal(
+    normalizeImageModel("gpt-image-2.5-flare"),
+    "gpt-image-2.5-flare-2026-09-08"
+  );
   assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /central 3:2 safe area/);
   assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
   assert.doesNotMatch(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /\bSingapore\b/);
@@ -985,7 +989,7 @@ test("source config stores non-secret OpenAI model defaults", () => {
 
   assert.equal(ROAMATLAS_CONFIG.image.provider, "openai");
   assert.equal(defaults.image.provider, "openai");
-  assert.equal(defaults.image.model, "gpt-image-2");
+  assert.equal(defaults.image.model, "gpt-image-2.5-flare-2026-09-08");
   assert.equal(defaults.image.fallbackModel, null);
   assert.equal(defaults.image.size, "1536x1024");
   assert.equal(defaults.image.quality, "high");

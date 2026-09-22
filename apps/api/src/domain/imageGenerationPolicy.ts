@@ -55,7 +55,15 @@ off the important content.
 `.trim();
 
 export function normalizeImageModel(model: unknown = DEFAULT_IMAGE_MODEL): string {
-  const value = String(model ?? "").trim();
+  const value = String(model ?? "").trim().toLowerCase();
+  if (
+    value === "image2.5" ||
+    value === "image-2.5" ||
+    value === "gpt image 2.5" ||
+    value === "gpt-image-2.5-flare"
+  ) {
+    return "gpt-image-2.5-flare-2026-09-08";
+  }
   if (value === "image2" || value === "image-2" || value === "gpt image 2") {
     return "gpt-image-2";
   }

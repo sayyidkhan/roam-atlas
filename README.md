@@ -73,9 +73,10 @@ Non-secret server/model defaults live in
 in `apps/web/src/config/appConfig.js`.
 
 - Text, VLM, and environment models must stay on GPT-5-family or newer models.
-- Interactive image generation uses `gpt-image-2` with a compressed JPEG
-  profile and a streamed partial preview. The country config screen offers
-  Low, Medium, and High output; High is the recommended and default tier.
+- Interactive image generation uses the pinned
+  `gpt-image-2.5-flare-2026-09-08` snapshot with a compressed JPEG profile and
+  a streamed partial preview. The country config screen offers Low, Medium,
+  and High output; High is the recommended and default tier.
 - Do not add model env overrides for normal local development; edit the config
   file when the project default should change.
 
