@@ -15,6 +15,7 @@ type PlaceImageSuggestionProviderOptions = {
   extractText: (payload: unknown) => string;
   fetchFn?: typeof fetch;
   model: string;
+  serviceTier?: "fast";
   parseJson: (
     text: unknown
   ) => JsonObject | null;
@@ -23,6 +24,7 @@ type PlaceImageSuggestionProviderOptions = {
 export function createPlaceImageSuggestionProvider({
   apiKey,
   model,
+  serviceTier,
   extractText,
   parseJson,
   fetchFn = fetch
@@ -73,6 +75,7 @@ export function createPlaceImageSuggestionProvider({
             },
             body: JSON.stringify({
               model,
+              ...(serviceTier ? { service_tier: serviceTier } : {}),
               input: [
                 {
                   role: "user",

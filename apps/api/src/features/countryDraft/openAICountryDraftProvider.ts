@@ -21,11 +21,13 @@ type OpenAICountryDraftProviderOptions = {
   apiKey?: string;
   fetchFn?: typeof fetch;
   model: string;
+  serviceTier?: "fast";
 };
 
 export function createOpenAICountryDraftProvider({
   apiKey,
   model,
+  serviceTier,
   fetchFn = fetch
 }: OpenAICountryDraftProviderOptions) {
   return {
@@ -55,6 +57,7 @@ export function createOpenAICountryDraftProvider({
             },
             body: JSON.stringify({
               model,
+              ...(serviceTier ? { service_tier: serviceTier } : {}),
               input: [
                 {
                   role: "user",

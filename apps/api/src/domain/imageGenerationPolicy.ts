@@ -59,10 +59,15 @@ export function normalizeImageModel(model: unknown = DEFAULT_IMAGE_MODEL): strin
   if (
     value === "image2.5" ||
     value === "image-2.5" ||
-    value === "gpt image 2.5" ||
-    value === "gpt-image-2.5-flare"
+    value === "gpt image 2.5"
   ) {
     return "gpt-image-2.5-flare-2026-09-08";
+  }
+  if (value === "gpt-image-2.5-flare") {
+    return "gpt-image-2.5-flare-2026-09-08";
+  }
+  if (value === "gpt-image-2.5-sunburst") {
+    return "gpt-image-2.5-sunburst-2026-09-08";
   }
   if (value === "image2" || value === "image-2" || value === "gpt image 2") {
     return "gpt-image-2";

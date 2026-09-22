@@ -58,6 +58,7 @@ type PlaceImageFeatureOptions = {
   ) => JsonObject | null;
   resolveWikipediaImage:
     PlaceImageServiceDependencies["wikipediaProvider"];
+  serviceTier?: "fast";
   textModel: string;
 };
 
@@ -69,6 +70,7 @@ export function createPlaceImageFeature({
   resolveWikipediaImage,
   apiKeys,
   textModel,
+  serviceTier,
   extractOpenAIText,
   parseJsonObject,
   fetchFn = fetch
@@ -90,6 +92,7 @@ export function createPlaceImageFeature({
       createPlaceImageSuggestionProvider({
         apiKey: apiKeys.openai,
         model: textModel,
+        serviceTier,
         extractText: extractOpenAIText,
         parseJson: parseJsonObject,
         fetchFn

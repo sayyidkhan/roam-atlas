@@ -86,6 +86,7 @@ const {
 const resolveClickPhraseWithOpenAI = createOpenAIClickResolver({
   apiKey: process.env.OPENAI_API_KEY,
   model: appConfig.ai.vlmModel,
+  serviceTier: appConfig.ai.serviceTier,
   defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
   getCountryPack,
   getSceneArtwork,
@@ -103,6 +104,7 @@ const {
 const createEnvironmentPlanWithOpenAI = createOpenAIEnvironmentPlanner({
   apiKey: process.env.OPENAI_API_KEY,
   model: appConfig.ai.environmentModel,
+  serviceTier: appConfig.ai.serviceTier,
   getImagePathFromUrl,
   buildPrompt: buildEnvironmentPlanPrompt,
   getPromptContext: getEnvironmentPromptContext,
@@ -155,6 +157,7 @@ const {
     openai: process.env.OPENAI_API_KEY
   },
   textModel: appConfig.ai.textModel,
+  serviceTier: appConfig.ai.serviceTier,
   extractOpenAIText,
   parseJsonObject
 });
@@ -170,7 +173,8 @@ const {
     exa: process.env.EXA_API_KEY,
     openai: process.env.OPENAI_API_KEY
   },
-  textModel: appConfig.ai.textModel
+  textModel: appConfig.ai.textModel,
+  serviceTier: appConfig.ai.serviceTier,
 });
 const artworkJobPolicy = createArtworkJobPolicy({
   imageConfig: appConfig.image,

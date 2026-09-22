@@ -975,6 +975,10 @@ test("image model aliases normalize for OpenAI provider", () => {
     normalizeImageModel("gpt-image-2.5-flare"),
     "gpt-image-2.5-flare-2026-09-08"
   );
+  assert.equal(
+    normalizeImageModel("gpt-image-2.5-sunburst"),
+    "gpt-image-2.5-sunburst-2026-09-08"
+  );
   assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /central 3:2 safe area/);
   assert.match(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /restrained flipbook encyclopedia style/);
   assert.doesNotMatch(DEFAULT_ROAMATLAS_IMAGE_SYSTEM_PROMPT, /\bSingapore\b/);
@@ -999,10 +1003,17 @@ test("source config stores non-secret OpenAI model defaults", () => {
   assert.equal(defaults.image.outputCompression, 82);
   assert.equal(defaults.server.host, "127.0.0.1");
   assert.equal(defaults.server.port, 4151);
-  assert.equal(defaults.ai.textModel, "gpt-5.4-mini");
-  assert.equal(defaults.ai.vlmModel, "gpt-5.4-mini");
-  assert.equal(defaults.ai.environmentModel, "gpt-5.5");
-  assert.ok(Object.values(defaults.ai).every((model) => /^gpt-5(?:\.|$|-)/.test(model)));
+  assert.equal(defaults.ai.textModel, "gpt-5.6-terra");
+  assert.equal(defaults.ai.vlmModel, "gpt-5.6-terra");
+  assert.equal(defaults.ai.environmentModel, "gpt-5.6-sol");
+  assert.equal(defaults.ai.serviceTier, "fast");
+  assert.ok(
+    [
+      defaults.ai.textModel,
+      defaults.ai.vlmModel,
+      defaults.ai.environmentModel
+    ].every((model) => /^gpt-5(?:\.|$|-)/.test(model))
+  );
   assert.equal(withServerOverrides.server.host, "0.0.0.0");
   assert.equal(withServerOverrides.server.port, 5173);
 });
@@ -1457,7 +1468,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "roamatlas-flipbook-v7-curated-callouts");
+  assert.equal(output.promptVersion, "roamatlas-flipbook-v8-architectural-detail");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);

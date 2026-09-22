@@ -6,6 +6,7 @@ export type ConfiguredImageQuality =
 export type RoamAtlasConfig = {
   ai: {
     environmentModel: string;
+    serviceTier: "fast";
     textModel: string;
     vlmModel: string;
   };
@@ -30,9 +31,10 @@ export type RoamAtlasConfigEnvironment =
 
 export const ROAMATLAS_CONFIG = {
   ai: {
-    textModel: "gpt-5.4-mini",
-    vlmModel: "gpt-5.4-mini",
-    environmentModel: "gpt-5.5"
+    textModel: "gpt-5.6-terra",
+    vlmModel: "gpt-5.6-terra",
+    environmentModel: "gpt-5.6-sol",
+    serviceTier: "fast"
   },
   image: {
     provider: "openai",

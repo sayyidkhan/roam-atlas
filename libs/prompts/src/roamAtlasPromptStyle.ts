@@ -1,15 +1,20 @@
-export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v7-curated-callouts";
+export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v8-architectural-detail";
 
 export const CORE_VISUAL_STYLE = `
 Core visual style:
 - clean isometric or lightly axonometric hand-drawn illustration
 - thin grey ink outlines
 - muted pastel colors, pale blue water, desaturated greens, light beige paths
-- simple geometric forms with minimal soft shading
+- architectural specificity: distinct rooflines, façades, window rhythms,
+  structural silhouettes, bridges, paths, and landmark-scale forms
+- use believable material and construction detail at a calm editorial scale;
+  simplify only background context, not the primary built forms
+- restrained watercolor texture and soft shading, with crisp ink-defined edges
 - generous spacing
 - clear object separation
 - calm urban planning proposal board restraint
 - museum guide / architectural visual encyclopedia feeling
+- mature editorial illustration, not a playful map
 `;
 
 export const GLOBAL_IMAGE_RULES = `
@@ -19,7 +24,7 @@ Global image rules:
 3. Prefer fewer meaningful objects, strong negative space, and obvious click targets.
 4. Do not treat image content as factual proof. Frontend overlays own exact facts and source badges.
 5. For study plates, use supplied short callout headings when present. Without supplied headings, avoid empty callout boxes and use leader lines or small inset diagrams instead; never factual image captions.
-6. Keep all important subjects and supplied labels inside the central 3:2 safe area. Use simple visual bleed at the edges.
+6. Keep all important subjects and supplied labels inside the central 3:2 safe area, with generous top and side padding for page titles. Use simple visual bleed at the edges.
 7. Never render app names, product logos, old product names, or brand-like decorative titles.
 `;
 
@@ -29,6 +34,9 @@ export const NEGATIVE_STYLE_TERMS: string[] = [
   "busy panoramic city poster",
   "colorful tourism brochure",
   "children's book map",
+  "cartoonish travel map",
+  "cute rounded toy-like buildings",
+  "oversimplified blob-like landmark shapes",
   "fantasy city",
   "comic book style",
   "vintage postcard",

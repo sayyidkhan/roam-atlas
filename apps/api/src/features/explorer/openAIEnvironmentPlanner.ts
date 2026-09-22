@@ -31,6 +31,7 @@ type OpenAIEnvironmentPlannerDependencies<
   getImagePathFromUrl: (imageUrl: string) => string | null;
   getPromptContext: (page: Page) => PromptContext;
   model?: string | null;
+  serviceTier?: "fast";
   normalizePlan: (
     rawPlan: RawEnvironmentPlan | null,
     page: Page,
@@ -48,6 +49,7 @@ export function createOpenAIEnvironmentPlanner<
 >({
   apiKey,
   model,
+  serviceTier,
   getImagePathFromUrl,
   buildPrompt,
   getPromptContext,
@@ -94,6 +96,7 @@ export function createOpenAIEnvironmentPlanner<
         },
         body: JSON.stringify({
           model,
+          ...(serviceTier ? { service_tier: serviceTier } : {}),
           input: [{
             role: "user",
             content: [

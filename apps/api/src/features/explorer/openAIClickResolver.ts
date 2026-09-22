@@ -50,11 +50,13 @@ type OpenAIClickResolverDependencies = {
     sceneId: string
   ) => SceneArtworkRecord | null;
   model: string;
+  serviceTier?: "fast";
 };
 
 export function createOpenAIClickResolver({
   apiKey,
   model,
+  serviceTier,
   defaultCountrySlug,
   getCountryPack,
   getSceneArtwork,
@@ -134,6 +136,7 @@ export function createOpenAIClickResolver({
       },
       body: JSON.stringify({
         model,
+        ...(serviceTier ? { service_tier: serviceTier } : {}),
         input: [{
           role: "user",
           content: [

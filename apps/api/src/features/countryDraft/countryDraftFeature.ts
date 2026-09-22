@@ -47,6 +47,7 @@ type CountryDraftFeatureOptions<
       | null
       | undefined
   ) => boolean;
+  serviceTier?: "fast";
   textModel: string;
 };
 
@@ -61,6 +62,7 @@ export function createCountryDraftFeature<
   isSourceControlledCountryPack,
   apiKeys,
   textModel,
+  serviceTier,
   fetchFn = fetch
 }: CountryDraftFeatureOptions<CountryPack>) {
   const cache = new Map<
@@ -84,6 +86,7 @@ export function createCountryDraftFeature<
         createOpenAICountryDraftProvider({
           apiKey: apiKeys.openai,
           model: textModel,
+          serviceTier,
           fetchFn
         })
     });
