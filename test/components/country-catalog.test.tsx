@@ -1,10 +1,31 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CountryCatalogView } from "../../apps/web/src/features/countryCatalog/CountryCatalogView";
 
 describe("CountryCatalogView", () => {
+  afterEach(cleanup);
+
+  it("renders every country in the scrollable atlas shelf", () => {
+    render(
+      <CountryCatalogView
+        countries={[
+          { code: "AF", displayCode: "AF", name: "Afghanistan", slug: "afghanistan" },
+          { code: "AL", displayCode: "AL", name: "Albania", slug: "albania" },
+          { code: "DZ", displayCode: "DZ", name: "Algeria", slug: "algeria" },
+          { code: "SG", displayCode: "SG", name: "Singapore", slug: "singapore" }
+        ]}
+        countryPacks={{}}
+        onConfigure={vi.fn()}
+        onOpen={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("article", { name: "Singapore, source-reviewed explorer" })).not.toBeNull();
+    expect(screen.getByText("Scroll to explore every country")).not.toBeNull();
+  });
+
   it("filters countries and emits typed open/configure intents", () => {
     const onConfigure = vi.fn();
     const onOpen = vi.fn();

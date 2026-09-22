@@ -52,7 +52,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
     () => countries.filter((country) => country.slug === "singapore" || country.slug === "malaysia"),
     [countries]
   );
-  const shelfCountries = isShelfExpanded ? filteredCountries : countries.slice(0, 3);
+  const shelfCountries = isShelfExpanded ? filteredCountries : countries;
 
   const openGlobeDestination = (countrySlug: string) => {
     const country = countries.find((candidate) => candidate.slug === countrySlug);
@@ -134,7 +134,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
           <div className={styles["country-shelf-heading"]}>
             <p className={styles.eyebrow}>Country index</p>
             <h2>{isShelfExpanded ? "Choose your starting point" : "Atlas shelf"}</h2>
-            <p>{isShelfExpanded ? `${filteredCountries.length} of ${countries.length} countries` : "Three places to begin"}</p>
+            <p>{isShelfExpanded ? `${filteredCountries.length} of ${countries.length} countries` : "Scroll to explore every country"}</p>
           </div>
           {isShelfExpanded ? (
             <label className={styles["search-field"]}>
