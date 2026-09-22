@@ -98,10 +98,6 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
                 <dt>{featuredCountries.length}</dt>
                 <dd>live atlas packs</dd>
               </div>
-              <div>
-                <dt>0</dt>
-                <dd>invented travel claims</dd>
-              </div>
             </dl>
           </div>
           <div className={styles["country-hero-globe"]}>
