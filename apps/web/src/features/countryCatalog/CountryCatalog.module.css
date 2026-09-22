@@ -493,6 +493,27 @@
   letter-spacing: -0.03em;
 }
 
+.country-shelf-search-panel,
+:global(.country-shelf-search-panel) {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.country-shelf-search-panel input,
+:global(.country-shelf-search-panel) input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid rgba(36, 95, 82, 0.22);
+  border-radius: 8px;
+  padding: 0 11px;
+  background: rgba(255, 250, 240, 0.86);
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
 .search-field,
 :global(.search-field) {
   display: grid;
@@ -522,6 +543,12 @@
 .search-field input:focus,
 :global(.search-field) input:focus {
   border-color: rgba(36, 95, 82, 0.5);
+  box-shadow: 0 0 0 3px rgba(36, 95, 82, 0.1);
+}
+
+.country-shelf-search-panel input:focus,
+:global(.country-shelf-search-panel) input:focus {
+  border-color: rgba(36, 95, 82, 0.58);
   box-shadow: 0 0 0 3px rgba(36, 95, 82, 0.1);
 }
 
@@ -1131,16 +1158,57 @@
   padding-bottom: 16px;
 }
 
-.country-shelf-heading h2,
-:global(.country-shelf-heading) h2 {
-  margin: 5px 0 4px;
-  font-size: 20px;
-  letter-spacing: -0.03em;
+.country-shelf-title-row,
+:global(.country-shelf-title-row) {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.country-shelf-title-row .eyebrow,
+.country-shelf-title-row :global(.eyebrow),
+:global(.country-shelf-title-row) :global(.eyebrow) {
+  color: #2f7d64;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.country-shelf-search-toggle,
+:global(.country-shelf-search-toggle) {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 1px solid rgba(36, 95, 82, 0.18);
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(255, 250, 240, 0.8);
+  color: var(--accent);
+  place-items: center;
+}
+
+.country-shelf-search-toggle:hover,
+.country-shelf-search-toggle:focus-visible,
+:global(.country-shelf-search-toggle):hover,
+:global(.country-shelf-search-toggle):focus-visible {
+  background: var(--accent);
+  color: #fffaf0;
+}
+
+.country-shelf-search-toggle svg,
+:global(.country-shelf-search-toggle) svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-width: 2;
 }
 
 .country-shelf-heading p:last-child,
 :global(.country-shelf-heading) p:last-child {
-  margin: 0;
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 650;
@@ -1326,20 +1394,12 @@
 
   .country-shelf-heading,
   :global(.country-shelf-heading) {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
     padding-bottom: 8px;
   }
 
-  .country-shelf-heading .eyebrow,
-  :global(.country-shelf-heading) :global(.eyebrow) {
-    display: none;
-  }
-
-  .country-shelf-heading h2,
-  :global(.country-shelf-heading) h2 {
-    font-size: 16px;
+  .country-shelf-title-row,
+  :global(.country-shelf-title-row) {
+    gap: 6px;
   }
 
   .country-shelf .country-grid,

@@ -42,6 +42,7 @@ function SettingsIcon() {
 export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpen }: CountryCatalogProps) {
   const [query, setQuery] = useState("");
   const [isShelfExpanded, setIsShelfExpanded] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const normalizedQuery = normalizeQuery(query);
   const filteredCountries = useMemo(() => countries.filter((country) => {
     if (!normalizedQuery) return true;
@@ -52,7 +53,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
     () => countries.filter((country) => country.slug === "singapore" || country.slug === "malaysia"),
     [countries]
   );
-  const shelfCountries = isShelfExpanded ? filteredCountries : countries;
+  const shelfCountries = normalizedQuery ? filteredCountries : countries;
 
   const openGlobeDestination = (countrySlug: string) => {
     const country = countries.find((candidate) => candidate.slug === countrySlug);
@@ -128,22 +129,40 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
             </span>
           </button>
           <div className={styles["country-shelf-heading"]}>
-            <p className={styles.eyebrow}>Country index</p>
-            <h2>{isShelfExpanded ? "Choose your starting point" : "Atlas shelf"}</h2>
-            <p>{isShelfExpanded ? `${filteredCountries.length} of ${countries.length} countries` : "Scroll to explore every country"}</p>
+            <div className={styles["country-shelf-title-row"]}>
+              <p className={styles.eyebrow}>Country index</p>
+              <button
+                type="button"
+                className={styles["country-shelf-search-toggle"]}
+                aria-label={isSearchOpen ? "Close country search" : "Search countries"}
+                aria-expanded={isSearchOpen}
+                onClick={() => {
+                  setIsSearchOpen((current) => !current);
+                  if (isSearchOpen) setQuery("");
+                }}
+              >
+                {isSearchOpen ? "×" : (
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <circle cx="10.8" cy="10.8" r="5.8" />
+                    <path d="m15.2 15.2 4 4" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {isSearchOpen ? (
+              <label className={styles["country-shelf-search-panel"]}>
+                <span className="visually-hidden">Search countries</span>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search"
+                  autoComplete="off"
+                />
+              </label>
+            ) : null}
+            <p>{normalizedQuery ? `${filteredCountries.length} matching countries` : "Scroll to explore every country"}</p>
           </div>
-          {isShelfExpanded ? (
-            <label className={styles["search-field"]}>
-              <span>Search countries</span>
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search by country name or code"
-                autoComplete="off"
-              />
-            </label>
-          ) : null}
 
           <section className={styles["country-grid"]} aria-label="Country cards">
             {shelfCountries.map((country) => {

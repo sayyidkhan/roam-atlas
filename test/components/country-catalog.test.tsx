@@ -42,6 +42,7 @@ describe("CountryCatalogView", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Expand country index" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search countries" }));
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "mal" } });
     expect(screen.queryByRole("article", { name: "Singapore, source-reviewed explorer" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open Malaysia" }));
