@@ -89,6 +89,28 @@ The development command starts Vite on `127.0.0.1:4150` and the local API on
 `127.0.0.1:4151`; Vite proxies `/api` and `/runtime-cache` to the API process.
 The browser therefore always receives transformed React/TypeScript modules.
 
+## Landing Globe
+
+The country landing page uses [Cobe](https://cobe.vercel.app/) for its
+interactive globe. It is a lightweight, visual orientation layer rather than a
+geographic source of truth:
+
+- The globe shows the current RoamAtlas destination markers for Singapore and
+  Malaysia and can be dragged to explore.
+- The fixed landing view opens on the globe. Its country index is a collapsible
+  shelf: it shows three cards at rest and expands leftward into the full,
+  searchable index without introducing page scroll.
+- Country names, the searchable 195-country index, pack confidence, and all
+  navigation continue to come from curated application data.
+- The primary "Explore Singapore" action and country cards remain the
+  accessible paths into an experience; a canvas marker never establishes a
+  factual claim or changes the curated scene graph.
+- If WebGL is unavailable, the landing page keeps its usable country controls
+  and shows a styled static globe fallback.
+
+Use a fully featured mapping or globe system only when the product needs
+geographic hit testing, country polygons, or map-driven data exploration.
+
 The repository is an npm workspace:
 
 ```text

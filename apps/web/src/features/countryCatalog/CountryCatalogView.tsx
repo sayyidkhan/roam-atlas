@@ -5,6 +5,7 @@ import {
   CountryCardPhoto,
   type CountryCatalogCountry
 } from "./CountryCardMedia";
+import { CountryAtlasGlobe } from "./CountryAtlasGlobe";
 import styles from "./CountryCatalog.module.css";
 
 export type { CountryCatalogCountry } from "./CountryCardMedia";
@@ -40,85 +41,159 @@ function SettingsIcon() {
 
 export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpen }: CountryCatalogProps) {
   const [query, setQuery] = useState("");
+  const [isShelfExpanded, setIsShelfExpanded] = useState(false);
   const normalizedQuery = normalizeQuery(query);
   const filteredCountries = useMemo(() => countries.filter((country) => {
     if (!normalizedQuery) return true;
     return [country.name, country.code, country.displayCode]
       .some((value) => value.toLowerCase().includes(normalizedQuery));
   }), [countries, normalizedQuery]);
+  const featuredCountries = useMemo(
+    () => countries.filter((country) => country.slug === "singapore" || country.slug === "malaysia"),
+    [countries]
+  );
+  const shelfCountries = isShelfExpanded ? filteredCountries : countries.slice(0, 3);
+
+  const openGlobeDestination = (countrySlug: string) => {
+    const country = countries.find((candidate) => candidate.slug === countrySlug);
+    if (country) onOpen(country);
+  };
 
   return (
     <section
       className={`${styles["country-landing"]} ${styles["country-landing--standalone"]}`}
       aria-label="Choose a country"
     >
-      <header className={styles["country-hero"]}>
-        <div>
-          <p className={styles.eyebrow}>RoamAtlas</p>
-          <h1>Choose a country</h1>
-          <p>Explore visual country guides, curated discoveries, and itinerary-ready places.</p>
-        </div>
-      </header>
-
-      <section className={styles["country-toolbar"]} aria-label="Country filters">
-        <label className={styles["search-field"]}>
-          <span>Search countries</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by country name or code"
-            autoComplete="off"
-          />
-        </label>
-        <p className={styles["country-count"]}>
-          {filteredCountries.length} of {countries.length} countries
-        </p>
-      </section>
-
-      <section className={styles["country-grid"]} aria-label="Country cards">
-        {filteredCountries.map((country) => {
-          const isMapped = countryPacks[country.slug]?.confidence !== "unconfirmed";
-          return (
-            <article
-              key={country.code}
-              className={`${styles["country-card"]} ${
-                styles[`country-card--${isMapped ? "mapped" : "available"}`]
-              }`}
-              aria-label={`${country.name}, ${isMapped ? "source-reviewed explorer" : "starter explorer"}`}
-            >
-              <CountryCardPhoto country={country} />
-              <button
-                type="button"
-                className={styles["country-card-hitbox"]}
-                aria-label={`Open ${country.name}`}
-                onClick={() => onOpen(country)}
-              />
-              <CountryCardFlag country={country} />
-              <button
-                type="button"
-                className={styles["country-card-menu"]}
-                aria-label={`Configure ${country.name}`}
-                onClick={() => onConfigure(country)}
-              >
-                <SettingsIcon />
+      <div
+        className={`${styles["country-stage"]} ${
+          isShelfExpanded ? styles["country-stage--shelf-open"] : ""
+        }`}
+      >
+        <header className={styles["country-hero"]}>
+          <div className={styles["country-hero-copy"]}>
+            <p className={styles.eyebrow}>RoamAtlas · illustrated travel intelligence</p>
+            <p className={styles["hero-kicker"]}>An atlas you can enter</p>
+            <h1>Find the story behind your next journey.</h1>
+            <p className={styles["hero-description"]}>
+              Touch and drag the globe to roam. Use the country shelf when you are ready to choose a starting point.
+            </p>
+            <div className={styles["hero-actions"]}>
+              <button type="button" className={styles["hero-primary-action"]} onClick={() => openGlobeDestination("singapore")}>
+                Explore Singapore <span aria-hidden="true">↗</span>
               </button>
-              <span className={styles["country-card-footer"]}>
-                <span className={styles["country-name"]}>{country.name}</span>
-                <button
-                  type="button"
-                  className={styles["country-status"]}
-                  aria-label={`Open ${country.name} explorer`}
-                  onClick={() => onOpen(country)}
+              <button
+                type="button"
+                className={styles["hero-secondary-action"]}
+                onClick={() => setIsShelfExpanded(true)}
+              >
+                Browse all countries
+              </button>
+            </div>
+            <dl className={styles["hero-stat-list"]}>
+              <div>
+                <dt>{countries.length}</dt>
+                <dd>countries to begin</dd>
+              </div>
+              <div>
+                <dt>{featuredCountries.length}</dt>
+                <dd>live atlas packs</dd>
+              </div>
+              <div>
+                <dt>0</dt>
+                <dd>invented travel claims</dd>
+              </div>
+            </dl>
+          </div>
+          <div className={styles["country-hero-globe"]}>
+            <CountryAtlasGlobe />
+            <div className={styles["globe-caption"]}>
+              <span className={styles["globe-caption-line"]} aria-hidden="true" />
+              <p>Touch the globe to roam</p>
+              <span>Singapore + Malaysia</span>
+            </div>
+          </div>
+        </header>
+
+        <aside
+          className={`${styles["country-shelf"]} ${
+            isShelfExpanded ? styles["country-shelf--expanded"] : ""
+          }`}
+          aria-label="Country index"
+        >
+          <button
+            type="button"
+            className={styles["country-shelf-toggle"]}
+            aria-label={isShelfExpanded ? "Collapse country index" : "Expand country index"}
+            aria-expanded={isShelfExpanded}
+            onClick={() => setIsShelfExpanded((current) => !current)}
+          >
+            <span className={styles["country-shelf-toggle-icon"]} aria-hidden="true">
+              {isShelfExpanded ? "→" : "←"}
+            </span>
+          </button>
+          <div className={styles["country-shelf-heading"]}>
+            <p className={styles.eyebrow}>Country index</p>
+            <h2>{isShelfExpanded ? "Choose your starting point" : "Atlas shelf"}</h2>
+            <p>{isShelfExpanded ? `${filteredCountries.length} of ${countries.length} countries` : "Three places to begin"}</p>
+          </div>
+          {isShelfExpanded ? (
+            <label className={styles["search-field"]}>
+              <span>Search countries</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search by country name or code"
+                autoComplete="off"
+              />
+            </label>
+          ) : null}
+
+          <section className={styles["country-grid"]} aria-label="Country cards">
+            {shelfCountries.map((country) => {
+              const isMapped = countryPacks[country.slug]?.confidence !== "unconfirmed";
+              return (
+                <article
+                  key={country.code}
+                  className={`${styles["country-card"]} ${
+                    styles[`country-card--${isMapped ? "mapped" : "available"}`]
+                  }`}
+                  aria-label={`${country.name}, ${isMapped ? "source-reviewed explorer" : "starter explorer"}`}
                 >
-                  Open
-                </button>
-                <span className={styles["country-code"]}>{country.displayCode}</span>
-              </span>
-            </article>
-          );
-        })}
-      </section>
+                  <CountryCardPhoto country={country} />
+                  <button
+                    type="button"
+                    className={styles["country-card-hitbox"]}
+                    aria-label={`Open ${country.name}`}
+                    onClick={() => onOpen(country)}
+                  />
+                  <CountryCardFlag country={country} />
+                  <button
+                    type="button"
+                    className={styles["country-card-menu"]}
+                    aria-label={`Configure ${country.name}`}
+                    onClick={() => onConfigure(country)}
+                  >
+                    <SettingsIcon />
+                  </button>
+                  <span className={styles["country-card-footer"]}>
+                    <span className={styles["country-name"]}>{country.name}</span>
+                    <button
+                      type="button"
+                      className={styles["country-status"]}
+                      aria-label={`Open ${country.name} explorer`}
+                      onClick={() => onOpen(country)}
+                    >
+                      Open
+                    </button>
+                    <span className={styles["country-code"]}>{country.displayCode}</span>
+                  </span>
+                </article>
+              );
+            })}
+          </section>
+        </aside>
+      </div>
     </section>
   );
 }
