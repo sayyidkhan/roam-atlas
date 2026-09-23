@@ -18,6 +18,8 @@ export type CountryDraftGroundingSnippet = {
 };
 
 export type CountryDraftChild = {
+  bestTimeOfDay?: "morning" | "afternoon" | "evening" | "any";
+  budgetLevel?: "low" | "medium" | "high";
   children: CountryDraftChild[];
   confidence: CountryDraftConfidence;
   kind: string;
@@ -25,6 +27,9 @@ export type CountryDraftChild = {
   reviewedAt?: string;
   reviewStatus?: "human_approved";
   sourceUrl?: string | null;
+  tags?: string[];
+  typicalDurationMinutes?: number;
+  why?: string;
   [key: string]: unknown;
 };
 
@@ -42,6 +47,15 @@ export type CountryDraftTheme = {
   [key: string]: unknown;
 };
 
+export type CountryDraftSource = {
+  excerpt: string;
+  id: string;
+  researchKind: string;
+  sourceType: "candidate";
+  title: string;
+  url: string;
+};
+
 export type CountryDraft = {
   changeNote: string;
   confidence: CountryDraftConfidence;
@@ -56,6 +70,7 @@ export type CountryDraft = {
   regions: CountryDraftRegion[];
   reviewChecklist: string[];
   sourceType: string;
+  sourceRegistry: CountryDraftSource[];
   summary: string;
   themes: CountryDraftTheme[];
   unavailableReason: string | null;

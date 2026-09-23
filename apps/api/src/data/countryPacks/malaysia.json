@@ -5,9 +5,9 @@
   "rootNodeId": "malaysia",
   "overviewSceneId": "malaysia-overview",
   "confidence": "unconfirmed",
-  "factBoundary": "Malaysia is an actual RoamAtlas explorer route, but current facts are starter-map data until source review.",
+  "factBoundary": "Malaysia is an actual RoamAtlas explorer route. Regional summaries remain starter-map data, while the city relationships are backed by official tourism sources.",
   "versions": {
-    "data": "malaysia-starter-v1",
+    "data": "malaysia-starter-v3",
     "style": "atlas-qingming-v1",
     "prompt": "prompt-v1"
   },
@@ -23,6 +23,36 @@
       "title": "RoamAtlas Malaysia starter country pack",
       "type": "ai_generated",
       "url": null
+    },
+    "tourism-malaysia-penang": {
+      "id": "tourism-malaysia-penang",
+      "title": "Tourism Malaysia: Penang",
+      "type": "official",
+      "url": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/penang/"
+    },
+    "tourism-malaysia-johor": {
+      "id": "tourism-malaysia-johor",
+      "title": "Tourism Malaysia: Johor Map and Guide",
+      "type": "official",
+      "url": "https://storage.ebrochures.malaysia.travel/storage/JOHOR%20Map%20_%20Guide%20march%202019_NEW.pdf"
+    },
+    "sabah-tourism": {
+      "id": "sabah-tourism",
+      "title": "Sabah Tourism Board",
+      "type": "official",
+      "url": "https://sabahtourism.com/essential/getting-around/"
+    },
+    "sarawak-tourism": {
+      "id": "sarawak-tourism",
+      "title": "Sarawak Tourism Board: Places to Visit",
+      "type": "official",
+      "url": "https://www.sarawaktourism.com/web/places-to-visit/town-list/"
+    },
+    "tourism-malaysia-melaka": {
+      "id": "tourism-malaysia-melaka",
+      "title": "Tourism Malaysia: Melaka",
+      "type": "official",
+      "url": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/melaka/"
     }
   },
   "nodes": {
@@ -72,7 +102,11 @@
       "type": "district",
       "title": "Penang",
       "parentId": "malaysia",
-      "childIds": [],
+      "childIds": [
+        "malaysia-penang-george-town",
+        "malaysia-penang-butterworth",
+        "malaysia-penang-bukit-mertajam"
+      ],
       "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
       "facts": [
         {
@@ -106,7 +140,11 @@
       "type": "district",
       "title": "Johor",
       "parentId": "malaysia",
-      "childIds": [],
+      "childIds": [
+        "malaysia-johor-johor-bahru",
+        "malaysia-johor-muar",
+        "malaysia-johor-batu-pahat"
+      ],
       "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
       "facts": [
         {
@@ -123,7 +161,11 @@
       "type": "district",
       "title": "Sabah",
       "parentId": "malaysia",
-      "childIds": [],
+      "childIds": [
+        "malaysia-sabah-kota-kinabalu",
+        "malaysia-sabah-sandakan",
+        "malaysia-sabah-tawau"
+      ],
       "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
       "facts": [
         {
@@ -140,7 +182,12 @@
       "type": "district",
       "title": "Sarawak",
       "parentId": "malaysia",
-      "childIds": [],
+      "childIds": [
+        "malaysia-sarawak-kuching",
+        "malaysia-sarawak-sibu",
+        "malaysia-sarawak-miri",
+        "malaysia-sarawak-bintulu"
+      ],
       "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
       "facts": [
         {
@@ -157,7 +204,11 @@
       "type": "district",
       "title": "Melaka",
       "parentId": "malaysia",
-      "childIds": [],
+      "childIds": [
+        "malaysia-melaka-city",
+        "malaysia-melaka-alor-gajah",
+        "malaysia-melaka-jasin"
+      ],
       "tags": ["state", "malaysia", "starter-map", "unconfirmed"],
       "facts": [
         {
@@ -168,6 +219,344 @@
           "sourceUrl": null
         }
       ]
+    },
+    "malaysia-penang-george-town": {
+      "id": "malaysia-penang-george-town",
+      "type": "district",
+      "title": "George Town",
+      "parentId": "malaysia-penang",
+      "childIds": [],
+      "tags": ["city", "penang", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-penang-george-town-location",
+        "text": "George Town is Penang's capital city and a major heritage-focused visitor chapter.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/penang/"
+      }]
+    },
+    "malaysia-penang-butterworth": {
+      "id": "malaysia-penang-butterworth",
+      "type": "district",
+      "title": "Butterworth",
+      "parentId": "malaysia-penang",
+      "childIds": [],
+      "tags": ["city", "penang", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-penang-butterworth-location",
+        "text": "Butterworth is a mainland Penang gateway connected with Penang Island by ferry.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/penang/"
+      }]
+    },
+    "malaysia-penang-bukit-mertajam": {
+      "id": "malaysia-penang-bukit-mertajam",
+      "type": "district",
+      "title": "Bukit Mertajam",
+      "parentId": "malaysia-penang",
+      "childIds": [],
+      "tags": ["city", "penang", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-penang-bukit-mertajam-location",
+        "text": "Bukit Mertajam is a mainland Penang destination included in Tourism Malaysia's state guide.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/penang/"
+      }]
+    },
+    "malaysia-johor-johor-bahru": {
+      "id": "malaysia-johor-johor-bahru",
+      "type": "district",
+      "title": "Johor Bahru",
+      "parentId": "malaysia-johor",
+      "childIds": [],
+      "tags": ["city", "johor", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-johor-johor-bahru-location",
+        "text": "Johor Bahru is the principal southern gateway chapter in Tourism Malaysia's Johor guide.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://storage.ebrochures.malaysia.travel/storage/JOHOR%20Map%20_%20Guide%20march%202019_NEW.pdf"
+      }]
+    },
+    "malaysia-johor-muar": {
+      "id": "malaysia-johor-muar",
+      "type": "district",
+      "title": "Muar",
+      "parentId": "malaysia-johor",
+      "childIds": [],
+      "tags": ["city", "johor", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-johor-muar-location",
+        "text": "Muar is a Johor city chapter included in Tourism Malaysia's state guide.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://storage.ebrochures.malaysia.travel/storage/JOHOR%20Map%20_%20Guide%20march%202019_NEW.pdf"
+      }]
+    },
+    "malaysia-johor-batu-pahat": {
+      "id": "malaysia-johor-batu-pahat",
+      "type": "district",
+      "title": "Batu Pahat",
+      "parentId": "malaysia-johor",
+      "childIds": [],
+      "tags": ["city", "johor", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-johor-batu-pahat-location",
+        "text": "Batu Pahat is a Johor city chapter included in Tourism Malaysia's state guide.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://storage.ebrochures.malaysia.travel/storage/JOHOR%20Map%20_%20Guide%20march%202019_NEW.pdf"
+      }]
+    },
+    "malaysia-sabah-kota-kinabalu": {
+      "id": "malaysia-sabah-kota-kinabalu",
+      "type": "district",
+      "title": "Kota Kinabalu",
+      "parentId": "malaysia-sabah",
+      "childIds": [],
+      "tags": ["city", "sabah", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sabah-kota-kinabalu-location",
+        "text": "Kota Kinabalu is Sabah's capital and its main visitor entry point.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://sabahtourism.com/essential/getting-around/"
+      }]
+    },
+    "malaysia-sabah-sandakan": {
+      "id": "malaysia-sabah-sandakan",
+      "type": "district",
+      "title": "Sandakan",
+      "parentId": "malaysia-sabah",
+      "childIds": [],
+      "tags": ["city", "sabah", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sabah-sandakan-location",
+        "text": "Sandakan is an east-coast Sabah city and a gateway to wildlife-focused destinations.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://sabahtourism.com/district/sandakan/"
+      }]
+    },
+    "malaysia-sabah-tawau": {
+      "id": "malaysia-sabah-tawau",
+      "type": "district",
+      "title": "Tawau",
+      "parentId": "malaysia-sabah",
+      "childIds": [],
+      "tags": ["city", "sabah", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sabah-tawau-location",
+        "text": "Tawau is an east-coast Sabah urban chapter connected by air and road.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://sabahtourism.com/district/tawau/"
+      }]
+    },
+    "malaysia-sarawak-kuching": {
+      "id": "malaysia-sarawak-kuching",
+      "type": "district",
+      "title": "Kuching",
+      "parentId": "malaysia-sarawak",
+      "childIds": [
+        "malaysia-kuching-waterfront",
+        "malaysia-kuching-borneo-cultures-museum",
+        "malaysia-kuching-fort-margherita",
+        "malaysia-kuching-semenggoh",
+        "malaysia-kuching-bako-national-park",
+        "malaysia-kuching-sarawak-cultural-village"
+      ],
+      "artworkVisualContext": "A panoramic illustrated Kuching city overview centered on the Sarawak River. Show the walkable waterfront and heritage core as the urban heart, then open the composition outward toward nearby rainforest, coastal, wildlife-conservation, and cultural gateways. Keep Kuching Waterfront, Borneo Cultures Museum, Fort Margherita, Semenggoh Wildlife Centre, Bako National Park, and Sarawak Cultural Village as six separated, readable, clickable visual anchors. Use only these curated names and do not add routes, hours, prices, wildlife-availability claims, or factual captions.",
+      "tags": ["city", "sarawak", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sarawak-kuching-location",
+        "text": "Kuching is Sarawak's capital city and a primary visitor chapter.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-list/"
+      }]
+    },
+    "malaysia-kuching-waterfront": {
+      "id": "malaysia-kuching-waterfront",
+      "type": "attraction",
+      "title": "Kuching Waterfront",
+      "parentId": "malaysia-sarawak-kuching",
+      "childIds": [],
+      "tags": ["waterfront", "heritage", "kuching", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-kuching-waterfront-summary",
+        "text": "Kuching Waterfront is a promenade along the Sarawak River and a focal point for the city's historical and cultural landmarks.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-view/kuching/major-attractions/kuching-waterfront"
+      }]
+    },
+    "malaysia-kuching-borneo-cultures-museum": {
+      "id": "malaysia-kuching-borneo-cultures-museum",
+      "type": "attraction",
+      "title": "Borneo Cultures Museum",
+      "parentId": "malaysia-sarawak-kuching",
+      "childIds": [],
+      "tags": ["museum", "culture", "kuching", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-kuching-borneo-cultures-museum-summary",
+        "text": "Borneo Cultures Museum presents the cultural and natural heritage of Sarawak and Borneo through galleries and interactive exhibits.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/things-to-do/thing-view/culture/museums/borneo-cultures-museum"
+      }]
+    },
+    "malaysia-kuching-fort-margherita": {
+      "id": "malaysia-kuching-fort-margherita",
+      "type": "attraction",
+      "title": "Fort Margherita",
+      "parentId": "malaysia-sarawak-kuching",
+      "childIds": [],
+      "tags": ["fort", "heritage", "river", "kuching", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-kuching-fort-margherita-summary",
+        "text": "Fort Margherita is a historic river-facing Kuching landmark that now houses the Brooke Gallery.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-view/kuching/major-attractions/fort-magherita"
+      }]
+    },
+    "malaysia-kuching-semenggoh": {
+      "id": "malaysia-kuching-semenggoh",
+      "type": "attraction",
+      "title": "Semenggoh Wildlife Centre",
+      "parentId": "malaysia-sarawak-kuching",
+      "childIds": [],
+      "tags": ["nature", "conservation", "kuching", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-kuching-semenggoh-summary",
+        "text": "Semenggoh Wildlife Centre is a conservation-focused visitor destination south of Kuching.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/stories/story-view/ten-things-to-do-in-sarawak"
+      }]
+    },
+    "malaysia-kuching-bako-national-park": {
+      "id": "malaysia-kuching-bako-national-park",
+      "type": "attraction",
+      "title": "Bako National Park",
+      "parentId": "malaysia-sarawak-kuching",
+      "childIds": [],
+      "tags": ["national-park", "coast", "rainforest", "kuching", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-kuching-bako-national-park-summary",
+        "text": "Bako National Park is a Kuching-area nature destination with rainforest, mangrove, coastal-cliff, and beach environments.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-view/kuching/major-attractions/bako-national-park"
+      }]
+    },
+    "malaysia-kuching-sarawak-cultural-village": {
+      "id": "malaysia-kuching-sarawak-cultural-village",
+      "type": "attraction",
+      "title": "Sarawak Cultural Village",
+      "parentId": "malaysia-sarawak-kuching",
+      "childIds": [],
+      "tags": ["culture", "living-museum", "santubong", "kuching", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-kuching-sarawak-cultural-village-summary",
+        "text": "Sarawak Cultural Village is an interactive cultural destination near Kuching featuring traditional houses and cultural interpretation.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/things-to-do/thing-view/culture/museums/sarawak-cultural-village"
+      }]
+    },
+    "malaysia-sarawak-sibu": {
+      "id": "malaysia-sarawak-sibu",
+      "type": "district",
+      "title": "Sibu",
+      "parentId": "malaysia-sarawak",
+      "childIds": [],
+      "tags": ["city", "sarawak", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sarawak-sibu-location",
+        "text": "Sibu is one of the Sarawak destinations listed by the Sarawak Tourism Board.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-list/"
+      }]
+    },
+    "malaysia-sarawak-miri": {
+      "id": "malaysia-sarawak-miri",
+      "type": "district",
+      "title": "Miri",
+      "parentId": "malaysia-sarawak",
+      "childIds": [],
+      "tags": ["city", "sarawak", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sarawak-miri-location",
+        "text": "Miri is one of the Sarawak destinations listed by the Sarawak Tourism Board.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-list/"
+      }]
+    },
+    "malaysia-sarawak-bintulu": {
+      "id": "malaysia-sarawak-bintulu",
+      "type": "district",
+      "title": "Bintulu",
+      "parentId": "malaysia-sarawak",
+      "childIds": [],
+      "tags": ["city", "sarawak", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-sarawak-bintulu-location",
+        "text": "Bintulu is one of the Sarawak destinations listed by the Sarawak Tourism Board.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-list/"
+      }]
+    },
+    "malaysia-melaka-city": {
+      "id": "malaysia-melaka-city",
+      "type": "district",
+      "title": "Melaka City",
+      "parentId": "malaysia-melaka",
+      "childIds": [],
+      "tags": ["city", "melaka", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-melaka-city-location",
+        "text": "Melaka City is the state's principal heritage-focused city chapter.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/melaka/"
+      }]
+    },
+    "malaysia-melaka-alor-gajah": {
+      "id": "malaysia-melaka-alor-gajah",
+      "type": "district",
+      "title": "Alor Gajah",
+      "parentId": "malaysia-melaka",
+      "childIds": [],
+      "tags": ["town", "melaka", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-melaka-alor-gajah-location",
+        "text": "Alor Gajah is a Melaka destination included in Tourism Malaysia's state guide.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/melaka/"
+      }]
+    },
+    "malaysia-melaka-jasin": {
+      "id": "malaysia-melaka-jasin",
+      "type": "district",
+      "title": "Jasin",
+      "parentId": "malaysia-melaka",
+      "childIds": [],
+      "tags": ["town", "melaka", "malaysia", "source-reviewed"],
+      "facts": [{
+        "id": "malaysia-melaka-jasin-location",
+        "text": "Jasin is a Melaka destination included in Tourism Malaysia's state guide.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://ebrochures.malaysia.travel/en/malaysia-travel-guide/melaka/"
+      }]
     }
   },
   "scenes": {
@@ -279,6 +668,110 @@
         {
           "id": "overview",
           "label": "Overview",
+          "targetBounds": { "unit": "ratio", "x": 0, "y": 0, "width": 1, "height": 1 },
+          "zoom": 1
+        }
+      ]
+    },
+    "kuching-overview": {
+      "id": "kuching-overview",
+      "title": "Kuching City Overview",
+      "rootNodeId": "malaysia-sarawak-kuching",
+      "pageType": "region_overview",
+      "zoomLevel": 1,
+      "density": "balanced",
+      "tileGrid": {
+        "columns": 3,
+        "rows": 1
+      },
+      "visualContext": "A panoramic illustrated Kuching city chapter centered on the Sarawak River. Show the waterfront heritage core, civic and museum landmarks, and the wider rainforest, coastal, wildlife-conservation, and cultural gateways around the city. Keep Kuching Waterfront, Borneo Cultures Museum, Fort Margherita, Semenggoh Wildlife Centre, Bako National Park, and Sarawak Cultural Village as six separated clickable visual anchors. Use only these curated names and do not add routes, hours, prices, wildlife-availability claims, source citations, or long factual captions.",
+      "continuityPromptTemplate": "This tile is part of a panoramic Kuching city atlas. Scene: {title}. Tile position: row {row}, column {column} of {rows} x {columns}. Keep the Sarawak River direction, warm paper texture, line weight, lighting, perspective, and landmark scale consistent across edges. Use only curated anchor names. Do not add routes, opening hours, prices, live-wildlife claims, source citations, or official logos.",
+      "hotspots": [
+        {
+          "id": "hotspot-kuching-waterfront",
+          "nodeId": "malaysia-kuching-waterfront",
+          "kind": "poi",
+          "shape": { "x": 60, "y": 105, "width": 250, "height": 145 },
+          "zIndex": 3,
+          "label": "Kuching Waterfront",
+          "mapNumber": 1,
+          "confidence": "confirmed"
+        },
+        {
+          "id": "hotspot-kuching-borneo-cultures-museum",
+          "nodeId": "malaysia-kuching-borneo-cultures-museum",
+          "kind": "poi",
+          "shape": { "x": 355, "y": 90, "width": 250, "height": 150 },
+          "zIndex": 3,
+          "label": "Borneo Cultures Museum",
+          "mapNumber": 2,
+          "confidence": "confirmed"
+        },
+        {
+          "id": "hotspot-kuching-fort-margherita",
+          "nodeId": "malaysia-kuching-fort-margherita",
+          "kind": "poi",
+          "shape": { "x": 650, "y": 105, "width": 250, "height": 145 },
+          "zIndex": 3,
+          "label": "Fort Margherita",
+          "mapNumber": 3,
+          "confidence": "confirmed"
+        },
+        {
+          "id": "hotspot-kuching-semenggoh",
+          "nodeId": "malaysia-kuching-semenggoh",
+          "kind": "poi",
+          "shape": { "x": 60, "y": 300, "width": 250, "height": 145 },
+          "zIndex": 3,
+          "label": "Semenggoh Wildlife Centre",
+          "mapNumber": 4,
+          "confidence": "confirmed"
+        },
+        {
+          "id": "hotspot-kuching-bako-national-park",
+          "nodeId": "malaysia-kuching-bako-national-park",
+          "kind": "poi",
+          "shape": { "x": 355, "y": 290, "width": 250, "height": 150 },
+          "zIndex": 3,
+          "label": "Bako National Park",
+          "mapNumber": 5,
+          "confidence": "confirmed"
+        },
+        {
+          "id": "hotspot-kuching-sarawak-cultural-village",
+          "nodeId": "malaysia-kuching-sarawak-cultural-village",
+          "kind": "poi",
+          "shape": { "x": 650, "y": 300, "width": 250, "height": 145 },
+          "zIndex": 3,
+          "label": "Sarawak Cultural Village",
+          "mapNumber": 6,
+          "confidence": "confirmed"
+        }
+      ],
+      "ambientLayers": [
+        {
+          "id": "{sceneId}-light",
+          "kind": "light",
+          "bounds": { "unit": "ratio", "x": 0, "y": 0, "width": 1, "height": 1 },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-water",
+          "kind": "water",
+          "bounds": { "unit": "ratio", "x": 0.08, "y": 0.4, "width": 0.84, "height": 0.18 },
+          "intensity": "subtle"
+        },
+        {
+          "id": "{sceneId}-foliage",
+          "kind": "foliage",
+          "bounds": { "unit": "ratio", "x": 0.04, "y": 0.56, "width": 0.92, "height": 0.34 },
+          "intensity": "subtle"
+        }
+      ],
+      "cameraPresets": [
+        {
+          "id": "kuching-city",
+          "label": "Whole city",
           "targetBounds": { "unit": "ratio", "x": 0, "y": 0, "width": 1, "height": 1 },
           "zoom": 1
         }

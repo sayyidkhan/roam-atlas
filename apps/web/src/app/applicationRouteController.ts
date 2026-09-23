@@ -63,7 +63,7 @@ export async function applyApplicationRoute(
   } = dependencies;
   let route = resolveRoute(pathname, { countries, countryPacks });
 
-  if (requiresCountryPack(route)) {
+  if (shouldLoadCountryPack(route)) {
     const pack = await ensureCountryPack(route.countrySlug);
     if (!isRouteCurrent()) return;
     route = resolveRoute(pathname, {
@@ -115,6 +115,15 @@ export async function applyApplicationRoute(
         shouldRender: false
       });
   }
+}
+
+function shouldLoadCountryPack(
+  route: AppRoute
+): route is Extract<
+  AppRoute,
+  { countrySlug: string }
+> {
+  return requiresCountryPack(route) || route.type === "country_needs_config";
 }
 
 function requiresCountryPack(

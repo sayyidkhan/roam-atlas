@@ -422,7 +422,7 @@ test("VLM mappings provide responsive visual and label targets without giant box
     environmentRequest,
     /promoteCurrentPageEnvironmentPlan\(\s*state\.currentPage\?\.imageUrl \?\? environmentUrl\s*\)/s
   );
-  assert.match(environmentNormalization, /visualBounds: normalizeEnvironmentPlanBounds/);
+  assert.match(environmentNormalization, /const visualBounds = normalizeEnvironmentPlanBounds/);
   assert.match(environmentNormalization, /labelBounds: normalizeEnvironmentPlanBounds/);
   assert.match(environmentNormalization, /maxWidth: 0\.48/);
   assert.match(environmentNormalization, /maxHeight: 0\.52/);

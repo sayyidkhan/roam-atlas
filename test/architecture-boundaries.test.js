@@ -241,7 +241,8 @@ test("shared API contracts are TypeScript-owned behind stable package exports", 
     [
       "./artworkContract.js",
       "./countryPackContract.js",
-      "./runtimeCacheContract.js"
+      "./runtimeCacheContract.js",
+      "./usageContract.js"
     ]
   );
   assert.ok(

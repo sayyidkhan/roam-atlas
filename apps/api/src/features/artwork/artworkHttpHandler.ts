@@ -28,6 +28,9 @@ type ArtworkHttpDependencies = {
   getCountryPack: (
     countrySlug: string
   ) => CompiledCountryPack | null;
+  resolveConfirmedExplorerPack?: (
+    countrySlug: string
+  ) => Promise<CompiledCountryPack | null>;
   getDefaultArtworkPageForNode: (
     nodeId: string,
     sceneId: string | null | undefined,
@@ -63,6 +66,7 @@ export async function handleArtworkHttpRequest({
   url,
   defaultCountrySlug,
   getCountryPack,
+  resolveConfirmedExplorerPack,
   getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
   createImageJob,
@@ -96,7 +100,11 @@ export async function handleArtworkHttpRequest({
   } = query;
   const countrySlug =
     query.countrySlug ?? defaultCountrySlug;
-  const pack = getCountryPack(countrySlug);
+  const registeredPack = getCountryPack(countrySlug);
+  const pack = await resolveArtworkCountryPack(
+    registeredPack,
+    resolveConfirmedExplorerPack
+  );
   if (!pack) {
     return jsonResponse(
       {
@@ -157,4 +165,18 @@ export async function handleArtworkHttpRequest({
       page: artworkPage
     })
   );
+}
+
+async function resolveArtworkCountryPack(
+  registeredPack: CompiledCountryPack | null,
+  resolveConfirmedExplorerPack: ArtworkHttpDependencies["resolveConfirmedExplorerPack"]
+): Promise<CompiledCountryPack | null> {
+  if (
+    !registeredPack ||
+    registeredPack.registration === "source_controlled" ||
+    !resolveConfirmedExplorerPack
+  ) {
+    return registeredPack;
+  }
+  return await resolveConfirmedExplorerPack(registeredPack.countrySlug) ?? registeredPack;
 }

@@ -3,6 +3,9 @@ import {
   parseJsonObject,
   type JsonObject
 } from "../../platform/openai/responseParsing.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 
 export type CountryDraftProviderResult =
   | {
@@ -21,12 +24,14 @@ type OpenAICountryDraftProviderOptions = {
   apiKey?: string;
   fetchFn?: typeof fetch;
   model: string;
+  recordUsage?: RecordProviderUsage;
   serviceTier?: "fast";
 };
 
 export function createOpenAICountryDraftProvider({
   apiKey,
   model,
+  recordUsage,
   serviceTier,
   fetchFn = fetch
 }: OpenAICountryDraftProviderOptions) {
@@ -46,6 +51,7 @@ export function createOpenAICountryDraftProvider({
       }
 
       let response: Response;
+      const requestStartedAt = Date.now();
       try {
         response = await fetchFn(
           "https://api.openai.com/v1/responses",
@@ -68,8 +74,7 @@ export function createOpenAICountryDraftProvider({
                     }
                   ]
                 }
-              ],
-              temperature: 0.2
+              ]
             })
           }
         );
@@ -91,10 +96,16 @@ export function createOpenAICountryDraftProvider({
         };
       }
 
+      const responsePayload = await response.json() as unknown;
+      recordUsage?.({
+        durationMs: Date.now() - requestStartedAt,
+        feature: "country_draft",
+        model,
+        serviceTier,
+        usage: readUsage(responsePayload)
+      });
       const payload = parseJsonObject(
-        extractOpenAIText(
-          (await response.json()) as unknown
-        )
+        extractOpenAIText(responsePayload)
       );
       if (!payload) {
         return {
@@ -107,6 +118,13 @@ export function createOpenAICountryDraftProvider({
       return { status: "ready", payload };
     }
   };
+}
+
+function readUsage(payload: unknown): unknown {
+  return typeof payload === "object" && payload !== null &&
+    "usage" in payload
+    ? payload.usage
+    : null;
 }
 
 function errorMessage(error: unknown): string {

@@ -200,6 +200,64 @@
   overflow: hidden;
 }
 
+.atlas-globe-stage,
+:global(.atlas-globe-stage) {
+  position: absolute;
+  inset: 0;
+}
+
+.atlas-globe-aura,
+:global(.atlas-globe-aura) {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: 98%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 48% 44%, rgba(34, 117, 117, 0.34) 0 24%, rgba(214, 147, 39, 0.16) 48%, transparent 69%),
+    conic-gradient(from 205deg, transparent 0 24%, rgba(112, 210, 194, 0.18) 33%, transparent 43% 72%, rgba(230, 159, 46, 0.2) 82%, transparent 91%);
+  filter: blur(22px);
+  transform: translate(-50%, -50%);
+  animation: globe-aura-breathe 9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.atlas-globe-halo,
+:global(.atlas-globe-halo) {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 50%;
+  width: 91%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(223, 169, 67, 0.14);
+  background:
+    radial-gradient(circle, transparent 48%, rgba(224, 164, 53, 0.17) 51%, rgba(73, 168, 162, 0.08) 56%, transparent 64%);
+  box-shadow:
+    0 0 80px rgba(222, 156, 38, 0.08),
+    inset 0 0 70px rgba(77, 174, 167, 0.06);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.atlas-globe-plinth,
+:global(.atlas-globe-plinth) {
+  position: absolute;
+  z-index: 0;
+  top: 91%;
+  left: 51%;
+  width: 62%;
+  height: 8%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.68), rgba(9, 29, 28, 0.3) 44%, transparent 73%);
+  filter: blur(8px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 .atlas-globe-canvas,
 :global(.atlas-globe-canvas) {
   position: absolute;
@@ -210,8 +268,13 @@
 .atlas-globe-canvas-element,
 :global(.atlas-globe-canvas-element) {
   display: block;
+  width: 100%;
+  height: 100%;
   cursor: grab;
   touch-action: none;
+  filter:
+    drop-shadow(0 42px 50px rgba(0, 0, 0, 0.42))
+    saturate(1.08);
 }
 
 .atlas-globe-canvas-element:active,
@@ -230,6 +293,136 @@
   border: 1px solid rgba(36, 95, 82, 0.18);
   border-radius: 50%;
   transform: translate(-50%, -50%) rotateX(68deg) rotateZ(-12deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.atlas-globe-controls,
+:global(.atlas-globe-controls) {
+  position: absolute;
+  z-index: 6;
+  top: 9%;
+  right: 2%;
+  bottom: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid rgba(242, 222, 178, 0.16);
+  border-radius: 999px;
+  background: rgba(7, 28, 29, 0.72);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.atlas-globe-controls button,
+:global(.atlas-globe-controls) button {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  color: #f0d59a;
+  place-items: center;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.atlas-globe-controls button + button,
+:global(.atlas-globe-controls) button + button {
+  border-left: 1px solid rgba(242, 222, 178, 0.12);
+  border-radius: 0;
+}
+
+.atlas-globe-controls button:first-child,
+:global(.atlas-globe-controls) button:first-child {
+  border-radius: 999px 6px 6px 999px;
+}
+
+.atlas-globe-controls button:last-child,
+:global(.atlas-globe-controls) button:last-child {
+  border-radius: 6px 999px 999px 6px;
+}
+
+.atlas-globe-controls svg,
+:global(.atlas-globe-controls) svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.atlas-globe-controls button:hover,
+.atlas-globe-controls button:focus-visible,
+:global(.atlas-globe-controls) button:hover,
+:global(.atlas-globe-controls) button:focus-visible {
+  background: #d99a2b;
+  color: #071c1d;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.atlas-globe-controls button:focus-visible,
+:global(.atlas-globe-controls) button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(240, 213, 154, 0.34);
+}
+
+.atlas-globe-controls button::after,
+:global(.atlas-globe-controls) button::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 10px);
+  width: max-content;
+  padding: 5px 8px;
+  border: 1px solid rgba(242, 222, 178, 0.15);
+  border-radius: 6px;
+  background: rgba(4, 20, 21, 0.94);
+  color: #f5e7c7;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(50%, 4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.atlas-globe-controls button:hover::after,
+.atlas-globe-controls button:focus-visible::after,
+:global(.atlas-globe-controls) button:hover::after,
+:global(.atlas-globe-controls) button:focus-visible::after {
+  opacity: 1;
+  transform: translate(50%, 0);
+}
+
+@keyframes globe-aura-breathe {
+  from {
+    opacity: 0.72;
+    transform: translate(-50%, -50%) scale(0.97) rotate(-2deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.03) rotate(2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-globe-aura,
+  :global(.atlas-globe-aura) {
+    animation: none;
+  }
 }
 
 .atlas-globe-fallback,
@@ -256,6 +449,80 @@
 .atlas-globe-canvas[data-ready="true"] + .atlas-globe-fallback,
 :global(.atlas-globe-canvas)[data-ready="true"] + :global(.atlas-globe-fallback) {
   opacity: 0;
+}
+
+.atlas-globe-pins,
+:global(.atlas-globe-pins) {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  pointer-events: none;
+}
+
+.atlas-globe-pins:not([data-placed="true"]),
+:global(.atlas-globe-pins):not([data-placed="true"]) {
+  opacity: 0;
+}
+
+.atlas-globe-pin,
+:global(.atlas-globe-pin) {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid #fffaf0;
+  border-radius: 999px;
+  background: #c4841a;
+  box-shadow:
+    0 0 0 5px rgba(196, 132, 26, 0.24),
+    0 0 24px rgba(255, 204, 102, 0.78);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.atlas-globe-pin--active,
+:global(.atlas-globe-pin--active) {
+  z-index: 5;
+  width: 18px;
+  height: 18px;
+  box-shadow:
+    0 0 0 7px rgba(196, 132, 26, 0.22),
+    0 0 34px rgba(255, 204, 102, 0.92);
+}
+
+.atlas-globe-pin[hidden],
+:global(.atlas-globe-pin)[hidden] {
+  display: none;
+}
+
+.atlas-globe-pin-name,
+:global(.atlas-globe-pin-name) {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  display: none;
+  padding: 6px 9px;
+  border: 1px solid rgba(240, 213, 154, 0.28);
+  border-radius: 999px;
+  background: rgba(6, 25, 26, 0.94);
+  color: #fff8e8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  box-shadow: 0 10px 24px rgba(31, 44, 42, 0.12);
+}
+
+.atlas-globe-pin--active .atlas-globe-pin-name,
+.atlas-globe-pin:focus-visible .atlas-globe-pin-name,
+:global(.atlas-globe-pin--active) :global(.atlas-globe-pin-name),
+:global(.atlas-globe-pin):focus-visible :global(.atlas-globe-pin-name) {
+  display: block;
 }
 
 .atlas-globe-hint,
@@ -1037,29 +1304,49 @@
    grows left from its right-hand shelf without moving the page vertically. */
 .country-stage,
 :global(.country-stage) {
+  --shelf-gap: min(310px, 25vw);
+
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 100dvh;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 73% 44%, rgba(28, 104, 100, 0.22), transparent 28%),
+    radial-gradient(circle at 68% 48%, rgba(211, 142, 31, 0.08), transparent 45%),
+    linear-gradient(112deg, #0d2928 0%, #071c1d 46%, #041516 100%);
   overflow: hidden;
+}
+
+.country-stage--shelf-closed,
+:global(.country-stage--shelf-closed) {
+  --shelf-gap: 0px;
 }
 
 .country-stage .country-hero,
 :global(.country-stage) :global(.country-hero) {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.66fr) minmax(0, 1.58fr);
+  align-items: stretch;
+  column-gap: clamp(12px, 1.6vw, 28px);
+  box-sizing: border-box;
   width: 100%;
   max-width: none;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   margin: 0;
-  padding: clamp(30px, 5vw, 78px) clamp(334px, 26vw, 470px) clamp(30px, 7vh, 72px) clamp(24px, 4vw, 64px);
+  padding: clamp(28px, 4vh, 54px) calc(var(--shelf-gap) + 56px) clamp(28px, 4vh, 54px) clamp(24px, 3vw, 48px);
   border: 0;
+  overflow: hidden;
 }
 
 .country-stage .country-hero::before,
 :global(.country-stage) :global(.country-hero)::before {
-  inset: 0 0 0 auto;
-  width: min(74vw, 1060px);
+  inset: -12% -5% -12% auto;
+  width: min(78vw, 1240px);
   border-radius: 0;
+  background:
+    linear-gradient(90deg, transparent 0 52%, rgba(5, 24, 25, 0.18) 78%, rgba(2, 14, 15, 0.48)),
+    repeating-radial-gradient(circle at 58% 48%, rgba(181, 218, 207, 0.055) 0 1px, transparent 1px 58px);
 }
 
 .country-stage .country-hero-copy,
@@ -1067,33 +1354,183 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: calc(100dvh - clamp(60px, 10vw, 156px));
-  max-width: min(47vw, 720px);
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  max-width: 620px;
+}
+
+.country-stage .eyebrow,
+:global(.country-stage) :global(.eyebrow),
+.country-stage .hero-kicker,
+:global(.country-stage) :global(.hero-kicker) {
+  color: #dfa83e !important;
 }
 
 .country-stage .country-hero h1,
 :global(.country-stage) :global(.country-hero) h1 {
+  color: #fff8e8;
   font-size: clamp(48px, 5.2vw, 92px);
+  text-wrap: balance;
 }
 
 .country-stage .hero-description,
 :global(.country-stage) :global(.hero-description) {
-  max-width: 530px;
+  width: max-content;
+  max-width: none;
+  color: rgba(220, 231, 223, 0.7) !important;
+  font-size: clamp(14px, 1.05vw, 17px) !important;
+  white-space: nowrap;
+}
+
+.country-stage .hero-primary-action,
+:global(.country-stage) :global(.hero-primary-action) {
+  background: #f5e7c7;
+  color: #12302e;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+}
+
+.country-stage .hero-primary-action:hover,
+:global(.country-stage) :global(.hero-primary-action):hover {
+  background: #fff8e8;
+}
+
+.country-stage .hero-secondary-action,
+:global(.country-stage) :global(.hero-secondary-action) {
+  border-color: rgba(239, 225, 194, 0.3);
+  background: rgba(255, 248, 232, 0.04);
+  color: #f5e7c7;
+}
+
+.country-stage .hero-secondary-action:hover,
+:global(.country-stage) :global(.hero-secondary-action):hover {
+  background: rgba(255, 248, 232, 0.1);
+}
+
+.country-stage .hero-stat-list div + div,
+:global(.country-stage) :global(.hero-stat-list) div + div {
+  border-left-color: rgba(238, 222, 187, 0.2);
+}
+
+.country-stage .hero-stat-list dt,
+:global(.country-stage) :global(.hero-stat-list) dt {
+  color: #f1c76e;
+}
+
+.country-stage .hero-stat-list dd,
+:global(.country-stage) :global(.hero-stat-list) dd {
+  color: rgba(220, 231, 223, 0.62);
 }
 
 .country-stage .country-hero-globe,
 :global(.country-stage) :global(.country-hero-globe) {
-  position: absolute;
-  top: 0;
-  right: clamp(70px, 5vw, 120px);
-  bottom: 0;
-  width: min(52vw, 760px);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  container-type: size;
+  width: 100%;
+  height: 100%;
   min-height: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+.country-stage--shelf-closed .country-hero,
+:global(.country-stage--shelf-closed) :global(.country-hero) {
+  grid-template-columns: minmax(340px, 0.6fr) minmax(0, 1.7fr);
+}
+
+.country-stage .atlas-globe,
+:global(.country-stage) :global(.atlas-globe) {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: min(104%, calc(100cqh - 96px), 1080px);
+  height: auto;
+  inset: auto;
+  overflow: visible;
+}
+
+.country-stage--shelf-closed .atlas-globe,
+:global(.country-stage--shelf-closed) :global(.atlas-globe) {
+  width: min(108%, calc(100cqh - 88px), 1120px);
+}
+
+.country-stage .atlas-globe-stage,
+:global(.country-stage) :global(.atlas-globe-stage) {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  inset: auto;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.country-stage .atlas-globe-orbit,
+:global(.country-stage) :global(.atlas-globe-orbit) {
+  display: none;
+}
+
+.country-stage .atlas-globe-canvas,
+:global(.country-stage) :global(.atlas-globe-canvas) {
+  z-index: 2;
+  overflow: visible;
 }
 
 .country-stage .atlas-globe-hint,
 :global(.country-stage) :global(.atlas-globe-hint) {
-  bottom: 8%;
+  position: absolute;
+  z-index: 6;
+  bottom: 0;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid rgba(238, 220, 179, 0.16);
+  border-radius: 999px;
+  background: rgba(7, 28, 29, 0.76);
+  color: rgba(231, 235, 221, 0.68) !important;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.45;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(16px);
+}
+
+.country-stage .globe-caption,
+:global(.country-stage) :global(.globe-caption) {
+  position: absolute;
+  top: clamp(26px, 6%, 64px);
+  right: auto;
+  left: clamp(4px, 2%, 24px);
+  z-index: 5;
+  width: min(100%, 224px);
+  margin: 0;
+  border-color: rgba(238, 215, 167, 0.18);
+  background: rgba(7, 28, 29, 0.72);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(18px);
+}
+
+.country-stage .globe-caption p,
+:global(.country-stage) :global(.globe-caption) p {
+  color: #fff8e8 !important;
+}
+
+.country-stage .globe-caption span:last-child,
+:global(.country-stage) :global(.globe-caption) span:last-child {
+  color: rgba(218, 230, 222, 0.62);
 }
 
 .country-shelf,
@@ -1107,17 +1544,68 @@
   width: min(310px, 25vw);
   height: 100%;
   padding: 34px 18px 20px;
-  border-left: 1px solid rgba(36, 95, 82, 0.14);
-  background: rgba(255, 250, 240, 0.88);
-  box-shadow: -18px 0 48px rgba(31, 44, 42, 0.08);
-  backdrop-filter: blur(18px);
+  border-left: 1px solid rgba(238, 203, 128, 0.18);
+  background:
+    radial-gradient(circle at 40% 0%, rgba(37, 107, 101, 0.2), transparent 32%),
+    linear-gradient(180deg, rgba(11, 40, 39, 0.96), rgba(4, 23, 24, 0.98));
+  box-shadow:
+    -24px 0 64px rgba(0, 0, 0, 0.3),
+    inset 1px 0 rgba(255, 238, 197, 0.04);
+  backdrop-filter: blur(24px);
   overflow: visible;
-  transition: width 340ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.country-shelf-backdrop,
+:global(.country-shelf-backdrop) {
+  position: absolute;
+  z-index: 6;
+  inset: 0;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(1, 13, 14, 0.24);
+  cursor: pointer;
+  animation: country-shelf-backdrop-in 180ms ease-out;
+}
+
+.country-shelf-backdrop:focus-visible,
+:global(.country-shelf-backdrop):focus-visible {
+  outline: 2px solid rgba(241, 199, 110, 0.88);
+  outline-offset: -4px;
+}
+
+@keyframes country-shelf-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .country-shelf--expanded,
 :global(.country-shelf--expanded) {
   width: min(760px, 68vw);
+}
+
+.country-shelf--closed,
+:global(.country-shelf--closed) {
+  transform: translateX(100%);
+}
+
+.country-shelf-body,
+:global(.country-shelf-body) {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .country-shelf-toggle,
@@ -1128,13 +1616,13 @@
   display: grid;
   width: 42px;
   height: 76px;
-  border: 1px solid rgba(36, 95, 82, 0.18);
+  border: 1px solid rgba(238, 203, 128, 0.22);
   border-right: 0;
   border-radius: 12px 0 0 12px;
   padding: 0;
-  background: rgba(255, 250, 240, 0.95);
-  color: var(--accent);
-  box-shadow: -8px 6px 20px rgba(31, 44, 42, 0.1);
+  background: rgba(7, 28, 29, 0.94);
+  color: #edc36b;
+  box-shadow: -12px 8px 30px rgba(0, 0, 0, 0.28);
   place-items: center;
   transform: translateY(-50%);
 }
@@ -1143,8 +1631,8 @@
 .country-shelf-toggle:focus-visible,
 :global(.country-shelf-toggle):hover,
 :global(.country-shelf-toggle):focus-visible {
-  background: var(--accent);
-  color: #fffaf0;
+  background: #d99a2b;
+  color: #071c1d;
 }
 
 .country-shelf-toggle-icon,
@@ -1155,13 +1643,25 @@
 
 .country-shelf-heading,
 :global(.country-shelf-heading) {
+  position: relative;
   padding-bottom: 16px;
+}
+
+.country-shelf-heading::after,
+:global(.country-shelf-heading)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 8px;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(226, 168, 57, 0.42), transparent 72%);
 }
 
 .country-shelf-title-row,
 :global(.country-shelf-title-row) {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   width: 100%;
   white-space: nowrap;
 }
@@ -1169,31 +1669,54 @@
 .country-shelf-title-row .eyebrow,
 .country-shelf-title-row :global(.eyebrow),
 :global(.country-shelf-title-row) :global(.eyebrow) {
-  color: #2f7d64;
+  color: #e0a93f;
   font-size: 14px;
   line-height: 1.2;
 }
 
+.country-shelf-close,
 .country-shelf-search-toggle,
+:global(.country-shelf-close),
 :global(.country-shelf-search-toggle) {
   display: grid;
   width: 28px;
   height: 28px;
-  margin-left: auto;
-  border: 1px solid rgba(36, 95, 82, 0.18);
+  border: 1px solid rgba(238, 211, 151, 0.18);
   border-radius: 50%;
   padding: 0;
-  background: rgba(255, 250, 240, 0.8);
-  color: var(--accent);
+  background: rgba(255, 248, 232, 0.05);
+  color: #f4ddb0;
+  font-size: 16px;
+  line-height: 1;
   place-items: center;
 }
 
+.country-shelf-search-toggle,
+:global(.country-shelf-search-toggle) {
+  margin-left: auto;
+}
+
+.country-shelf-close,
+:global(.country-shelf-close) {
+  margin-left: 8px;
+}
+
+.country-shelf-close:hover,
+.country-shelf-close:focus-visible,
 .country-shelf-search-toggle:hover,
 .country-shelf-search-toggle:focus-visible,
+:global(.country-shelf-close):hover,
+:global(.country-shelf-close):focus-visible,
 :global(.country-shelf-search-toggle):hover,
 :global(.country-shelf-search-toggle):focus-visible {
-  background: var(--accent);
-  color: #fffaf0;
+  background: #d99a2b;
+  color: #071c1d;
+}
+
+.country-shelf-search-toggle--open,
+:global(.country-shelf-search-toggle--open) {
+  background: #d99a2b;
+  color: #071c1d;
 }
 
 .country-shelf-search-toggle svg,
@@ -1209,7 +1732,7 @@
 .country-shelf-heading p:last-child,
 :global(.country-shelf-heading) p:last-child {
   margin: 4px 0 0;
-  color: var(--muted);
+  color: rgba(220, 231, 223, 0.62);
   font-size: 12px;
   font-weight: 650;
 }
@@ -1218,6 +1741,24 @@
 :global(.country-shelf) :global(.search-field) {
   width: 100%;
   margin: 0 0 14px;
+}
+
+.country-shelf .country-shelf-search-panel input,
+:global(.country-shelf) :global(.country-shelf-search-panel) input {
+  border-color: rgba(238, 211, 151, 0.2);
+  background: rgba(2, 18, 19, 0.72);
+  color: #fff8e8;
+}
+
+.country-shelf .country-shelf-search-panel input::placeholder,
+:global(.country-shelf) :global(.country-shelf-search-panel) input::placeholder {
+  color: rgba(220, 231, 223, 0.42);
+}
+
+.country-shelf .country-shelf-search-panel input:focus,
+:global(.country-shelf) :global(.country-shelf-search-panel) input:focus {
+  border-color: rgba(224, 169, 63, 0.7);
+  box-shadow: 0 0 0 3px rgba(224, 169, 63, 0.12);
 }
 
 .country-shelf .country-grid,
@@ -1230,7 +1771,8 @@
   width: 100%;
   min-height: 0;
   margin: 0;
-  padding-right: 4px;
+  gap: 12px;
+  padding: 2px 4px 20px 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
@@ -1253,18 +1795,53 @@
   min-height: 0;
   aspect-ratio: auto;
   padding: 12px;
-  border-radius: 10px;
+  border-color: rgba(236, 199, 119, 0.2);
+  border-radius: 14px;
+  background: #061b1c;
+  box-shadow:
+    0 14px 28px rgba(0, 0, 0, 0.24),
+    inset 0 0 0 1px rgba(255, 238, 197, 0.03);
 }
 
-.country-shelf--expanded .country-card,
-:global(.country-shelf--expanded) :global(.country-card) {
-  aspect-ratio: auto;
+.country-shelf .country-card::before,
+:global(.country-shelf) :global(.country-card)::before {
+  background:
+    linear-gradient(180deg, rgba(4, 24, 24, 0.08) 0%, rgba(4, 24, 24, 0.22) 40%, rgba(2, 17, 18, 0.92) 100%),
+    linear-gradient(90deg, rgba(7, 30, 30, 0.22), transparent 60%);
+}
+
+.country-shelf .country-card::after,
+:global(.country-shelf) :global(.country-card)::after {
+  box-shadow: inset 0 0 0 1px rgba(239, 206, 137, 0.12);
+}
+
+.country-shelf .country-card:hover,
+.country-shelf .country-card:focus-within,
+:global(.country-shelf) :global(.country-card):hover,
+:global(.country-shelf) :global(.country-card):focus-within {
+  border-color: rgba(226, 168, 57, 0.62);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(226, 168, 57, 0.12);
 }
 
 .country-shelf .country-card-menu,
 :global(.country-shelf) :global(.country-card-menu) {
   top: 11px;
   left: 11px;
+  border-color: rgba(238, 211, 151, 0.22);
+  background: rgba(5, 27, 27, 0.82);
+  color: #f1d497;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.country-shelf .country-card-menu:hover,
+.country-shelf .country-card-menu:focus-visible,
+:global(.country-shelf) :global(.country-card-menu):hover,
+:global(.country-shelf) :global(.country-card-menu):focus-visible {
+  border-color: rgba(231, 179, 76, 0.72);
+  background: #d99a2b;
+  color: #071c1d;
 }
 
 .country-shelf .country-card-visual,
@@ -1281,14 +1858,28 @@
 
 .country-shelf .country-name,
 :global(.country-shelf) :global(.country-name) {
+  color: #fff8e8;
   font-size: 15px;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.82);
 }
 
 .country-shelf .country-status,
 :global(.country-shelf) :global(.country-status),
 .country-shelf .country-code,
 :global(.country-shelf) :global(.country-code) {
+  border-color: rgba(238, 211, 151, 0.2);
+  background: rgba(5, 26, 27, 0.84);
+  color: #f2d69b;
   font-size: 9px;
+  backdrop-filter: blur(8px);
+}
+
+.country-shelf .country-status:hover,
+.country-shelf .country-status:focus-visible,
+:global(.country-shelf) :global(.country-status):hover,
+:global(.country-shelf) :global(.country-status):focus-visible {
+  background: #d99a2b;
+  color: #071c1d;
 }
 
 .country-stage--shelf-open .country-hero-copy,
@@ -1297,28 +1888,15 @@
   transition: opacity 180ms ease;
 }
 
-@media (max-width: 1180px) and (min-width: 921px) {
-  .country-stage .country-hero-copy,
-  :global(.country-stage) :global(.country-hero-copy) {
-    max-width: 41vw;
-  }
-
-  .country-stage .country-hero-globe,
-  :global(.country-stage) :global(.country-hero-globe) {
-    right: clamp(28px, 3vw, 48px);
-    width: min(48vw, 560px);
-  }
-}
-
 @media (max-width: 920px) {
-  .country-stage .country-hero,
-  :global(.country-stage) :global(.country-hero) {
-    padding-right: 280px;
+  .country-stage,
+  :global(.country-stage) {
+    --shelf-gap: 260px;
   }
 
-  .country-stage .country-hero-copy,
-  :global(.country-stage) :global(.country-hero-copy) {
-    max-width: 55vw;
+  .country-stage--shelf-closed,
+  :global(.country-stage--shelf-closed) {
+    --shelf-gap: 0px;
   }
 
   .country-shelf,
@@ -1335,7 +1913,17 @@
 @media (max-width: 640px) {
   .country-stage .country-hero,
   :global(.country-stage) :global(.country-hero) {
-    padding: 28px 24px 280px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 24px 20px 236px;
+    overflow: auto;
+  }
+
+  .country-stage--shelf-closed .country-hero,
+  :global(.country-stage--shelf-closed) :global(.country-hero) {
+    padding-bottom: 72px;
   }
 
   .country-stage .country-hero-copy,
@@ -1352,10 +1940,50 @@
 
   .country-stage .country-hero-globe,
   :global(.country-stage) :global(.country-hero-globe) {
-    top: 36%;
-    right: -14vw;
-    bottom: 92px;
-    width: 100vw;
+    width: min(100%, 480px);
+    height: auto;
+    margin: 18px auto 0;
+  }
+
+  .country-stage .atlas-globe,
+  :global(.country-stage) :global(.atlas-globe) {
+    width: min(100%, 420px);
+    height: auto;
+  }
+
+  .country-stage .atlas-globe-stage,
+  :global(.country-stage) :global(.atlas-globe-stage) {
+    width: min(100%, 420px);
+  }
+
+  .country-stage .atlas-globe-controls,
+  :global(.country-stage) :global(.atlas-globe-controls) {
+    top: 74px;
+    right: 0;
+    bottom: auto;
+  }
+
+  .country-stage .globe-caption,
+  :global(.country-stage) :global(.globe-caption) {
+    top: 0;
+    left: 0;
+    width: 184px;
+  }
+
+  .country-stage--shelf-closed .atlas-globe,
+  :global(.country-stage--shelf-closed) :global(.atlas-globe) {
+    width: min(100%, 520px);
+    height: auto;
+  }
+
+  .country-stage--shelf-closed .atlas-globe-stage,
+  :global(.country-stage--shelf-closed) :global(.atlas-globe-stage) {
+    width: min(100%, 520px);
+  }
+
+  .country-stage--shelf-open .country-hero-globe,
+  :global(.country-stage--shelf-open) :global(.country-hero-globe) {
+    display: none;
   }
 
   .country-shelf,
@@ -1367,6 +1995,11 @@
     padding: 14px 14px 12px;
     border-top: 1px solid rgba(36, 95, 82, 0.14);
     border-left: 0;
+  }
+
+  .country-shelf--closed,
+  :global(.country-shelf--closed) {
+    transform: translateY(100%);
   }
 
   .country-shelf--expanded,

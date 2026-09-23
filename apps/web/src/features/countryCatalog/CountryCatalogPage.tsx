@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { worldCountries } from "@roamatlas/data/countries.js";
 import {
-  initCountryPackRegistry,
-  isConfiguredCountryPack
+  getCountryPack,
+  initCountryPackRegistry
 } from "../../data/countryPacks/index.js";
 import { useApplicationStore } from "../../app/applicationStore";
 import { CountryCatalogView, type CountryCatalogCountry } from "./CountryCatalogView";
@@ -22,7 +22,11 @@ export function CountryCatalogPage() {
   };
 
   const open = (country: CountryCatalogCountry) => {
-    if (!isConfiguredCountryPack(country.slug)) {
+    const registration = getCountryPack(country.slug)?.registration;
+    if (
+      registration !== "source_controlled" &&
+      registration !== "runtime_draft"
+    ) {
       configure(country);
       return;
     }

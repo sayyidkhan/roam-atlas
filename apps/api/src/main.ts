@@ -13,7 +13,9 @@ import { createEnvironmentPlanQueue } from "./features/artwork/environmentPlanQu
 import { createArtworkRoutes } from "./features/artwork/artworkHttpHandler.ts";
 import { createArtworkQualityLockRoutes } from "./features/artwork/artworkQualityLockHttpHandler.ts";
 import { createRuntimeArtworkContext } from "./features/artwork/runtimeArtworkContext.ts";
+import { createConfirmedExplorerPackResolver } from "./features/countryCatalog/confirmedExplorerPack.ts";
 import { createCountryPackRoutes } from "./features/countryCatalog/countryPackHttpHandler.ts";
+import { createCountryDraftRepository } from "./features/countryDraft/countryDraftRepository.ts";
 import { createCountryDraftFeature } from "./features/countryDraft/countryDraftFeature.ts";
 import { createCountryImageService } from "./features/countryImages/countryImageService.ts";
 import { createCountryImageRoutes } from "./features/countryImages/countryImageHttpHandler.ts";
@@ -27,6 +29,8 @@ import { createRuntimeArtifactRoutes } from "./features/runtimeCache/runtimeArti
 import { createRuntimeCacheRoutes } from "./features/runtimeCache/runtimeCacheHttpHandler.ts";
 import { createRuntimeCacheRepository } from "./features/runtimeCache/runtimeCacheRepository.ts";
 import { createRuntimeCacheService } from "./features/runtimeCache/runtimeCacheService.ts";
+import { createUsageRoutes } from "./features/usage/usageHttpHandler.ts";
+import { createUsageService } from "./features/usage/usageService.ts";
 import { createExperienceConfigRoutes } from "./features/experience/experienceConfigHttpHandler.ts";
 import { createCountryDraftRoutes } from "./features/countryDraft/countryDraftHttpHandler.ts";
 import { createEnvironmentPlanServerPolicy } from "./features/explorer/environmentPlanServerPolicy.ts";
@@ -67,11 +71,35 @@ const appConfig = resolveRoamAtlasConfig(process.env);
 const appExperienceConfig = resolveRoamAtlasExperienceConfig(process.env);
 const port = appConfig.server.port;
 const runtimeCacheRoot = resolveRuntimeCacheRoot();
+const usageService = createUsageService({ runtimeCacheRoot });
 const getImagePathFromUrl = createRuntimeArtifactPathResolver({
   repositoryRoot: root,
   runtimeCacheRoot,
   runtimeCacheUrlPrefix: RUNTIME_CACHE_URL_PREFIX
 });
+const resolveConfirmedExplorerPack = createConfirmedExplorerPackResolver({
+  getCountryBySlug,
+  readStoredDraft: createCountryDraftRepository({
+    cacheRoot: runtimeCacheRoot
+  }).read
+});
+const confirmedExplorerPackCache = new Map<
+  string,
+  NonNullable<Awaited<ReturnType<typeof resolveConfirmedExplorerPack>>>
+>();
+
+async function resolveCachedConfirmedExplorerPack(
+  countrySlug: string
+) {
+  const pack = await resolveConfirmedExplorerPack(countrySlug);
+  if (pack) confirmedExplorerPackCache.set(countrySlug, pack);
+  return pack;
+}
+
+function getExplorerCountryPack(countrySlug: string) {
+  return confirmedExplorerPackCache.get(countrySlug) ?? getCountryPack(countrySlug);
+}
+
 const {
   getCountryPackForPage,
   getCountrySlugForPage: getRuntimeCountrySlugForPage,
@@ -81,14 +109,15 @@ const {
   defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
   defaultRuntimeCountrySlug: DEFAULT_RUNTIME_COUNTRY_SLUG,
   runtimeCacheUrlPrefix: RUNTIME_CACHE_URL_PREFIX,
-  getCountryPack
+  getCountryPack: getExplorerCountryPack
 });
 const resolveClickPhraseWithOpenAI = createOpenAIClickResolver({
   apiKey: process.env.OPENAI_API_KEY,
   model: appConfig.ai.vlmModel,
+  recordUsage: usageService.record,
   serviceTier: appConfig.ai.serviceTier,
   defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
-  getCountryPack,
+  getCountryPack: getExplorerCountryPack,
   getSceneArtwork,
   getImagePathFromUrl
 });
@@ -104,6 +133,7 @@ const {
 const createEnvironmentPlanWithOpenAI = createOpenAIEnvironmentPlanner({
   apiKey: process.env.OPENAI_API_KEY,
   model: appConfig.ai.environmentModel,
+  recordUsage: usageService.record,
   serviceTier: appConfig.ai.serviceTier,
   getImagePathFromUrl,
   buildPrompt: buildEnvironmentPlanPrompt,
@@ -114,7 +144,8 @@ const createEnvironmentPlanWithOpenAI = createOpenAIEnvironmentPlanner({
 const configuredImageProvider = createConfiguredImageProvider({
   apiKey: process.env.OPENAI_API_KEY,
   imageConfig: appConfig.image,
-  providerConcurrency: appExperienceConfig.providerConcurrency
+  providerConcurrency: appExperienceConfig.providerConcurrency,
+  recordUsage: usageService.record
 });
 const normalizeRequestedImageQuality = configuredImageProvider.normalizeQuality;
 const {
@@ -157,6 +188,7 @@ const {
     openai: process.env.OPENAI_API_KEY
   },
   textModel: appConfig.ai.textModel,
+  recordUsage: usageService.record,
   serviceTier: appConfig.ai.serviceTier,
   extractOpenAIText,
   parseJsonObject
@@ -174,6 +206,7 @@ const {
     openai: process.env.OPENAI_API_KEY
   },
   textModel: appConfig.ai.textModel,
+  recordUsage: usageService.record,
   serviceTier: appConfig.ai.serviceTier,
 });
 const artworkJobPolicy = createArtworkJobPolicy({
@@ -245,6 +278,7 @@ const api = createRoamAtlasApi({
     createArtworkRoutes({
       defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
       getCountryPack,
+      resolveConfirmedExplorerPack: resolveCachedConfirmedExplorerPack,
       getDefaultArtworkPageForNode,
       getDefaultArtworkPageForScene,
       createImageJob: artworkJobService.createImageJob,
@@ -259,6 +293,9 @@ const api = createRoamAtlasApi({
       experienceConfig: appExperienceConfig,
       defaultImageQuality: appConfig.image.quality
     }),
+    createUsageRoutes({
+      readUsage: usageService.read
+    }),
     createCountryImageRoutes({
       getCountryBySlug,
       resolveImage: countryImageService.resolveImage,
@@ -267,7 +304,8 @@ const api = createRoamAtlasApi({
     createPlaceImageRoutes(placeImageHttpHandlers),
     createCountryPackRoutes({
       countryPacks,
-      defaultCountrySlug: DEFAULT_COUNTRY_SLUG
+      defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
+      resolveConfirmedExplorerPack: resolveCachedConfirmedExplorerPack
     }),
     createCountryDraftRoutes(countryDraftHttpHandlers),
     createRuntimeCacheRoutes({

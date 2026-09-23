@@ -16,6 +16,7 @@
     "test:react": "vitest run test/components",
     "test:contract": "vitest run test/contracts",
     "test:browser": "playwright test",
+    "data:curate": "node scripts/curate-country-drafts.mjs",
     "typecheck": "tsc --build --pretty false",
     "typecheck:clean": "tsc --build --clean",
     "lint": "eslint . && npm run lint:css",

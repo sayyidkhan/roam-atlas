@@ -488,7 +488,19 @@ test("country draft normalization labels generated candidates as unconfirmed", (
           name: "Kuala Lumpur",
           kind: "city",
           why: "Candidate urban chapter.",
-          confidence: "confirmed"
+          confidence: "confirmed",
+          children: [
+            {
+              name: "Museum candidate",
+              kind: "attraction",
+              why: "A source-grounded cultural stop.",
+              tags: ["Culture", "history"],
+              typicalDurationMinutes: 120,
+              budgetLevel: "low",
+              bestTimeOfDay: "morning",
+              confidence: "confirmed"
+            }
+          ]
         },
         {
           name: "Ticket Area",
@@ -515,6 +527,15 @@ test("country draft normalization labels generated candidates as unconfirmed", (
   assert.equal(draft.regions.length, 1);
   assert.equal(draft.regions[0].name, "Kuala Lumpur");
   assert.equal(draft.regions[0].confidence, "unconfirmed");
+  assert.equal(draft.regions[0].children[0].kind, "attraction");
+  assert.deepEqual(
+    draft.regions[0].children[0].tags,
+    ["culture", "history"]
+  );
+  assert.equal(
+    draft.regions[0].children[0].typicalDurationMinutes,
+    120
+  );
   assert.equal(draft.themes[0].confidence, "unconfirmed");
   assert.match(draft.factBoundary, /not confirmed travel facts/);
 });
@@ -549,6 +570,13 @@ test("country draft prompt switches to a grounded variant when Exa snippets are 
   assert.match(groundedPrompt, /https:\/\/malaysia\.travel\/kuala-lumpur/);
   assert.match(groundedPrompt, /Never invent a URL that is not one of the snippet URLs listed above/);
   assert.match(groundedPrompt, /confidence to "likely"/);
+  assert.match(groundedPrompt, /12 to 20 total child destinations/);
+  assert.match(
+    groundedPrompt,
+    /Never use a bare compass or administrative bucket/
+  );
+  assert.match(groundedPrompt, /Bangkok & Chao Phraya/);
+  assert.match(groundedPrompt, /typicalDurationMinutes/);
   assert.doesNotMatch(groundedPrompt, /source URLs, citations/);
 });
 
@@ -650,6 +678,16 @@ test("normalizeCountryDraftPayload upgrades confidence to likely only when sourc
   assert.equal(draft.themes[0].sourceUrl, "https://tourism.gov.my/penang");
 
   assert.equal(draft.sourceType, "exa_grounded");
+  assert.equal(draft.sourceRegistry.length, 3);
+  assert.equal(
+    draft.sourceRegistry[0].url,
+    "https://tourism.gov.my/penang"
+  );
+  assert.equal(
+    normalizeCountryDraftPayload(draft, country)
+      .regions[0].sourceUrl,
+    "https://tourism.gov.my/penang"
+  );
   assert.equal(draft.confidence, "unconfirmed", "grounded facts stay 'likely' at most; the overall draft never becomes 'confirmed' automatically");
   assert.ok(draft.warnings.some((warning) => /third-party search results/.test(warning)));
 });
@@ -760,6 +798,41 @@ test("Malaysia is registered as an actual country pack with unconfirmed starter 
   assert.equal(scene.rootNodeId, "malaysia");
   assert.equal(scene.hotspots.length, 7);
   assert.ok(pack.nodes.malaysia.childIds.includes("malaysia-johor"));
+  assert.deepEqual(pack.nodes["malaysia-sarawak"].childIds, [
+    "malaysia-sarawak-kuching",
+    "malaysia-sarawak-sibu",
+    "malaysia-sarawak-miri",
+    "malaysia-sarawak-bintulu"
+  ]);
+  assert.deepEqual(
+    pack.nodes["malaysia-sarawak-kuching"].childIds,
+    [
+      "malaysia-kuching-waterfront",
+      "malaysia-kuching-borneo-cultures-museum",
+      "malaysia-kuching-fort-margherita",
+      "malaysia-kuching-semenggoh",
+      "malaysia-kuching-bako-national-park",
+      "malaysia-kuching-sarawak-cultural-village"
+    ]
+  );
+  assert.equal(
+    pack.scenes["kuching-overview"].rootNodeId,
+    "malaysia-sarawak-kuching"
+  );
+  for (const stateId of [
+    "malaysia-penang",
+    "malaysia-johor",
+    "malaysia-sabah",
+    "malaysia-sarawak",
+    "malaysia-melaka"
+  ]) {
+    assert.ok(pack.nodes[stateId].childIds.length >= 3);
+    assert.ok(
+      pack.nodes[stateId].childIds.every(
+        (cityId) => pack.nodes[cityId]?.parentId === stateId
+      )
+    );
+  }
   assert.equal(pack.nodes["malaysia-kuala-lumpur"].facts[0].sourceType, "ai_generated");
   assert.equal(pack.nodes["malaysia-kuala-lumpur"].facts[0].confidence, "unconfirmed");
   assert.ok(
@@ -1069,6 +1142,46 @@ test("next artwork destinations stay one level deep from the current screen", ()
   });
   assert.ok(marinaTargets.some((target) => target.nodeId === "marina-bay-sands"));
   assert.ok(marinaTargets.some((target) => target.nodeId === "gardens-by-the-bay"));
+
+  const malaysiaPack = countryPacks.malaysia;
+  const malaysiaScene = malaysiaPack.scenes["malaysia-overview"];
+  const sarawakTargets = listNextArtworkDestinations({
+    scene: malaysiaScene,
+    scenes: malaysiaPack.scenes,
+    nodes: malaysiaPack.nodes,
+    currentPage: {
+      sceneId: malaysiaScene.id,
+      nodeId: "malaysia-sarawak"
+    },
+    limit: 10
+  });
+  assert.deepEqual(
+    sarawakTargets.map((target) => target.title),
+    ["Kuching", "Sibu", "Miri", "Bintulu"]
+  );
+
+  const kuchingScene = malaysiaPack.scenes["kuching-overview"];
+  const kuchingTargets = listNextArtworkDestinations({
+    scene: kuchingScene,
+    scenes: malaysiaPack.scenes,
+    nodes: malaysiaPack.nodes,
+    currentPage: {
+      sceneId: kuchingScene.id,
+      nodeId: "malaysia-sarawak-kuching"
+    },
+    limit: 10
+  });
+  assert.deepEqual(
+    kuchingTargets.map((target) => target.title),
+    [
+      "Kuching Waterfront",
+      "Borneo Cultures Museum",
+      "Fort Margherita",
+      "Semenggoh Wildlife Centre",
+      "Bako National Park",
+      "Sarawak Cultural Village"
+    ]
+  );
 });
 
 test("loading steps follow image job status", () => {
@@ -1474,6 +1587,8 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
   assert.match(output.prompt, /35% of the image visually open/);
   assert.match(output.prompt, /Do not fully render all of Singapore/);
   assert.match(output.prompt, /Readable image text is allowed/);
+  assert.match(output.prompt, /1\. Marina Bay/);
+  assert.match(output.prompt, /Do not shorten, translate, or replace a supplied name/);
   assert.match(output.prompt, /central 3:2 safe area/);
   assert.match(output.prompt, /dense tourist map/);
   assert.match(output.prompt, /busy panoramic city poster/);
@@ -1526,8 +1641,8 @@ test("region prompt focuses one region and puts short labels in the generated im
     knownChildNodeTitles: ["Gardens by the Bay", "Merlion Park"]
   });
 
-  assert.match(output.prompt, /one region only/);
-  assert.match(output.prompt, /not the whole city/);
+  assert.match(output.prompt, /named region or city chapter only/);
+  assert.match(output.prompt, /not its parent state or country/);
   assert.match(output.prompt, /image itself should include short readable labels/);
   assert.match(output.prompt, /central 3:2 safe area/);
   assert.match(output.prompt, /callout panels|short readable labels/);
@@ -1578,7 +1693,7 @@ test("central prompt router sends page depths to the right builders", () => {
   assert.equal(homepage.pageType, "homepage_overview");
   assert.match(homepage.prompt, /visual table of contents/);
   assert.equal(region.pageType, "district_or_attraction");
-  assert.match(region.prompt, /one region only/);
+  assert.match(region.prompt, /named region or city chapter only/);
   assert.equal(encyclopedia.pageType, "natural_history_detail");
   assert.match(encyclopedia.prompt, /illustrated encyclopedia plate/);
 });
@@ -2562,7 +2677,7 @@ test("place image resolver rejects badge-sized files and has a reference-photo f
   assert.match(wikipediaProviderSource, /wikipedia article reference-photo fallback/);
 });
 
-test("server filters thin Exa grounding snippets and restricts search to official-leaning domains", () => {
+test("server filters thin Exa snippets and runs global travel-source queries", () => {
   const groundingProviderSource = readFileSync(
     new URL(
       "../apps/api/src/features/countryDraft/exaCountryGroundingProvider.ts",
@@ -2579,10 +2694,17 @@ test("server filters thin Exa grounding snippets and restricts search to officia
   );
   assert.match(
     groundingProviderSource,
-    /includeDomains:\s*EXA_GROUNDING_DOMAINS/
+    /official tourism itineraries destination guides major cities islands heritage areas/
   );
-  assert.match(groundingProviderSource, /"visitsingapore\.com"/);
-  assert.match(groundingProviderSource, /"tourism\.gov\.my"/);
+  assert.match(
+    groundingProviderSource,
+    /official tourism attractions culture heritage nature/
+  );
+  assert.match(
+    groundingProviderSource,
+    /official public transport visitor travel/
+  );
+  assert.doesNotMatch(groundingProviderSource, /includeDomains/);
 });
 
 test("server creates image-specific environment plans for generated artwork", () => {
@@ -2642,7 +2764,10 @@ test("server creates image-specific environment plans for generated artwork", ()
   assert.match(serverSource, /appConfig\.ai\.environmentModel/);
   assert.match(serverSource, /buildEnvironmentPlanPrompt/);
   assert.match(promptSource, /environment-plan-v4/);
-  assert.match(promptSource, /return both visualBounds and labelBounds/);
+  assert.match(
+    promptSource,
+    /For each visibly identifiable destination candidate, return visualBounds, visualOutline, and labelBounds/
+  );
   assert.match(promptSource, /visualBounds must tightly cover the complete illustrated subject/);
   assert.match(promptSource, /labelBounds must tightly cover ONLY/);
   assert.match(promptSource, /exclude unrelated open water, empty sky, nearby destinations/);

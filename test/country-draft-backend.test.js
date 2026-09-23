@@ -47,13 +47,26 @@ test("country grounding provider uses injected transport and filters thin snippe
 
   const snippets = await provider.search(country);
 
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 3);
   assert.equal(requests[0].url, "https://api.exa.ai/search");
   assert.equal(snippets.length, 1);
   assert.equal(snippets[0].title, "Official guide");
-  const body = JSON.parse(requests[0].options.body);
-  assert.ok(body.includeDomains.includes("visitsingapore.com"));
-  assert.ok(body.includeDomains.includes("tourism.gov.my"));
+  const bodies = requests.map((request) =>
+    JSON.parse(request.options.body)
+  );
+  assert.ok(
+    bodies.every(
+      (body) =>
+        body.type === "auto" &&
+        !Object.hasOwn(body, "includeDomains")
+    )
+  );
+  assert.match(
+    bodies[0].query,
+    /official tourism itineraries destination guides/
+  );
+  assert.match(bodies[1].query, /official tourism attractions/);
+  assert.match(bodies[2].query, /official public transport/);
 });
 
 test("country draft generator does not call providers without an OpenAI key", async () => {

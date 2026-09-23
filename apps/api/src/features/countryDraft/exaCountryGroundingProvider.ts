@@ -3,19 +3,26 @@ import type {
   CountryDraftGroundingSnippet
 } from "@roamatlas/domain/countryDraft.js";
 
-const EXA_GROUNDING_DOMAINS = [
-  "visitsingapore.com",
-  "stb.gov.sg",
-  "mandai.com",
-  "malaysia.travel",
-  "tourism.gov.my",
-  "wikipedia.org",
-  "gov.sg",
-  "gov.my"
-];
-
 export const EXA_MIN_SNIPPET_TEXT_LENGTH =
   200;
+
+const RESEARCH_QUERIES = [
+  {
+    kind: "regions",
+    build: (countryName: string) =>
+      `${countryName} official tourism itineraries destination guides major cities islands heritage areas`
+  },
+  {
+    kind: "attractions",
+    build: (countryName: string) =>
+      `${countryName} official tourism attractions culture heritage nature`
+  },
+  {
+    kind: "transport",
+    build: (countryName: string) =>
+      `${countryName} official public transport visitor travel`
+  }
+] as const;
 
 type ExaCountryGroundingProviderOptions = {
   apiKey?: string;
@@ -33,12 +40,12 @@ export function createExaCountryGroundingProvider({
       country: CountryDraftCountry
     ): Promise<CountryDraftGroundingSnippet[]> {
       if (!apiKey) return [];
-      const query =
-        "Official tourism attractions, districts, " +
-        `and regions in ${country.name}`;
-      let response: Response;
-      try {
-        response = await fetchFn(
+      const batches = await Promise.all(
+        RESEARCH_QUERIES.map(async ({ kind, build }) => {
+          const query = build(country.name);
+          let response: Response;
+          try {
+            response = await fetchFn(
           "https://api.exa.ai/search",
           {
             method: "POST",
@@ -48,51 +55,66 @@ export function createExaCountryGroundingProvider({
             },
             body: JSON.stringify({
               query,
-              numResults: 8,
-              includeDomains:
-                EXA_GROUNDING_DOMAINS,
+              type: "auto",
+              numResults: 6,
               contents: {
-                text: { maxCharacters: 2000 }
+                text: { maxCharacters: 1600 }
               }
             })
           }
         );
-      } catch (error) {
-        logger.warn(
-          `Exa grounding search failed for ${country.name}: ${errorMessage(error)}`
-        );
-        return [];
-      }
+          } catch (error) {
+            logger.warn(
+              `Exa ${kind} search failed for ${country.name}: ${errorMessage(error)}`
+            );
+            return [];
+          }
 
-      if (!response.ok) {
-        logger.warn(
-          `Exa grounding search failed for ${country.name}: ` +
-            `${response.status} ${await response.text()}`
-        );
-        return [];
-      }
+          if (!response.ok) {
+            logger.warn(
+              `Exa ${kind} search failed for ${country.name}: ` +
+                `${response.status} ${await response.text()}`
+            );
+            return [];
+          }
 
-      let payload: unknown;
-      try {
-        payload = (await response.json()) as unknown;
-      } catch {
-        return [];
-      }
+          let payload: unknown;
+          try {
+            payload = (await response.json()) as unknown;
+          } catch {
+            return [];
+          }
 
-      return readResults(payload)
-        .map((result) => ({
-          title: normalizeText(result.title),
-          url: normalizeText(result.url),
-          text: normalizeText(result.text)
-        }))
-        .filter(
-          (snippet) =>
-            Boolean(snippet.url) &&
-            snippet.text.length >=
-              EXA_MIN_SNIPPET_TEXT_LENGTH
-        );
+          return readResults(payload)
+            .map((result) => ({
+              title: normalizeText(result.title),
+              url: normalizeText(result.url),
+              text: normalizeText(result.text),
+              researchKind: kind
+            }))
+            .filter(
+              (snippet) =>
+                Boolean(snippet.url) &&
+                snippet.text.length >=
+                  EXA_MIN_SNIPPET_TEXT_LENGTH
+            );
+        })
+      );
+      return deduplicateByUrl(batches.flat()).slice(0, 18);
     }
   };
+}
+
+function deduplicateByUrl(
+  snippets: CountryDraftGroundingSnippet[]
+): CountryDraftGroundingSnippet[] {
+  const seen = new Set<string>();
+  return snippets.filter((snippet) => {
+    const url = normalizeText(snippet.url);
+    if (!url || seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
 }
 
 function readResults(

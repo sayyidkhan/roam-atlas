@@ -26,6 +26,8 @@ AI-generated, while factual claims are grounded in curated and official data.
   TypeScript, test-ownership, and persistence checkpoints.
 - [TESTING.md](docs/TESTING.md) defines isolated provider fixtures, including
   the rule that Playwright never contacts a live image or VLM API.
+- [COUNTRY_DATASET.md](docs/COUNTRY_DATASET.md) defines the Exa-grounded
+  country travel-research pipeline, source boundary, and review workflow.
 
 ## Country Packs and Routes
 
@@ -37,6 +39,7 @@ Current route shape:
 
 ```text
 /                         country landing
+/usage                    local OpenAI request and estimated-cost ledger
 /:countrySlug             mapped country overview, or redirect to config if unmapped
 /:countrySlug/config      country config, available for mapped and unmapped countries
 /:countrySlug/place/:id   mapped place or region from that country's pack
@@ -89,6 +92,10 @@ OPENAI_API_KEY="..." npm run dev
 The development command starts Vite on `127.0.0.1:4150` and the local API on
 `127.0.0.1:4151`; Vite proxies `/api` and `/runtime-cache` to the API process.
 The browser therefore always receives transformed React/TypeScript modules.
+
+The `/usage` dashboard records completed provider-call token counts, model,
+feature, latency, and estimated USD cost in the API runtime cache. It never
+stores prompts, generated content, or API keys.
 
 ## Landing Globe
 

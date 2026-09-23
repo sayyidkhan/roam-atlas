@@ -94,7 +94,9 @@ export function createCountryDraftLifecycleController(
         status: "ready",
         draft,
         messages,
-        confirmation
+        confirmation:
+          draft?.curationConfirmation ??
+          confirmation
       });
       renderWithOptionalScroll(scrollSnapshot);
       return true;
@@ -145,7 +147,9 @@ export function createCountryDraftLifecycleController(
       draftStore.set(country.slug, {
         status: "ready",
         draft,
-        messages: existing?.messages ?? []
+        messages: existing?.messages ?? [],
+        confirmation:
+          draft.curationConfirmation ?? null
       });
       render();
     } catch {

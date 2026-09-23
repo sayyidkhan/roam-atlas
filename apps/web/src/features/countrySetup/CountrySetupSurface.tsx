@@ -44,16 +44,28 @@ function CountrySetupContent({
     snapshot.country.slug
   );
   const draft = createCountryDraftRenderState(draftState);
+  const isCurationConfirmed =
+    snapshot.isSourceControlled ||
+    (draft.status === "ready" &&
+      Boolean(draft.review.confirmation));
+  const canOpenMap =
+    snapshot.canOpenMap && isCurationConfirmed;
+  const isMapLocked =
+    snapshot.canOpenMap && !isCurationConfirmed;
 
   return (
     <article className="country-shell-panel">
       <CountrySetupHero
         key={`hero:${snapshot.country.slug}`}
         snapshot={snapshot}
+        canOpenMap={canOpenMap}
+        isMapLocked={isMapLocked}
       />
       <CountrySetupActions
         snapshot={snapshot}
         flushState={flushState}
+        canOpenMap={canOpenMap}
+        isMapLocked={isMapLocked}
       />
       <ImageQualitySetting
         selectedValue={snapshot.imageQuality}

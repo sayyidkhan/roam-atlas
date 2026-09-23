@@ -43,7 +43,7 @@ Subject: ${input.visualContext}
 Continuity: ${input.parentNodeTitle ? `subtle style continuity with ${input.parentNodeTitle}` : countryName === "selected country" ? "the established calm overview style" : `the calm ${countryName} overview style`}
 
 Composition:
-- Focus on one region only, not the whole city.
+- Focus on the named region or city chapter only, not its parent state or country.
 - Apply ${density} density with separated major objects and generous negative space.
 - Show only the most meaningful subject, paths, buildings, or landscape forms.
 - Do not show ${wholeAreaPhrase}.

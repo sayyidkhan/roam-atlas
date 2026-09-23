@@ -220,7 +220,7 @@ export function createCountryDraftReviewHttpHandlers<
           confirmation,
           countryPackDraft
         });
-      return jsonResponse({
+      const confirmationResult = {
         confirmation,
         countryPackDraft,
         paths: {
@@ -229,7 +229,21 @@ export function createCountryDraftReviewHttpHandlers<
           countryPackDraftUrl:
             paths.countryPackDraftUrl
         }
-      });
+      };
+      const confirmedDraft = {
+        ...currentDraft,
+        curationStatus: "confirmed_for_curation",
+        curationConfirmation: confirmationResult
+      };
+      context.countryDraftCache.set(
+        country.slug,
+        confirmedDraft
+      );
+      await context.writeStoredCountryDraft(
+        country,
+        confirmedDraft
+      );
+      return jsonResponse(confirmationResult);
     }
   };
 }

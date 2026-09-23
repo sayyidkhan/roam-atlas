@@ -7,14 +7,26 @@ import type {
 
 export function CountrySetupActions({
   snapshot,
-  flushState
+  flushState,
+  canOpenMap,
+  isMapLocked
 }: {
   snapshot: CountrySetupState;
   flushState: CountryRuntimeCacheState | null;
+  canOpenMap: boolean;
+  isMapLocked: boolean;
 }) {
-  const { canOpenMap, country } = snapshot;
+  const { country } = snapshot;
   const isCacheFlushing = flushState?.status === "loading";
-  const mapAction = canOpenMap
+  const mapAction = isMapLocked
+    ? {
+        action: "country-map-locked",
+        label: "Confirm curation first",
+        info:
+          `Confirm the ${country.name} starter-map direction ` +
+          "before opening the explorer."
+      }
+    : canOpenMap
     ? {
         action: "country-map",
         label: `Open ${country.name} map`,
@@ -52,6 +64,7 @@ export function CountrySetupActions({
       />
       <CountryActionButton
         {...mapAction}
+        disabled={isMapLocked}
         onClick={snapshot.commands.openOrBuildMap}
       />
     </section>

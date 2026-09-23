@@ -5,9 +5,13 @@ import type {
 } from "../countrySetupStore";
 
 export function CountrySetupHero({
-  snapshot
+  snapshot,
+  canOpenMap,
+  isMapLocked
 }: {
   snapshot: CountrySetupState;
+  canOpenMap: boolean;
+  isMapLocked: boolean;
 }) {
   const [isActionGuideOpen, setActionGuideOpen] =
     useState(false);
@@ -25,6 +29,8 @@ export function CountrySetupHero({
       </div>
       <CountryActionGuide
         snapshot={snapshot}
+        canOpenMap={canOpenMap}
+        isMapLocked={isMapLocked}
         isOpen={isActionGuideOpen}
         onToggle={() =>
           setActionGuideOpen((isOpen) => !isOpen)
@@ -36,18 +42,26 @@ export function CountrySetupHero({
 
 function CountryActionGuide({
   snapshot,
+  canOpenMap,
+  isMapLocked,
   isOpen,
   onToggle
 }: {
   snapshot: CountrySetupState;
+  canOpenMap: boolean;
+  isMapLocked: boolean;
   isOpen: boolean;
   onToggle: () => void;
 }) {
-  const { canOpenMap, country } = snapshot;
-  const mapLabel = canOpenMap
+  const { country } = snapshot;
+  const mapLabel = isMapLocked
+    ? `Confirm ${country.name} curation`
+    : canOpenMap
     ? `Open ${country.name} map`
     : `Build ${country.name} map`;
-  const mapDescription = canOpenMap
+  const mapDescription = isMapLocked
+    ? "Confirm the starter-map direction for curation before opening the explorer."
+    : canOpenMap
     ? `Enter the current ${country.name} explorer using the available starter or curated map data.`
     : snapshot.isSourceControlled
       ? `Load the original source-controlled ${country.name} map before opening the explorer.`

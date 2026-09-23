@@ -42,7 +42,10 @@ export async function ensureCountryPack(
   await initCountryPackRegistry();
 
   const existing = countryPacks[countrySlug];
-  if (isLoadedCountryPack(existing)) {
+  if (
+    isLoadedCountryPack(existing) &&
+    existing.registration !== "unregistered"
+  ) {
     return existing;
   }
 

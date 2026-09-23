@@ -190,6 +190,7 @@ export function createCountryExperienceController(
       enterCountryLanding,
       enterMappedCountry,
       imageQualityLabel,
+      isConfiguredCountryPack,
       normalizeImageQuality,
       draftStore,
       render,

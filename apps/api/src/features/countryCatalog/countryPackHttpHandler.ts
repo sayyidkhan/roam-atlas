@@ -14,6 +14,9 @@ import {
 type CountryPackHttpDependencies = {
   countryPacks: Record<string, CompiledCountryPack>;
   defaultCountrySlug: string;
+  resolveConfirmedExplorerPack?: (
+    countrySlug: string
+  ) => Promise<CompiledCountryPack | null>;
 };
 
 export function createCountryPackRoutes(
@@ -30,27 +33,33 @@ export function createCountryPackRoutes(
 }
 
 /**
- * Serves curated country-pack data. Runtime drafts are intentionally excluded:
- * this endpoint is the read boundary for source-controlled travel facts.
+ * Serves country-pack data. Source-controlled packs stay on the curated
+ * registry. A starter map confirmed for curation is compiled into a
+ * runtime draft explorer without promoting its facts to confirmed.
  */
-export function handleCountryPackHttpRequest({
+export async function handleCountryPackHttpRequest({
   url,
   countryPacks,
-  defaultCountrySlug
+  defaultCountrySlug,
+  resolveConfirmedExplorerPack
 }: CountryPackHttpDependencies & {
   url: URL;
-}): Response {
+}): Promise<Response> {
   const countrySlug = String(url.searchParams.get("slug") ?? "").trim().toLowerCase();
   const scope = url.searchParams.get("scope") ?? (countrySlug ? "full" : "summary");
 
   if (countrySlug) {
-    const pack = countryPacks[countrySlug];
-    if (!pack) {
+    const registered = countryPacks[countrySlug];
+    if (!registered) {
       return jsonResponse(
         { error: `Unknown country pack: ${countrySlug}` },
         404
       );
     }
+    const pack = await resolveServedCountryPack(
+      registered,
+      resolveConfirmedExplorerPack
+    );
 
     return jsonResponse(
       CountryPackResponseSchema.parse({
@@ -66,7 +75,10 @@ export function handleCountryPackHttpRequest({
     ? { defaultCountrySlug, countryPacks }
     : {
         defaultCountrySlug,
-        countryPacks: summarizeCountryPackRegistry(countryPacks)
+        countryPacks: await summarizeCountryPackRegistry(
+          countryPacks,
+          resolveConfirmedExplorerPack
+        )
       };
   return jsonResponse(
     CountryPackRegistryResponseSchema.parse(payload),
@@ -75,12 +87,36 @@ export function handleCountryPackHttpRequest({
   );
 }
 
-function summarizeCountryPackRegistry(
-  packs: Record<string, CompiledCountryPack>
+async function resolveServedCountryPack(
+  registered: CompiledCountryPack,
+  resolveConfirmedExplorerPack: CountryPackHttpDependencies["resolveConfirmedExplorerPack"]
+): Promise<CompiledCountryPack> {
+  if (
+    registered.registration === "source_controlled" ||
+    !resolveConfirmedExplorerPack
+  ) {
+    return registered;
+  }
+  return await resolveConfirmedExplorerPack(registered.countrySlug) ?? registered;
+}
+
+async function summarizeCountryPackRegistry(
+  packs: Record<string, CompiledCountryPack>,
+  resolveConfirmedExplorerPack: CountryPackHttpDependencies["resolveConfirmedExplorerPack"]
 ) {
-  return Object.fromEntries(
-    Object.entries(packs).map(([countrySlug, pack]) => [countrySlug, summarizeCountryPack(pack)])
+  const entries = await Promise.all(
+    Object.entries(packs).map(async ([countrySlug, pack]) => {
+      if (
+        pack.registration === "source_controlled" ||
+        !resolveConfirmedExplorerPack
+      ) {
+        return [countrySlug, summarizeCountryPack(pack)] as const;
+      }
+      const confirmed = await resolveConfirmedExplorerPack(countrySlug);
+      return [countrySlug, summarizeCountryPack(confirmed ?? pack)] as const;
+    })
   );
+  return Object.fromEntries(entries);
 }
 
 function summarizeCountryPack(pack: CompiledCountryPack) {

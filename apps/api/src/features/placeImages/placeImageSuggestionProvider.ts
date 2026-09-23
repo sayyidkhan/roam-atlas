@@ -7,6 +7,9 @@ import type {
   PlaceImageSuggestionRequest,
   PlaceImageSuggestionResult
 } from "./placeImageServiceTypes.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -15,6 +18,7 @@ type PlaceImageSuggestionProviderOptions = {
   extractText: (payload: unknown) => string;
   fetchFn?: typeof fetch;
   model: string;
+  recordUsage?: RecordProviderUsage;
   serviceTier?: "fast";
   parseJson: (
     text: unknown
@@ -24,6 +28,7 @@ type PlaceImageSuggestionProviderOptions = {
 export function createPlaceImageSuggestionProvider({
   apiKey,
   model,
+  recordUsage,
   serviceTier,
   extractText,
   parseJson,
@@ -65,6 +70,7 @@ export function createPlaceImageSuggestionProvider({
         }
       );
       try {
+        const requestStartedAt = Date.now();
         const response = await fetchFn(
           "https://api.openai.com/v1/responses",
           {
@@ -95,11 +101,15 @@ export function createPlaceImageSuggestionProvider({
           return fallbackResult(fallback);
         }
 
-        const parsed = parseJson(
-          extractText(
-            (await response.json()) as unknown
-          )
-        );
+        const payload = await response.json() as unknown;
+        recordUsage?.({
+          durationMs: Date.now() - requestStartedAt,
+          feature: "place_image_suggestion",
+          model,
+          serviceTier,
+          usage: readUsage(payload)
+        });
+        const parsed = parseJson(extractText(payload));
         const suggestions =
           normalizePlaceImagePromptSuggestions(
             parsed?.suggestions,
@@ -113,6 +123,13 @@ export function createPlaceImageSuggestionProvider({
       }
     }
   };
+}
+
+function readUsage(payload: unknown): unknown {
+  return typeof payload === "object" && payload !== null &&
+    "usage" in payload
+    ? payload.usage
+    : null;
 }
 
 function buildSuggestionPrompt(

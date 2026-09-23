@@ -18,10 +18,17 @@ export function buildHomepagePrompt(
 ): RoamAtlasPromptOutput {
   const countryName = getPromptCountryName(input);
   const wholeAreaPhrase = getPromptWholeAreaPhrase(countryName);
-  const anchors =
-    input.knownChildNodeTitles && input.knownChildNodeTitles.length > 0
-      ? input.knownChildNodeTitles.slice(0, 7).join(", ")
-      : "capital or city core, heritage district, waterfront or coast, nature area, food or local life, transport gateway";
+  const suppliedAnchors = (input.knownChildNodeTitles ?? [])
+    .map((title) => title.trim())
+    .filter(Boolean)
+    .slice(0, 7);
+  const anchors = suppliedAnchors.length > 0
+    ? suppliedAnchors.join(", ")
+    : "capital or city core, heritage district, waterfront or coast, nature area, food or local life, transport gateway";
+  const exactLabelRule = suppliedAnchors.length > 0
+    ? `- Render these numbered labels exactly, in this order: ${suppliedAnchors.map((title, index) => `${index + 1}. ${title}`).join("; ")}.
+- Do not shorten, translate, or replace a supplied name with a generic category such as Capital, Heritage District, Coast, Nature Area, Food & Local Life, or Transport Gateway.`
+    : "- Optional subtle numbered anchors or short one- to three-word headings may support exploration.";
 
   const prompt = `
 Create a restrained illustrated overview page for ${countryName}.
@@ -42,7 +49,7 @@ Composition:
 
 Labels and anchors:
 - Readable image text is allowed only for the supplied anchor names and country title "${countryName}".
-- Optional subtle numbered anchors or short one- to three-word headings may support exploration.
+${exactLabelRule}
 - No facts, prices, hours, routes, slogans, legend, or long captions.
 
 ${CORE_VISUAL_STYLE}

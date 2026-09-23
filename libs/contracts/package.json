@@ -6,7 +6,8 @@
   "exports": {
     "./artworkContract.js": "./src/artworkContract.ts",
     "./countryPackContract.js": "./src/countryPackContract.ts",
-    "./runtimeCacheContract.js": "./src/runtimeCacheContract.ts"
+    "./runtimeCacheContract.js": "./src/runtimeCacheContract.ts",
+    "./usageContract.js": "./src/usageContract.ts"
   },
   "dependencies": {
     "zod": "^4.6.5"

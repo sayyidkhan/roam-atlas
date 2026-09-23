@@ -8,6 +8,9 @@ import {
   type GenerateImageOptions,
   type GeneratedImage
 } from "../../platform/openai/openAiImageProvider.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 
 type ConfiguredImageProviderConfig = {
   model?: unknown;
@@ -23,6 +26,7 @@ type ConfiguredImageProviderOptions = {
   apiKey?: string | null;
   imageConfig: ConfiguredImageProviderConfig;
   providerConcurrency: number;
+  recordUsage?: RecordProviderUsage;
 };
 
 type GenerateConfiguredImageOptions = Pick<
@@ -35,7 +39,8 @@ type GenerateConfiguredImageOptions = Pick<
 export function createConfiguredImageProvider({
   apiKey,
   imageConfig,
-  providerConcurrency
+  providerConcurrency,
+  recordUsage
 }: ConfiguredImageProviderOptions): {
   model: string;
   provider: string;
@@ -65,7 +70,8 @@ export function createConfiguredImageProvider({
       onPartialImage,
       signal = null
     }) {
-      return generateTileImageWithOpenAI({
+      const requestStartedAt = Date.now();
+      const generated = await generateTileImageWithOpenAI({
         apiKey,
         model,
         prompt,
@@ -78,6 +84,14 @@ export function createConfiguredImageProvider({
         onPartialImage,
         signal
       });
+      recordUsage?.({
+        durationMs: Date.now() - requestStartedAt,
+        feature: "image_generation",
+        model: generated.model,
+        serviceTier: null,
+        usage: generated.usage
+      });
+      return generated;
     }
   };
 }

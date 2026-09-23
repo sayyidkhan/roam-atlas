@@ -64,6 +64,7 @@ export function createCountryPackStarterMap(
     generationStatus: "ready",
     confidence,
     sourceType,
+    sourceRegistry: [],
     factBoundary:
       countryPack.factBoundary ??
       `This starter map is derived from the ${packLabel} RoamAtlas country pack.`,

@@ -18,7 +18,7 @@ export function buildCountryDraftPrompt(
 ): string {
   const snippets = getUsableGroundingSnippets(
     groundingSnippets
-  ).slice(0, 8);
+  ).slice(0, 18);
   if (!snippets.length) {
     return [
       "You are drafting a RoamAtlas country expansion scaffold.",
@@ -82,7 +82,7 @@ export function buildCountryDraftInfluencePrompt({
     : "No current starter map exists yet.";
   const snippets = getUsableGroundingSnippets(
     groundingSnippets
-  ).slice(0, 8);
+  ).slice(0, 18);
 
   const groundedLines = snippets.length
     ? [
@@ -180,9 +180,19 @@ function buildGroundedCountryDraftPrompt(
     "Rules:",
     "- Return JSON only.",
     "- Base every candidate strictly on the research snippets above. Do not add places or claims from your own memory.",
-    '- For each region or theme that is directly supported by a snippet, set "sourceUrl" to that snippet\'s exact URL (copy it exactly, do not modify it) and set confidence to "likely".',
+    "- Return 4 to 6 traveller-facing destination chapters and 12 to 20 total child destinations across those chapters.",
+    "- Each chapter must be a recognizable, clickable destination cluster anchored by specific place names: a major city and surroundings, an island group, a heritage corridor, a coast, a national-park cluster, or another practical itinerary grouping.",
+    '- Use names such as "Bangkok & Chao Phraya", "Chiang Mai & Northern Highlands", or "Phuket & Andaman Coast".',
+    '- Never use a bare compass or administrative bucket such as "Northern Thailand", "Central Region", "Eastern Area", "North", "South", "East", or "West".',
+    "- Do not divide the whole country merely for geographic completeness. Prefer chapters that give a traveller a clear reason to enter, explore, and save destinations.",
+    "- Group destinations that plausibly belong in the same trip chapter; do not use transport sources as evidence for a destination's travel value.",
+    "- Child destinations should be real cities, districts, attractions, cultural sites, nature areas, or visitor experiences directly supported by a snippet.",
+    '- For each region, child destination, or theme directly supported by a snippet, set "sourceUrl" to that snippet\'s exact URL (copy it exactly, do not modify it) and set confidence to "likely".',
     '- If a candidate is not clearly supported by any snippet, omit "sourceUrl" (or set it to null) and set confidence to "unconfirmed".',
     "- Never invent a URL that is not one of the snippet URLs listed above.",
+    "- Add 1 to 4 short interest tags per child from culture, food, nature, wildlife, family, history, architecture, beach, city, photography, or adventure.",
+    "- typicalDurationMinutes must be a cautious approximate planning value between 30 and 480, not an opening-hours claim.",
+    '- budgetLevel must be "low", "medium", or "high"; bestTimeOfDay must be "morning", "afternoon", "evening", or "any".',
     "- Do not include opening hours, ticket prices, exact transport times, closures, or live availability, even if a snippet mentions them.",
     "- Do not say any place is confirmed, must-see, official, best, largest, oldest, or guaranteed.",
     "- Do not use placeholder or internal wording such as starter map, source review, RoamAtlas graph, needs review, replace this note, or pending curation inside summary, why, or note fields.",
@@ -193,7 +203,9 @@ function buildGroundedCountryDraftPrompt(
     "{",
     '  "summary": "one cautious sentence",',
     '  "regions": [',
-    '    { "name": "candidate name", "kind": "city|state|region|area", "why": "traveller-facing research angle, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
+    '    { "name": "named destination cluster", "kind": "city|region|area", "why": "why this is a coherent trip chapter", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null", "children": [',
+    '      { "name": "destination name", "kind": "attraction|district|city|nature|experience", "why": "short source-grounded reason to explore", "tags": ["culture"], "typicalDurationMinutes": 120, "budgetLevel": "medium", "bestTimeOfDay": "any", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',
+    "    ] }",
     "  ],",
     '  "themes": [',
     '    { "label": "theme", "note": "concrete research note, not a placeholder", "confidence": "likely|unconfirmed", "sourceUrl": "https://... or null" }',

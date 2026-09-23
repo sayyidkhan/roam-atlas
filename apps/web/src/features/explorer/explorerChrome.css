@@ -352,7 +352,7 @@
   --scene-display-aspect: var(--scene-space-aspect);
   --scene-fit-width: min(
     var(--scene-art-max-width),
-    calc(var(--scene-art-max-height) * var(--scene-display-aspect))
+    calc(var(--scene-art-max-height) * var(--scene-display-aspect, 1.5))
   );
   --scene-fit-height: calc(var(--scene-fit-width) / var(--scene-display-aspect));
   --scene-art-width: var(--scene-fit-width);

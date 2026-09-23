@@ -16,6 +16,9 @@ import {
 import {
   createCountryDraftRepository
 } from "./countryDraftRepository.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 import {
   createExaCountryGroundingProvider
 } from "./exaCountryGroundingProvider.ts";
@@ -47,6 +50,7 @@ type CountryDraftFeatureOptions<
       | null
       | undefined
   ) => boolean;
+  recordUsage?: RecordProviderUsage;
   serviceTier?: "fast";
   textModel: string;
 };
@@ -62,6 +66,7 @@ export function createCountryDraftFeature<
   isSourceControlledCountryPack,
   apiKeys,
   textModel,
+  recordUsage,
   serviceTier,
   fetchFn = fetch
 }: CountryDraftFeatureOptions<CountryPack>) {
@@ -86,6 +91,7 @@ export function createCountryDraftFeature<
         createOpenAICountryDraftProvider({
           apiKey: apiKeys.openai,
           model: textModel,
+          recordUsage,
           serviceTier,
           fetchFn
         })

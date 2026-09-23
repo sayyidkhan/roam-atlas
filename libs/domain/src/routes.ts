@@ -54,10 +54,13 @@ type SceneRouteRecord = {
   rootNodeId: string;
 };
 
-function isConfiguredCountryPack(
+function canOpenCountryOverview(
   pack: CountryRoutePack | null | undefined
 ): boolean {
-  return pack?.registration === "source_controlled";
+  return (
+    pack?.registration === "source_controlled" ||
+    pack?.registration === "runtime_draft"
+  );
 }
 
 export function routeForCountryLanding(): string {
@@ -169,7 +172,7 @@ export function resolveAppRoute<
     const country = countries.find((item) => item.slug === slug);
     if (country) {
       const pack = countryPacks[slug] ?? null;
-      return pack && isConfiguredCountryPack(pack)
+      return pack && canOpenCountryOverview(pack)
         ? { type: "country_overview", country, countrySlug: slug, pack }
         : { type: "country_needs_config", country, countrySlug: slug };
     }

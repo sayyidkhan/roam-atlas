@@ -185,9 +185,12 @@ function DraftConfirmation({
   }
 
   return (
-    <section className="draft-confirmation">
+    <section className="draft-confirmation draft-confirmation--required">
       <div>
-        <h3>Ready to confirm</h3>
+        <p className="draft-confirmation-kicker">
+          Action required
+        </p>
+        <h3>Confirm curation before opening the map</h3>
         <p>
           Confirm this direction to generate a country-pack draft
           artifact for source review.

@@ -152,6 +152,8 @@ Both applications organize by product feature:
 - `explorer`: click resolution, visual navigation, environment layers.
 - `placeImages`: non-factual reference media and feedback.
 - `runtimeCache`: generated artifact delivery and country-scoped cleanup.
+- `usage`: provider token accounting, estimated-cost policy, and the read-only
+  operational dashboard API.
 
 Keep transport, persistence, provider integration, and pure policy separate
 inside a feature when doing so reduces retrieval scope. Do not create generic

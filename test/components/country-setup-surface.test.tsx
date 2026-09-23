@@ -233,6 +233,99 @@ describe("CountrySetupSurface", () => {
       screen.getByRole("radio", { name: /Medium/ })
     ).toHaveProperty("disabled", true);
   });
+
+  it("locks generated maps until curation is confirmed", () => {
+    const commands = createCommandMocks();
+    const runtimeCacheStore = createCountryRuntimeCacheStore();
+    const draftStore = createCountryDraftStore();
+    const artworkQualityLockStore =
+      createCountryArtworkQualityLockStore();
+    artworkQualityLockStore.set("thailand", {
+      status: "ready",
+      lock: {
+        countrySlug: "thailand",
+        imageQuality: null,
+        locked: false
+      }
+    });
+    draftStore.set("thailand", {
+      status: "ready",
+      draft: {
+        countryName: "Thailand",
+        summary: "Source-grounded travel chapters",
+        regions: [],
+        themes: []
+      },
+      confirmation: null,
+      messages: []
+    });
+    render(<CountrySetupSurface />);
+
+    act(() => {
+      countrySetupStore.getState().setSetup({
+        buildDraftPhotoUrl: vi.fn(() => "/reference.jpg"),
+        country: {
+          code: "TH",
+          name: "Thailand",
+          slug: "thailand"
+        },
+        canOpenMap: true,
+        draftStore,
+        draftCommands: createDraftCommandMocks(),
+        imageQuality: "high",
+        imageQualityOptions: [
+          {
+            value: "high",
+            label: "High",
+            description: "Best detail"
+          }
+        ],
+        isSourceControlled: false,
+        artworkQualityLockStore,
+        runtimeCacheStore,
+        commands
+      });
+    });
+
+    const lockedButton = screen.getByRole("button", {
+      name: /Confirm curation first/
+    });
+    expect(screen.getByText("Action required")).toBeTruthy();
+    expect(
+      screen.getByRole("heading", {
+        name: "Confirm curation before opening the map"
+      })
+    ).toBeTruthy();
+    expect(lockedButton).toHaveProperty("disabled", true);
+    fireEvent.click(lockedButton);
+    expect(commands.openOrBuildMap).not.toHaveBeenCalled();
+
+    act(() => {
+      draftStore.set("thailand", {
+        status: "ready",
+        draft: {
+          countryName: "Thailand",
+          summary: "Source-grounded travel chapters",
+          regions: [],
+          themes: []
+        },
+        confirmation: {
+          paths: {
+            confirmationUrl: "/confirmation.json",
+            countryPackDraftUrl: "/country.json"
+          }
+        },
+        messages: []
+      });
+    });
+
+    const openButton = screen.getByRole("button", {
+      name: /Open Thailand map/
+    });
+    expect(openButton).toHaveProperty("disabled", false);
+    fireEvent.click(openButton);
+    expect(commands.openOrBuildMap).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createCommandMocks() {

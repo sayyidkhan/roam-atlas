@@ -9,6 +9,9 @@ import type {
   EnvironmentPage,
   RawEnvironmentPlan
 } from "./environmentPlanServerTypes.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 
 type EnvironmentPromptContext = {
   targetCandidates: unknown[];
@@ -31,6 +34,7 @@ type OpenAIEnvironmentPlannerDependencies<
   getImagePathFromUrl: (imageUrl: string) => string | null;
   getPromptContext: (page: Page) => PromptContext;
   model?: string | null;
+  recordUsage?: RecordProviderUsage;
   serviceTier?: "fast";
   normalizePlan: (
     rawPlan: RawEnvironmentPlan | null,
@@ -49,6 +53,7 @@ export function createOpenAIEnvironmentPlanner<
 >({
   apiKey,
   model,
+  recordUsage,
   serviceTier,
   getImagePathFromUrl,
   buildPrompt,
@@ -87,6 +92,7 @@ export function createOpenAIEnvironmentPlanner<
     const promptContext = getPromptContext(page);
     let lastError: string | null = null;
     if (model) {
+      const requestStartedAt = Date.now();
       const response = await fetchFn("https://api.openai.com/v1/responses", {
         method: "POST",
         signal: createRequestSignal(signal, 90_000),
@@ -115,7 +121,15 @@ export function createOpenAIEnvironmentPlanner<
         return createFallback(page, `${model}: ${await response.text()}`);
       }
 
-      const parsed = parseJsonObject(extractOpenAIText(await response.json()));
+      const payload = await response.json();
+      recordUsage?.({
+        durationMs: Date.now() - requestStartedAt,
+        feature: "environment_plan",
+        model,
+        serviceTier,
+        usage: readUsage(payload)
+      });
+      const parsed = parseJsonObject(extractOpenAIText(payload));
       const plan = normalizePlan(parsed, page, {
         source: "openai-vlm",
         model
@@ -139,6 +153,13 @@ export function createOpenAIEnvironmentPlanner<
       lastError ?? "No environment planner model is configured."
     );
   };
+}
+
+function readUsage(payload: unknown): unknown {
+  return typeof payload === "object" && payload !== null &&
+    "usage" in payload
+    ? payload.usage
+    : null;
 }
 
 function createRequestSignal(

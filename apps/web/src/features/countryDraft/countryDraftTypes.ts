@@ -24,6 +24,8 @@ export type DraftTheme = {
 export type CountryDraft = {
   changeNote?: string;
   confidence?: string;
+  curationConfirmation?: CountryDraftConfirmation | null;
+  curationStatus?: string;
   countryName?: string;
   mode?: string;
   regions?: DraftNode[];

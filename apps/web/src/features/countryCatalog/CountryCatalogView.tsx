@@ -6,12 +6,14 @@ import {
   type CountryCatalogCountry
 } from "./CountryCardMedia";
 import { CountryAtlasGlobe } from "./CountryAtlasGlobe";
+import { ATLAS_GLOBE_PLACES } from "./globeMarkerProjection";
 import styles from "./CountryCatalog.module.css";
 
 export type { CountryCatalogCountry } from "./CountryCardMedia";
 
 type CountryPackSummary = {
   confidence?: string;
+  registration?: string;
 };
 
 type CountryCatalogProps = {
@@ -39,9 +41,11 @@ function SettingsIcon() {
   );
 }
 
+type ShelfMode = "closed" | "open" | "expanded";
+
 export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpen }: CountryCatalogProps) {
   const [query, setQuery] = useState("");
-  const [isShelfExpanded, setIsShelfExpanded] = useState(false);
+  const [shelfMode, setShelfMode] = useState<ShelfMode>("closed");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const normalizedQuery = normalizeQuery(query);
   const filteredCountries = useMemo(() => countries.filter((country) => {
@@ -49,10 +53,22 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
     return [country.name, country.code, country.displayCode]
       .some((value) => value.toLowerCase().includes(normalizedQuery));
   }), [countries, normalizedQuery]);
-  const featuredCountries = useMemo(
-    () => countries.filter((country) => country.slug === "singapore" || country.slug === "malaysia"),
+  const liveAtlasPackCount = useMemo(
+    () => Object.values(countryPacks).filter((pack) =>
+      pack?.registration === "source_controlled" ||
+      pack?.registration === "runtime_draft"
+    ).length,
+    [countryPacks]
+  );
+  const globeDestinations = useMemo(
+    () => ATLAS_GLOBE_PLACES.flatMap((place) => {
+      const country = countries.find((candidate) => candidate.slug === place.slug);
+      if (!country) return [];
+      return [{ location: place.location, name: country.name, slug: country.slug }];
+    }),
     [countries]
   );
+
   const shelfCountries = normalizedQuery ? filteredCountries : countries;
 
   const openGlobeDestination = (countrySlug: string) => {
@@ -67,8 +83,8 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
     >
       <div
         className={`${styles["country-stage"]} ${
-          isShelfExpanded ? styles["country-stage--shelf-open"] : ""
-        }`}
+          shelfMode === "expanded" ? styles["country-stage--shelf-open"] : ""
+        } ${shelfMode === "closed" ? styles["country-stage--shelf-closed"] : ""}`}
       >
         <header className={styles["country-hero"]}>
           <div className={styles["country-hero-copy"]}>
@@ -76,7 +92,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
             <p className={styles["hero-kicker"]}>An atlas you can enter</p>
             <h1>Find the story behind your next journey.</h1>
             <p className={styles["hero-description"]}>
-              Touch and drag the globe to roam. Use the country shelf when you are ready to choose a starting point.
+              Drag the globe, then click a gold pin to enter that country.
             </p>
             <div className={styles["hero-actions"]}>
               <button type="button" className={styles["hero-primary-action"]} onClick={() => openGlobeDestination("singapore")}>
@@ -85,7 +101,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
               <button
                 type="button"
                 className={styles["hero-secondary-action"]}
-                onClick={() => setIsShelfExpanded(true)}
+                onClick={() => setShelfMode("expanded")}
               >
                 Browse all countries
               </button>
@@ -96,44 +112,65 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
                 <dd>countries to begin</dd>
               </div>
               <div>
-                <dt>{featuredCountries.length}</dt>
+                <dt>{liveAtlasPackCount}</dt>
                 <dd>live atlas packs</dd>
               </div>
             </dl>
           </div>
           <div className={styles["country-hero-globe"]}>
-            <CountryAtlasGlobe />
             <div className={styles["globe-caption"]}>
               <span className={styles["globe-caption-line"]} aria-hidden="true" />
-              <p>Touch the globe to roam</p>
-              <span>Singapore + Malaysia</span>
+              <p>Asia · live atlas</p>
+              <span>Routes radiate from Singapore</span>
             </div>
+            <CountryAtlasGlobe destinations={globeDestinations} onSelect={openGlobeDestination} />
           </div>
         </header>
 
+        {shelfMode === "expanded" ? (
+          <button
+            type="button"
+            className={styles["country-shelf-backdrop"]}
+            aria-label="Minimize country index"
+            onClick={() => setShelfMode("open")}
+          />
+        ) : null}
+
         <aside
           className={`${styles["country-shelf"]} ${
-            isShelfExpanded ? styles["country-shelf--expanded"] : ""
-          }`}
+            shelfMode === "expanded" ? styles["country-shelf--expanded"] : ""
+          } ${shelfMode === "closed" ? styles["country-shelf--closed"] : ""}`}
           aria-label="Country index"
         >
           <button
             type="button"
             className={styles["country-shelf-toggle"]}
-            aria-label={isShelfExpanded ? "Collapse country index" : "Expand country index"}
-            aria-expanded={isShelfExpanded}
-            onClick={() => setIsShelfExpanded((current) => !current)}
+            aria-label={
+              shelfMode === "closed"
+                ? "Open country index"
+                : shelfMode === "expanded"
+                  ? "Collapse country index"
+                  : "Expand country index"
+            }
+            aria-expanded={shelfMode === "expanded"}
+            onClick={() => setShelfMode((current) => current === "open" ? "expanded" : "open")}
           >
             <span className={styles["country-shelf-toggle-icon"]} aria-hidden="true">
-              {isShelfExpanded ? "→" : "←"}
+              {shelfMode === "expanded" ? "→" : "←"}
             </span>
           </button>
+          <div
+            className={styles["country-shelf-body"]}
+            inert={shelfMode === "closed" ? true : undefined}
+          >
           <div className={styles["country-shelf-heading"]}>
             <div className={styles["country-shelf-title-row"]}>
               <p className={styles.eyebrow}>Country index</p>
               <button
                 type="button"
-                className={styles["country-shelf-search-toggle"]}
+                className={`${styles["country-shelf-search-toggle"]} ${
+                  isSearchOpen ? styles["country-shelf-search-toggle--open"] : ""
+                }`}
                 aria-label={isSearchOpen ? "Close country search" : "Search countries"}
                 aria-expanded={isSearchOpen}
                 onClick={() => {
@@ -141,12 +178,18 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
                   if (isSearchOpen) setQuery("");
                 }}
               >
-                {isSearchOpen ? "×" : (
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                    <circle cx="10.8" cy="10.8" r="5.8" />
-                    <path d="m15.2 15.2 4 4" />
-                  </svg>
-                )}
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <circle cx="10.8" cy="10.8" r="5.8" />
+                  <path d="m15.2 15.2 4 4" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={styles["country-shelf-close"]}
+                aria-label={shelfMode === "expanded" ? "Shrink country index" : "Close country index"}
+                onClick={() => setShelfMode((current) => current === "expanded" ? "open" : "closed")}
+              >
+                ×
               </button>
             </div>
             {isSearchOpen ? (
@@ -207,6 +250,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
               );
             })}
           </section>
+          </div>
         </aside>
       </div>
     </section>

@@ -58,7 +58,7 @@ test("opens Singapore with fixture artwork and no external provider traffic", as
   await page.goto("/singapore");
 
   await expect(page.getByRole("heading", { name: "Singapore" })).toBeVisible();
-  await expect(page.locator(".scene-image")).toHaveAttribute(
+  await expect(page.locator(".scene-image:not(.scene-image--backdrop)")).toHaveAttribute(
     "src",
     /country-card-atlas\.jpg/
   );
@@ -151,8 +151,10 @@ test("opens Singapore with fresh runtime elements after leaving Argentina", asyn
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Back to countries" }).click();
+  await page.getByRole("button", { name: "Open country index" }).click();
+  await page.getByRole("button", { name: "Search countries" }).click();
   await page.getByLabel("Search countries").fill("singapore");
-  await page.getByRole("button", { name: "Open Singapore" }).click();
+  await page.getByRole("button", { name: "Open Singapore", exact: true }).click();
 
   await expect(page).toHaveURL(/\/singapore$/);
   await expect(

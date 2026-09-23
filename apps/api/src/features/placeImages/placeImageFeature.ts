@@ -32,6 +32,9 @@ import type {
 import {
   createPlaceImageSuggestionProvider
 } from "./placeImageSuggestionProvider.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -56,6 +59,7 @@ type PlaceImageFeatureOptions = {
   parseJsonObject: (
     text: unknown
   ) => JsonObject | null;
+  recordUsage?: RecordProviderUsage;
   resolveWikipediaImage:
     PlaceImageServiceDependencies["wikipediaProvider"];
   serviceTier?: "fast";
@@ -70,6 +74,7 @@ export function createPlaceImageFeature({
   resolveWikipediaImage,
   apiKeys,
   textModel,
+  recordUsage,
   serviceTier,
   extractOpenAIText,
   parseJsonObject,
@@ -92,6 +97,7 @@ export function createPlaceImageFeature({
       createPlaceImageSuggestionProvider({
         apiKey: apiKeys.openai,
         model: textModel,
+        recordUsage,
         serviceTier,
         extractText: extractOpenAIText,
         parseJson: parseJsonObject,

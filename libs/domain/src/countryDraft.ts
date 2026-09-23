@@ -8,6 +8,7 @@ export {
   createCountryDraftFallback,
   normalizeCountryDraftPayload
 } from "./countryDraftNormalization.ts";
+export { createConfirmedExplorerPackSource } from "./confirmedExplorerPack.ts";
 export {
   createCountryPackDraftFromStarterMap,
   createCountryPackStarterMap,

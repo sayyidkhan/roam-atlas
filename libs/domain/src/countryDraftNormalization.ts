@@ -13,6 +13,7 @@ import type {
   CountryDraftCountry,
   CountryDraftGenerationOptions,
   CountryDraftRegion,
+  CountryDraftSource,
   CountryDraftTheme
 } from "./countryDraftTypes.ts";
 
@@ -57,8 +58,12 @@ export function normalizeCountryDraftPayload(
     `${country.name} has no curated RoamAtlas graph yet; this draft only suggests areas for review.`,
     220
   );
-  const allowedSourceUrls = buildAllowedSourceUrlSet(
-    options.groundingSnippets
+  const sourceRegistry = normalizeSourceRegistry(
+    options.groundingSnippets,
+    source.sourceRegistry
+  );
+  const allowedSourceUrls = new Set(
+    sourceRegistry.map((entry) => entry.url)
   );
   const preserveConfirmed =
     options.preserveConfirmed === true;
@@ -92,6 +97,7 @@ export function normalizeCountryDraftPayload(
     sourceType: isGrounded
       ? "exa_grounded"
       : "ai_generated",
+    sourceRegistry,
     factBoundary: COUNTRY_DRAFT_FACT_BOUNDARY,
     summary,
     regions,
@@ -107,7 +113,17 @@ export function normalizeCountryDraftPayload(
       options.generatedAt ?? new Date().toISOString(),
     model: options.model ?? null,
     unavailableReason:
-      options.unavailableReason ?? null
+      options.unavailableReason ?? null,
+    ...(source.curationStatus ===
+      "confirmed_for_curation" &&
+    isRecord(source.curationConfirmation)
+      ? {
+          curationStatus:
+            "confirmed_for_curation",
+          curationConfirmation:
+            source.curationConfirmation
+        }
+      : {})
   };
 }
 
@@ -132,15 +148,35 @@ export function createCountryDraftFallback(
   );
 }
 
-function buildAllowedSourceUrlSet(
-  groundingSnippets: unknown
-): Set<string> {
-  const urls = getUsableGroundingSnippets(
-    groundingSnippets
-  )
-    .map((snippet) => String(snippet.url ?? "").trim())
-    .filter(Boolean);
-  return new Set(urls);
+function normalizeSourceRegistry(
+  groundingSnippets: unknown,
+  storedSources: unknown
+): CountryDraftSource[] {
+  const liveSnippets =
+    getUsableGroundingSnippets(groundingSnippets);
+  const candidates = liveSnippets.length
+    ? liveSnippets
+    : asArray(storedSources).filter(isRecord);
+  return candidates
+    .slice(0, 18)
+    .map((snippet, index) => ({
+      id: `research-source-${index + 1}`,
+      title: safeText(
+        snippet.title,
+        "Untitled research source",
+        140
+      ),
+      url: String(snippet.url ?? "").trim(),
+      excerpt: normalizeSourceExcerpt(
+        snippet.text ?? snippet.excerpt
+      ),
+      researchKind: safeText(
+        snippet.researchKind,
+        "general",
+        30
+      ),
+      sourceType: "candidate"
+    }));
 }
 
 function normalizeRegions(
@@ -196,6 +232,15 @@ function normalizeRegions(
     .slice(0, 10);
 }
 
+function normalizeSourceExcerpt(value: unknown): string {
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > 600
+    ? `${text.slice(0, 599).trim()}...`
+    : text;
+}
+
 function normalizeDraftChildNodes(
   children: unknown,
   allowedSourceUrls: ReadonlySet<string> = new Set(),
@@ -216,7 +261,15 @@ function normalizeDraftChildNodes(
           item.confidence === "confirmed");
       const child: CountryDraftChild = {
         name,
-        kind: normalizeRegionKind(item.kind),
+        kind: normalizeChildKind(item.kind),
+        why: safeText(item.why, "", 180),
+        tags: normalizeTags(item.tags),
+        typicalDurationMinutes:
+          normalizeDuration(item.typicalDurationMinutes),
+        budgetLevel:
+          normalizeBudgetLevel(item.budgetLevel),
+        bestTimeOfDay:
+          normalizeBestTimeOfDay(item.bestTimeOfDay),
         confidence: isApproved
           ? "confirmed"
           : sourceUrl
@@ -317,4 +370,54 @@ function normalizeRegionKind(kind: unknown): string {
   )
     ? value
     : "region";
+}
+
+function normalizeChildKind(kind: unknown): string {
+  const value = String(kind ?? "")
+    .trim()
+    .toLowerCase();
+  return [
+    "attraction",
+    "district",
+    "city",
+    "nature",
+    "experience",
+    "area"
+  ].includes(value)
+    ? value
+    : "attraction";
+}
+
+function normalizeTags(value: unknown): string[] {
+  return asArray(value)
+    .map((tag) => safeText(tag, "", 30).toLowerCase())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function normalizeDuration(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.min(480, Math.max(30, Math.round(parsed)));
+}
+
+function normalizeBudgetLevel(
+  value: unknown
+): "low" | "medium" | "high" | undefined {
+  return value === "low" ||
+    value === "medium" ||
+    value === "high"
+    ? value
+    : undefined;
+}
+
+function normalizeBestTimeOfDay(
+  value: unknown
+): "morning" | "afternoon" | "evening" | "any" | undefined {
+  return value === "morning" ||
+    value === "afternoon" ||
+    value === "evening" ||
+    value === "any"
+    ? value
+    : undefined;
 }

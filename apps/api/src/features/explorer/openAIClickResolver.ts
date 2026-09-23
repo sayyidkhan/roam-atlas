@@ -7,6 +7,9 @@ import {
   extractOpenAIText,
   parseJsonObject
 } from "../../platform/openai/responseParsing.ts";
+import type {
+  RecordProviderUsage
+} from "../usage/usageService.ts";
 import { annotateClickPointOnPng } from "./clickMarkerPng.ts";
 
 export type ClickPoint = {
@@ -50,12 +53,14 @@ type OpenAIClickResolverDependencies = {
     sceneId: string
   ) => SceneArtworkRecord | null;
   model: string;
+  recordUsage?: RecordProviderUsage;
   serviceTier?: "fast";
 };
 
 export function createOpenAIClickResolver({
   apiKey,
   model,
+  recordUsage,
   serviceTier,
   defaultCountrySlug,
   getCountryPack,
@@ -128,6 +133,7 @@ export function createOpenAIClickResolver({
       imageMarked: Boolean(markedImage)
     });
 
+    const requestStartedAt = Date.now();
     const response = await fetchFn("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -160,7 +166,15 @@ export function createOpenAIClickResolver({
       };
     }
 
-    const text = extractOpenAIText(await response.json());
+    const payload = await response.json();
+    recordUsage?.({
+      durationMs: Date.now() - requestStartedAt,
+      feature: "visual_click_resolution",
+      model,
+      serviceTier,
+      usage: readUsage(payload)
+    });
+    const text = extractOpenAIText(payload);
     const parsed = parseJsonObject(text);
     if (parsed) {
       return {
@@ -188,6 +202,13 @@ export function createOpenAIClickResolver({
       reason: "Model returned non-JSON text."
     };
   };
+}
+
+function readUsage(payload: unknown): unknown {
+  return typeof payload === "object" && payload !== null &&
+    "usage" in payload
+    ? payload.usage
+    : null;
 }
 
 function buildClickPrompt({

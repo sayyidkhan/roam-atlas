@@ -28,6 +28,9 @@ type CountrySetupActionDependencies = {
   enterCountryLanding: () => void;
   enterMappedCountry: (pack: RuntimePack | null) => void;
   imageQualityLabel: (value: string) => string;
+  isConfiguredCountryPack: (
+    countrySlug: string
+  ) => boolean;
   normalizeImageQuality: (value: unknown) => string;
   render: () => void;
   requestCountryDraft: (
@@ -63,6 +66,7 @@ export function createCountrySetupActionController({
   enterCountryLanding,
   enterMappedCountry,
   imageQualityLabel,
+  isConfiguredCountryPack,
   normalizeImageQuality,
   render,
   requestCountryDraft,
@@ -85,6 +89,24 @@ export function createCountrySetupActionController({
     const country = selectedCountry();
     if (!country) return;
     if (canOpenCountryExplorer(country)) {
+      const draftState = draftStore.get(country.slug);
+      const isConfirmed =
+        Boolean(draftState?.confirmation) ||
+        Boolean(
+          draftState?.draft?.curationConfirmation
+        );
+      if (
+        !isConfiguredCountryPack(country.slug) &&
+        !isConfirmed
+      ) {
+        showToast({
+          title: "Confirm curation first",
+          message:
+            `Confirm the ${country.name} starter-map direction ` +
+            "before opening the explorer."
+        });
+        return;
+      }
       void ensureCountryPack(country.slug)
         .then(enterMappedCountry)
         .catch(showBootstrapError);
