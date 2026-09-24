@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">RoamAtlas</title>
+  <desc id="desc">A folded atlas map with a compass marker</desc>
+  <rect width="64" height="64" rx="16" fill="#173f3a"/>
+  <path d="M12 18.5 25 14l14 5 13-4.5v31L39 50l-14-5-13 4.5z" fill="#f4ead8" stroke="#f4ead8" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M25 14v31M39 19v31" fill="none" stroke="#d8b36a" stroke-width="2"/>
+  <path d="m32 23 3.6 8.4L44 35l-8.4 3.6L32 47l-3.6-8.4L20 35l8.4-3.6z" fill="#d96f4f" stroke="#173f3a" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="32" cy="35" r="2.4" fill="#f4ead8"/>
+</svg>
