@@ -10,6 +10,7 @@
     "./flipbookPage.js": "./src/flipbookPage.ts",
     "./guardrails.js": "./src/guardrails.ts",
     "./itinerary.js": "./src/itinerary.ts",
+    "./leafStudyPlate.js": "./src/leafStudyPlate.ts",
     "./loadingSteps.js": "./src/loadingSteps.ts",
     "./nextArtworkDestinations.js": "./src/nextArtworkDestinations.ts",
     "./nodeMatcher.js": "./src/nodeMatcher.ts",

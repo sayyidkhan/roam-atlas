@@ -4,6 +4,7 @@ export const UsageFeatureSchema = z.enum([
   "country_draft",
   "environment_plan",
   "image_generation",
+  "leaf_study",
   "place_image_suggestion",
   "visual_click_resolution"
 ]);

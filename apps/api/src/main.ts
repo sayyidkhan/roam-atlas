@@ -36,6 +36,8 @@ import { createCountryDraftRoutes } from "./features/countryDraft/countryDraftHt
 import { createEnvironmentPlanServerPolicy } from "./features/explorer/environmentPlanServerPolicy.ts";
 import { createOpenAIEnvironmentPlanner } from "./features/explorer/openAIEnvironmentPlanner.ts";
 import { createOpenAIClickResolver } from "./features/explorer/openAIClickResolver.ts";
+import { createLeafStudyRoutes } from "./features/explorer/leafStudyHttpHandler.ts";
+import { createOpenAILeafStudyEnricher } from "./features/explorer/openAILeafStudyEnricher.ts";
 import {
   getDefaultArtworkPageForNode,
   getDefaultArtworkPageForScene,
@@ -109,6 +111,13 @@ const {
   defaultCountrySlug: DEFAULT_COUNTRY_SLUG,
   defaultRuntimeCountrySlug: DEFAULT_RUNTIME_COUNTRY_SLUG,
   runtimeCacheUrlPrefix: RUNTIME_CACHE_URL_PREFIX,
+  getCountryPack: getExplorerCountryPack
+});
+const enrichLeafStudy = createOpenAILeafStudyEnricher({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: appConfig.ai.textModel,
+  recordUsage: usageService.record,
+  serviceTier: appConfig.ai.serviceTier,
   getCountryPack: getExplorerCountryPack
 });
 const resolveClickPhraseWithOpenAI = createOpenAIClickResolver({
@@ -274,6 +283,9 @@ const api = createRoamAtlasApi({
     createClickResolutionRoutes({
       handleResolveClick,
       handleFlipbookClick
+    }),
+    createLeafStudyRoutes({
+      enrichLeafStudy
     }),
     createArtworkRoutes({
       defaultCountrySlug: DEFAULT_COUNTRY_SLUG,

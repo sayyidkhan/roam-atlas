@@ -446,11 +446,33 @@
       "childIds": [],
       "tags": ["national-park", "coast", "rainforest", "kuching", "source-reviewed"],
       "facts": [{
-        "id": "malaysia-kuching-bako-national-park-summary",
-        "text": "Bako National Park is a Kuching-area nature destination with rainforest, mangrove, coastal-cliff, and beach environments.",
+        "id": "malaysia-kuching-bako-national-park-rainforest",
+        "label": "Rainforest",
+        "text": "Rainforest is one of Bako's main habitats, with jungle trails running through it.",
         "sourceType": "official",
         "confidence": "confirmed",
         "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-view/kuching/major-attractions/bako-national-park"
+      }, {
+        "id": "malaysia-kuching-bako-national-park-mangrove",
+        "label": "Mangrove",
+        "text": "Mangrove forest is one of the landscapes Bako is known for, along with its rock formations.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/places-to-visit/town-view/kuching/major-attractions/bako-national-park"
+      }, {
+        "id": "malaysia-kuching-bako-national-park-coastal-cliff",
+        "label": "Coastal Cliff",
+        "text": "Coastal cliffs are part of Bako's ecosystems, and the Telok Pandan Kecil trail reaches a cliffside view over a secluded beach.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/things-to-do/thing-view/nature/national-parks-wildlife-reserves/bako-national-park"
+      }, {
+        "id": "malaysia-kuching-bako-national-park-beach",
+        "label": "Beach",
+        "text": "Beaches are part of Bako's habitats, and scenic treks in the park lead to secluded ones.",
+        "sourceType": "official",
+        "confidence": "confirmed",
+        "sourceUrl": "https://www.sarawaktourism.com/web/things-to-do/thing-view/nature/national-parks-wildlife-reserves/bako-national-park"
       }]
     },
     "malaysia-kuching-sarawak-cultural-village": {

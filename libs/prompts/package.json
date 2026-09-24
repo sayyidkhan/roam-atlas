@@ -8,6 +8,7 @@
     "./buildEncyclopediaPrompt.js": "./src/buildEncyclopediaPrompt.ts",
     "./buildEnvironmentPlanPrompt.js": "./src/buildEnvironmentPlanPrompt.ts",
     "./buildHomepagePrompt.js": "./src/buildHomepagePrompt.ts",
+    "./buildLeafStudyPrompt.js": "./src/buildLeafStudyPrompt.ts",
     "./buildPagePlannerPrompt.js": "./src/buildPagePlannerPrompt.ts",
     "./buildRegionPrompt.js": "./src/buildRegionPrompt.ts",
     "./buildRoamAtlasImagePrompt.js": "./src/buildRoamAtlasImagePrompt.ts",

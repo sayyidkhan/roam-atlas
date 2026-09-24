@@ -7,6 +7,7 @@ import { ExplorerBreadcrumbTrail } from "./ExplorerBreadcrumbTrail";
 import {
   ExplorerRegionRail
 } from "./ExplorerDestinationNavigation";
+import { ExplorerLeafStudyPlate } from "./ExplorerLeafStudyPlate";
 import { ExplorerSceneStage } from "./ExplorerSceneStage";
 import { ExplorerNavigationFeedback } from "./ExplorerNavigationFeedback";
 import { ExplorerFullscreenButton } from "./ExplorerFullscreenButton";
@@ -83,6 +84,7 @@ export function ExplorerViewport() {
 
       <ExplorerSceneStage />
       <ExplorerRegionRail />
+      <ExplorerLeafStudyPlate />
       <ExplorerDetailSheet />
       <ExplorerNavigationFeedback />
     </section>

@@ -12,6 +12,7 @@ const FEATURE_LABELS: Record<UsageFeature, string> = {
   country_draft: "Country curation",
   environment_plan: "Environment plan",
   image_generation: "Atlas illustration",
+  leaf_study: "Leaf study note",
   place_image_suggestion: "Image search prompt",
   visual_click_resolution: "Visual click"
 };
