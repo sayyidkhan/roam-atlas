@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { CountryArrival } from "../countryArrival/CountryArrival";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { worldCountries } from "@roamatlas/data/countries.js";
@@ -10,6 +12,7 @@ import type { CountryCatalogCountry } from "./CountryCardMedia";
 import { LandingVariantPreview } from "../landingVariants/LandingVariantPreview";
 
 export function CountryCatalogPage() {
+  const [arrival, setArrival] = useState<CountryCatalogCountry | null>(null);
   const { dispatch } = useApplicationStore();
   const navigate = useNavigate();
   const registryQuery = useQuery({
@@ -36,6 +39,8 @@ export function CountryCatalogPage() {
   };
 
   return (
+    <>
+    {arrival ? <CountryArrival country={arrival} onComplete={() => open(arrival)} onDismiss={() => setArrival(null)} /> : null}
     <LandingVariantPreview
       countries={worldCountries}
       countryPacks={
@@ -45,7 +50,8 @@ export function CountryCatalogPage() {
         > | undefined ?? {}
       }
       onConfigure={configure}
-      onOpen={open}
+      onOpen={setArrival}
     />
+    </>
   );
 }

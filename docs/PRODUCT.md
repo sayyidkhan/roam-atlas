@@ -131,6 +131,13 @@ after 12 seconds, with retry and direct-source fallback.
 Only one filter set is visible: the globe controls when the shelf is closed,
 and the shelf controls when it is open or expanded.
 
+Clicking Explore or a country card’s Open action shows a skippable cinematic
+arrival before entering the registered atlas or country setup. It uses the
+selected country’s bundled photograph, country name, code, and continent,
+with a slow camera ease and title reveal lasting 3.4 seconds. Back returns to
+the landing page; reduced-motion preferences skip the animation. Preview
+selection, Surprise me, and explicit Customize actions do not play the intro.
+
 All 195 countries live in a right-side destination drawer, opened from the
 header or the selected country beneath the globe. Search stays fixed while its photo grid scrolls. The drawer
 fills the screen on mobile and closes after a country is selected. Selection
