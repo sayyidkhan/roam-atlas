@@ -85,9 +85,86 @@ RoamAtlas uses separate image prompt builders by page depth:
 - Exact factual content and source badges remain curated data, even when the
   generated image contains short guide labels.
 
-### 1. Start With Intent
+### 1. Choose a Destination, Then Add Intent
 
-The user enters:
+Horizon Atlas 2 is the selected RoamAtlas homepage at `/`, without the design
+comparison toolbar. Explicit `?landing=` links retain the comparison previews.
+Cinematic Travel is an earlier landing direction. It keeps
+photography, one destination heading, an entry action, and a small Cobe globe
+within a single screen. Postcard Desk ranks second and Immersive Atlas third;
+both remain available through the comparison switcher. The original gold-globe
+landing is restored as the fourth option, Original (`?landing=original`), for comparison.
+Horizon Atlas (`?landing=horizon`) is the fifth direction, built on the original
+dark atlas stage and its expandable photo-card country shelf. The left column
+shows the selected country name and Explore action; the large gold Cobe globe
+keeps country labels, four-direction controls, continent filtering, and animated
+selection. Selecting a shelf card previews the country in the hero and globe;
+its Open action enters the atlas. The shelf search respects the continent filter
+and can clear it to show all 195 countries. The shelf has continent filter chips
+with country counts, using the same selection as the globe in both directions.
+Horizon Atlas 2 (`?landing=horizon2`) is a separate sixth comparison option.
+It keeps the backdrop and original shelf, places Destinations in a single header,
+keeps continent filtering inside Destinations, shows four flag labels, and groups rotation
+controls beneath the globe. Horizontal arrows navigate east on right and west
+on left. Its hero has a rounded Explore action and a Browse all countries
+button that toggles the shelf open and closed, plus a continent label,
+and a country-code pill. It has no separate filter bar or country-count link
+above the globe. Its top-left editorial intro carries the brand tagline,
+“Follow your curiosity,” a two-line “A whole world. Yours to explore.” headline,
+and two lines of supporting copy. A divider separates this introduction from
+the smaller selected-country heading and actions. Both Horizon versions include Surprise me, which previews a
+random catalog country other than the current one, updates its backdrop and
+globe, and clears a continent filter if the new country falls outside it.
+Country backdrops retain the previous image until the next photograph has
+loaded and decoded, then crossfade for 850 ms. Rapid selections ignore stale
+image requests. The country heading has a subtle entrance transition; reduced
+motion disables both effects.
+An Encyclopedia action beside Surprise me retrieves the selected country’s
+Wikipedia introduction on demand in a country-profile modal. The modal pairs
+a reference-photo cover with a cream reading panel; its close control and
+source action remain fixed while the article scrolls. Mobile stacks the cover
+above the article. Entries have a source link,
+retrieval date, and CC BY-SA attribution, and are labeled general reference
+rather than reviewed travel advice. Requests are cached for a day and time out
+after 12 seconds, with retry and direct-source fallback.
+
+Only one filter set is visible: the globe controls when the shelf is closed,
+and the shelf controls when it is open or expanded.
+
+All 195 countries live in a right-side destination drawer, opened from the
+header or the selected country beneath the globe. Search stays fixed while its photo grid scrolls. The drawer
+fills the screen on mobile and closes after a country is selected. Selection
+updates the hero, globe pin, and globe caption together; entering the atlas remains an explicit action. Reopening the drawer scrolls its selected card into view. Search starts a fresh filter, and clearing it returns to the selected country.
+Escape and the close button dismiss the drawer without changing the destination,
+and focus returns to the control that opened it. Singapore is optional.
+
+The globe uses approximate sourced positions with fixed scale and manual
+rotation, country names on pointer hover, and direct pin selection. Browse globe
+opens a larger navigator with six continent filters and six named countries nearest
+the centre of the visible hemisphere. Country labels are 44px minimum click targets
+placed in separate slots on the globe, with leader lines to their approximate
+positions. Choices settle after rotation; labels cannot be selected mid-flight.
+Continent selection filters all markers, hit targets, labels, and the searchable
+country drawer. A count and View all action expose the complete matching catalog,
+including countries outside the current hemisphere. Clearing the filter restores
+all 195 countries. Grouping follows mledoze region/subregion data, with Central
+America and the Caribbean included in North America; transcontinental countries
+follow the source's single grouping. Four directional buttons and keyboard arrows
+rotate or tilt the globe, with vertical movement clamped near the poles.
+A selected-country card shows the catalog photo, name, code, atlas availability,
+and an explicit entry action. Photography remains a preview, never fact evidence.
+Dragging updates the labeled choices when released. Country and
+region changes rotate along the shortest path over 850 ms, with fixed scale;
+reduced-motion preferences skip the transition. Dragging interrupts a flight.
+The navigator links to the complete country drawer and keeps the hero in sync. The landing omits promotional copy and footer metadata; reference-photo context and coordinate attribution live in the drawer. It has no automatic spin or scroll zoom. If WebGL is unavailable,
+country search and selection remain usable through the drawer. Reference photos
+and imagined illustrations never serve as factual travel evidence.
+
+Existing registered atlases open directly. Other countries open setup for a
+starter atlas, with unverified content labeled accordingly. A source-reviewed
+badge requires both source-controlled registration and confirmed confidence.
+
+When configuring their trip, the user enters:
 
 - Trip length: 1, 2, or 3 days.
 - Budget: low, medium, high.

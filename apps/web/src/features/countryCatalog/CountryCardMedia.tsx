@@ -12,6 +12,7 @@ export type CountryCatalogCountry = {
 
 type CountryCardMediaProps = {
   country: CountryCatalogCountry;
+  classNames?: Record<string, string>;
 };
 
 function bundledCountryPhotoUrl(
@@ -41,7 +42,8 @@ function countryFlagUrl(code: string, width: number): string {
 }
 
 export function CountryCardPhoto({
-  country
+  country,
+  classNames = styles
 }: CountryCardMediaProps) {
   const [source, setSource] = useState(() =>
     bundledCountryPhotoUrl(country)
@@ -52,7 +54,7 @@ export function CountryCardPhoto({
 
   return (
     <img
-      className={styles["country-card-photo"]}
+      className={classNames["country-card-photo"]}
       src={source}
       alt=""
       loading="lazy"
@@ -71,17 +73,18 @@ export function CountryCardPhoto({
 }
 
 export function CountryCardFlag({
-  country
+  country,
+  classNames = styles
 }: CountryCardMediaProps) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <span className={styles["country-card-visual"]}>
+    <span className={classNames["country-card-visual"]}>
       {failed ? (
         country.displayCode
       ) : (
         <img
-          className={styles["country-flag"]}
+          className={classNames["country-flag"]}
           src={countryFlagUrl(country.code, 160)}
           srcSet={[
             `${countryFlagUrl(country.code, 80)} 80w`,

@@ -19,7 +19,7 @@ test("opens Singapore with fixture artwork and no external provider traffic", as
       return;
     }
 
-    if (requestUrl.origin !== "http://127.0.0.1:4150") {
+    if (requestUrl.origin !== new URL(test.info().project.use.baseURL).origin) {
       unexpectedExternalRequests.push(requestUrl.href);
       await route.abort();
       return;
@@ -75,7 +75,7 @@ test("keeps curated destinations accessible when fixture artwork fails", async (
       return;
     }
 
-    if (requestUrl.origin !== "http://127.0.0.1:4150") {
+    if (requestUrl.origin !== new URL(test.info().project.use.baseURL).origin) {
       unexpectedExternalRequests.push(requestUrl.href);
       await route.abort();
       return;
@@ -110,7 +110,7 @@ test("opens Singapore with fresh runtime elements after leaving Argentina", asyn
       return;
     }
 
-    if (requestUrl.origin !== "http://127.0.0.1:4150") {
+    if (requestUrl.origin !== new URL(test.info().project.use.baseURL).origin) {
       await route.abort();
       return;
     }
@@ -151,10 +151,11 @@ test("opens Singapore with fresh runtime elements after leaving Argentina", asyn
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Back to countries" }).click();
-  await page.getByRole("button", { name: "Open country index" }).click();
-  await page.getByRole("button", { name: "Search countries" }).click();
+  await page.getByRole("button", { name: "Browse all countries", exact: true }).click();
+  await page.getByRole("button", { name: "Search countries", exact: true }).click();
   await page.getByLabel("Search countries").fill("singapore");
-  await page.getByRole("button", { name: "Open Singapore", exact: true }).click();
+  await page.getByRole("button", { name: "Preview Singapore", exact: true }).click();
+  await page.getByRole("button", { name: "Explore Singapore", exact: true }).click();
 
   await expect(page).toHaveURL(/\/singapore$/);
   await expect(

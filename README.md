@@ -97,27 +97,54 @@ The `/usage` dashboard records completed provider-call token counts, model,
 feature, latency, and estimated USD cost in the API runtime cache. It never
 stores prompts, generated content, or API keys.
 
-## Landing Globe
+## Destination-First Landing
 
-The country landing page uses [Cobe](https://cobe.vercel.app/) for its
-interactive globe. It is a lightweight, visual orientation layer rather than a
-geographic source of truth:
+The homepage uses Horizon Atlas 2: a destination photo, an interactive Cobe globe,
+and the original country shelf. Browse all countries toggles the shelf;
+Surprise me previews another country; Encyclopedia retrieves a sourced Wikipedia
+overview. Country changes crossfade after the next photograph has decoded.
+The homepage has no design comparison toolbar.
 
-- The globe shows the current RoamAtlas destination markers for Singapore and
-  Malaysia and can be dragged to explore.
-- The fixed landing view opens on the globe. Its country index is a collapsible
-  shelf: it shows three cards at rest and expands leftward into the full,
-  searchable index without introducing page scroll.
-- Country names, the searchable 195-country index, pack confidence, and all
-  navigation continue to come from curated application data.
-- The primary "Explore Singapore" action and country cards remain the
-  accessible paths into an experience; a canvas marker never establishes a
-  factual claim or changes the curated scene graph.
-- If WebGL is unavailable, the landing page keeps its usable country controls
-  and shows a styled static globe fallback.
+Earlier directions remain available through explicit preview links:
 
-Use a fully featured mapping or globe system only when the product needs
-geographic hit testing, country polygons, or map-driven data exploration.
+- `/?landing=playful` — Postcard Desk: expressive typography, draggable postcards,
+  shuffle, and immediate country search.
+- `/?landing=atlas` — Immersive Atlas: an imagined illustrated landscape with a
+  destination desk, country previews, and an explicit entry action.
+- `/?landing=cinematic` — Cinematic Travel: a single-screen photographic hero,
+  a compact Cobe globe, and a destination drawer containing all 195 countries.
+  The drawer keeps search fixed above a scrolling photo grid; it fills the
+  screen on mobile. Choosing a country closes it and updates the hero.
+
+Original (`/?landing=original`), Horizon Atlas (`/?landing=horizon`), and
+Horizon Atlas 2 (`/?landing=horizon2`) are also available in the comparison
+switcher. Horizon Atlas 2 is the selected default. Each direction offers the entire country catalog. Singapore
+is optional. The cinematic globe has fixed scale and supports manual dragging. Country selection updates its orientation and highlighted
+pin immediately; there is no automatic spin or scroll zoom. Clicking a globe
+pin or drawer entry previews a country before the explicit Explore action.
+The drawer uses a native modal dialog for focus containment and Escape dismissal,
+and returns focus to its trigger on close. Search never leaves the drawer;
+submitting a unique match previews it rather than immediately entering an atlas.
+Country coordinates are approximate, sourced from [mledoze/countries](https://github.com/mledoze/countries)
+under ODbL 1.0; the derived coordinate dataset and license are kept in the repo.
+These positions are for orientation, not routing or travel claims. If WebGL
+fails, the destination drawer, search, and country entry remain usable.
+
+Country selection is handled centrally: registered atlases open the explorer;
+other countries open setup. Only source-controlled packs with confirmed
+confidence receive a source-reviewed label. Runtime drafts remain unverified.
+Unknown or ambiguous searches never open an arbitrary country. In Immersive
+Atlas, a unique search selects a preview before the user explicitly enters it.
+
+All previews use bundled assets and honor reduced-motion preferences. The atlas
+landscape is labeled AI-imagined scenery, not a geographic map. Photos provide
+inspiration; country names, routes, confidence, and facts remain structured data.
+
+Design references: [Here & Away’s editorial redesign](https://www.here-away.com/story/duo-studio-here-and-away-redesign)
+for image-led storytelling; [Pentagram’s Impala identity](https://www.pentagram.com/work/impala)
+for travel graphic details; and [Nielsen Norman Group’s homepage principles](https://www.nngroup.com/articles/homepage-design-principles/)
+for clear purpose, example content, and obvious next actions. The implementation
+uses existing RoamAtlas artwork and assets, not copied reference-site media.
 
 The repository is an npm workspace:
 

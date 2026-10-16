@@ -160,9 +160,9 @@ test("country landing lists world countries with routable country shells", () =>
   assert.equal(routeForCountryConfig(getCountryBySlug("austria")), "/austria/config");
 });
 
-test("country landing cards request country-specific media images", () => {
+test("country landing cards use bundled media while image service stays isolated", () => {
   const catalogViewSource = readFileSync(
-    new URL("../apps/web/src/features/countryCatalog/CountryCatalogView.tsx", import.meta.url),
+    new URL("../apps/web/src/features/landingVariants/playful/PlayfulLanding.tsx", import.meta.url),
     "utf8"
   );
   const catalogMediaSource = readFileSync(
@@ -207,9 +207,9 @@ test("country landing cards request country-specific media images", () => {
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("united-arab-emirates")), /Burj_Al-Arab/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("south-korea")), /Gyeongbokgung/);
   assert.match(getCountryImageOverrideUrl(getCountryBySlug("palestinian-territories")), /Church_of_the_Nativity/);
-  assert.match(catalogViewSource, /<CountryCardPhoto country=\{country\}/);
-  assert.match(catalogViewSource, /onClick=\{\(\) => onConfigure\(country\)\}/);
-  assert.match(catalogViewSource, /onClick=\{\(\) => onOpen\(country\)\}/);
+  assert.match(catalogViewSource, /<DestinationPostcard/);
+  assert.match(catalogViewSource, /onConfigure=\{isOpenable/);
+  assert.match(catalogViewSource, /onOpen=\{\(\) => onOpen\(country\)\}/);
   assert.match(catalogMediaSource, /function bundledCountryPhotoUrl/);
   assert.match(catalogMediaSource, /localAssetExtensionOverrides/);
   assert.match(catalogMediaSource, /countryImageApiUrl\(country\.slug\)/);
@@ -241,10 +241,8 @@ test("country landing cards request country-specific media images", () => {
   assert.doesNotMatch(serverSource, /flag-fallback/);
   assert.doesNotMatch(serverSource, /flagcdn\.com\/w640/);
   assert.match(styleSource, /\.country-card-photo/);
-  assert.match(styleSource, /\.country-card-menu/);
-  assert.match(styleSource, /\.country-card-menu-icon/);
   assert.doesNotMatch(styleSource, /\.country-card-menu-popover/);
-  assert.doesNotMatch(styleSource, /country-card-atlas\.jpg/);
+  assert.match(styleSource, /country-card-atlas\.jpg/);
 });
 
 test("app routes only open configured country packs directly in the explorer", () => {

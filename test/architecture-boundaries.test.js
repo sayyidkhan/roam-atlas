@@ -1056,7 +1056,7 @@ test("application navigation, generated state, and bootstrap have cohesive owner
   );
   assert.doesNotMatch(shellSource, /id="country-landing"/);
   assert.doesNotMatch(shellSource, /id="country-grid"/);
-  assert.match(catalogPageSource, /<CountryCatalogView/);
+  assert.match(catalogPageSource, /<LandingVariantPreview/);
 });
 
 test("application runtime delegates mutable feature API calls to feature clients", () => {
@@ -2352,7 +2352,7 @@ test("CSS entry is an import manifest and React catalog styles are locally owned
     "utf8"
   );
   const catalogView = readFileSync(
-    new URL("countryCatalog/CountryCatalogView.tsx", featureRoot),
+    new URL("landingVariants/LandingVariantPreview.tsx", featureRoot),
     "utf8"
   );
 
@@ -2374,9 +2374,9 @@ test("CSS entry is an import manifest and React catalog styles are locally owned
   assert.doesNotMatch(environmentStyles, /@keyframes ambient-light/);
   assert.match(environmentAnimations, /@keyframes ambient-light/);
   assert.doesNotMatch(styleEntry, /\{\s*$/m);
-  assert.match(catalogView, /import styles from "\.\/CountryCatalog\.module\.css"/);
+  assert.match(catalogView, /import styles from "\.\/LandingVariantPreview\.module\.css"/);
   assert.equal(
-    existsSync(new URL("countryCatalog/CountryCatalog.module.css", featureRoot)),
+    existsSync(new URL("landingVariants/LandingVariantPreview.module.css", featureRoot)),
     true
   );
 });

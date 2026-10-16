@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { Globe } from "cobe";
 
-import styles from "./CountryCatalog.module.css";
+import styles from "./OriginalLanding.module.css";
 import {
   focusAngles,
   nearestVisibleMarker,
   projectGlobeMarker,
   type GlobePlace
-} from "./globeMarkerProjection";
+} from "../../countryCatalog/globeMarkerProjection";
 
 export type GlobeDestination = GlobePlace & {
   name: string;

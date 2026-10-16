@@ -4,12 +4,17 @@ import {
   CountryCardFlag,
   CountryCardPhoto,
   type CountryCatalogCountry
-} from "./CountryCardMedia";
+} from "../../countryCatalog/CountryCardMedia";
+import { CONTINENTS, countryContinents, type Continent } from "../../countryCatalog/countryContinents";
+import { DestinationGlobe } from "../cinematic/DestinationGlobe";
+import { CountryEncyclopedia } from "../../countryEncyclopedia/CountryEncyclopedia";
+import { CountryBackdrop } from "../horizon/CountryBackdrop";
+import { AtlasMark } from "../AtlasMark";
 import { CountryAtlasGlobe } from "./CountryAtlasGlobe";
-import { ATLAS_GLOBE_PLACES } from "./globeMarkerProjection";
-import styles from "./CountryCatalog.module.css";
+import { ATLAS_GLOBE_PLACES } from "../../countryCatalog/globeMarkerProjection";
+import styles from "./OriginalLanding.module.css";
 
-export type { CountryCatalogCountry } from "./CountryCardMedia";
+export type { CountryCatalogCountry } from "../../countryCatalog/CountryCardMedia";
 
 type CountryPackSummary = {
   confidence?: string;
@@ -17,6 +22,7 @@ type CountryPackSummary = {
 };
 
 type CountryCatalogProps = {
+  presentation?: "original" | "horizon" | "horizon2";
   countries: CountryCatalogCountry[];
   countryPacks: Record<string, CountryPackSummary | undefined>;
   onConfigure: (country: CountryCatalogCountry) => void;
@@ -43,16 +49,32 @@ function SettingsIcon() {
 
 type ShelfMode = "closed" | "open" | "expanded";
 
-export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpen }: CountryCatalogProps) {
+export function OriginalLanding({ countries, countryPacks, onConfigure, onOpen, presentation = "original" }: CountryCatalogProps) {
+  const refined = presentation === "horizon2";
+  const horizon = presentation === "horizon" || refined;
+  const [encyclopediaOpen, setEncyclopediaOpen] = useState(false);
+  const [selectedSlug, setSelectedSlug] = useState("norway");
+  const [continent, setContinent] = useState<Continent | null>(null);
+  const selected = countries.find((country) => country.slug === selectedSlug) ?? countries[0];
+  const choose = (country: CountryCatalogCountry) => {
+    setSelectedSlug(country.slug);
+    if (continent && countryContinents[country.code] !== continent) setContinent(null);
+    setShelfMode("closed");
+  };
+  const surprise = (random: number) => {
+    const candidates = countries.filter((country) => country.slug !== selected?.slug);
+    if (candidates.length) choose(candidates[Math.floor(random * candidates.length)]);
+  };
   const [query, setQuery] = useState("");
   const [shelfMode, setShelfMode] = useState<ShelfMode>("closed");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const normalizedQuery = normalizeQuery(query);
   const filteredCountries = useMemo(() => countries.filter((country) => {
+    if (horizon && continent && countryContinents[country.code] !== continent) return false;
     if (!normalizedQuery) return true;
     return [country.name, country.code, country.displayCode]
       .some((value) => value.toLowerCase().includes(normalizedQuery));
-  }), [countries, normalizedQuery]);
+  }), [countries, normalizedQuery, horizon, continent]);
   const liveAtlasPackCount = useMemo(
     () => Object.values(countryPacks).filter((pack) =>
       pack?.registration === "source_controlled" ||
@@ -69,7 +91,7 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
     [countries]
   );
 
-  const shelfCountries = normalizedQuery ? filteredCountries : countries;
+  const shelfCountries = normalizedQuery || (horizon && continent) ? filteredCountries : countries;
 
   const openGlobeDestination = (countrySlug: string) => {
     const country = countries.find((candidate) => candidate.slug === countrySlug);
@@ -78,16 +100,51 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
 
   return (
     <section
-      className={`${styles["country-landing"]} ${styles["country-landing--standalone"]}`}
+      className={`${styles["country-landing"]} ${styles["country-landing--standalone"]} ${horizon ? styles.horizon : ""} ${refined ? styles["horizon-two"] : ""}`}
       aria-label="Choose a country"
+      onKeyDown={(event) => { if (horizon && event.key === "Escape") setShelfMode("closed"); }}
     >
       <div
         className={`${styles["country-stage"]} ${
           shelfMode === "expanded" ? styles["country-stage--shelf-open"] : ""
         } ${shelfMode === "closed" ? styles["country-stage--shelf-closed"] : ""}`}
       >
+        {encyclopediaOpen && selected ? <CountryEncyclopedia country={selected} onDismiss={() => setEncyclopediaOpen(false)} /> : null}
+        {horizon && selected ? <>
+          <CountryBackdrop slug={selected.slug} />
+          <div className={styles["horizon-shade"]} aria-hidden="true" />
+        </> : null}
+        {refined ? <div className={styles["horizon-topbar"]}>
+          <div className={styles["intro-brand-lockup"]}><a href="/" className={styles["horizon-brand"]} aria-label="RoamAtlas home"><AtlasMark /><span>roam<span>atlas</span></span></a><span className={styles["intro-tagline"]}>The atlas of<br />possible adventures</span></div>
+          <button type="button" className={styles["horizon-destinations"]} aria-expanded={shelfMode !== "closed"} onClick={() => { setQuery(""); setShelfMode(shelfMode === "closed" ? "expanded" : "closed"); }}>Destinations <span>{countries.length}</span><span aria-hidden="true">↗</span></button>
+        </div> : null}
         <header className={styles["country-hero"]}>
           <div className={styles["country-hero-copy"]}>
+            {horizon ? <>
+              {!refined ? <a href="/" className={styles["horizon-brand"]} aria-label="RoamAtlas home"><AtlasMark /><span>roam<span>atlas</span></span></a> : null}
+              {refined ? <section className={styles["horizon-intro"]} aria-label="Welcome to RoamAtlas">
+                <p className={styles["intro-kicker"]}><span aria-hidden="true" />Follow your curiosity</p>
+                <h2>A whole world.<br /><em>Yours to explore.</em></h2>
+                <p className={styles["intro-description"]}>Find your places in an illustrated atlas.<br />Turn a little curiosity into your next trip.</p>
+
+              </section> : null}
+              {refined ? <p className={styles["horizon-location"]}>{selected ? countryContinents[selected.code] : "The world"} <span className={styles["horizon-code-pill"]}>{selected?.displayCode}</span></p> : null}
+              <h1 key={selected?.slug} className={styles["horizon-title"]}>{selected?.name ?? "Somewhere"}<span>.</span></h1>
+              <div className={styles["hero-actions"]}>
+                {selected ? <button type="button" className={styles["hero-primary-action"]} onClick={() => onOpen(selected)}>Explore {selected.name} <span aria-hidden="true">↗</span></button> : null}
+                <button type="button" className={styles["hero-secondary-action"]} aria-expanded={shelfMode !== "closed"} onClick={() => { if (shelfMode === "closed") { setContinent(null); setQuery(""); } setShelfMode((current) => current === "closed" ? "expanded" : "closed"); }}>Browse all countries</button>
+              </div>
+              <div className={styles["discovery-actions"]}>
+              <button type="button" className={styles["surprise-action"]} onClick={() => surprise(Math.random())} disabled={countries.length < 2}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h3c4 0 8 12 12 12h3M17 14l4 4-4 4M3 18h3c1.5 0 3-1.7 4.5-4M13.5 10C15 7.7 16.5 6 18 6h3M17 2l4 4-4 4" /></svg>
+                Surprise me
+              </button>
+              <button type="button" className={styles["surprise-action"]} disabled={!selected} onClick={() => setEncyclopediaOpen(true)} aria-haspopup="dialog">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v15M12 5C9 3 5 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Z" /></svg>
+                Encyclopedia
+              </button>
+              </div>
+            </> : <>
             <p className={styles.eyebrow}>RoamAtlas · illustrated travel intelligence</p>
             <p className={styles["hero-kicker"]}>An atlas you can enter</p>
             <h1>Find the story behind your next journey.</h1>
@@ -116,14 +173,17 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
                 <dd>live atlas packs</dd>
               </div>
             </dl>
+            </>}
           </div>
           <div className={styles["country-hero-globe"]}>
+            {horizon ? <DestinationGlobe compact streamlined={refined} presentation="hero" showRegionFilters={!refined && shelfMode === "closed"} countries={countries} selected={selected} onSelect={choose} continent={continent} onContinentChange={setContinent} onBrowse={() => { setQuery(""); setShelfMode("expanded"); }} /> : <>
             <div className={styles["globe-caption"]}>
               <span className={styles["globe-caption-line"]} aria-hidden="true" />
               <p>Asia · live atlas</p>
               <span>Routes radiate from Singapore</span>
             </div>
             <CountryAtlasGlobe destinations={globeDestinations} onSelect={openGlobeDestination} />
+            </>}
           </div>
         </header>
 
@@ -204,28 +264,34 @@ export function CountryCatalogView({ countries, countryPacks, onConfigure, onOpe
                 />
               </label>
             ) : null}
-            <p>{normalizedQuery ? `${filteredCountries.length} matching countries` : "Scroll to explore every country"}</p>
+            {horizon ? <div className={styles["drawer-continents"]} role="group" aria-label="Filter drawer by continent">
+              <button type="button" aria-pressed={continent === null} onClick={() => setContinent(null)}>All <span>{countries.length}</span></button>
+              {CONTINENTS.map((region) => <button type="button" key={region} aria-pressed={continent === region} onClick={() => setContinent(region)}>{region} <span>{countries.filter((country) => countryContinents[country.code] === region).length}</span></button>)}
+            </div> : null}
+            <p className={horizon ? styles["drawer-result-count"] : undefined}>{horizon && continent ? `${continent} · ${filteredCountries.length} countries` : normalizedQuery ? `${filteredCountries.length} matching countries` : "Scroll to explore every country"}</p>
           </div>
 
           <section className={styles["country-grid"]} aria-label="Country cards">
             {shelfCountries.map((country) => {
-              const isMapped = countryPacks[country.slug]?.confidence !== "unconfirmed";
+              const pack = countryPacks[country.slug];
+              const isMapped = pack?.registration === "source_controlled" && pack.confidence === "confirmed";
               return (
                 <article
                   key={country.code}
                   className={`${styles["country-card"]} ${
                     styles[`country-card--${isMapped ? "mapped" : "available"}`]
-                  }`}
+                  } ${horizon && country.slug === selected?.slug ? styles["horizon-selected"] : ""}`}
                   aria-label={`${country.name}, ${isMapped ? "source-reviewed explorer" : "starter explorer"}`}
                 >
-                  <CountryCardPhoto country={country} />
+                  <CountryCardPhoto country={country} classNames={styles} />
                   <button
                     type="button"
                     className={styles["country-card-hitbox"]}
-                    aria-label={`Open ${country.name}`}
-                    onClick={() => onOpen(country)}
+                    aria-label={`${horizon ? "Preview" : "Open"} ${country.name}`}
+                    aria-pressed={horizon ? country.slug === selected?.slug : undefined}
+                    onClick={() => horizon ? choose(country) : onOpen(country)}
                   />
-                  <CountryCardFlag country={country} />
+                  <CountryCardFlag country={country} classNames={styles} />
                   <button
                     type="button"
                     className={styles["country-card-menu"]}

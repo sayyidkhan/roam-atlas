@@ -6,7 +6,8 @@ import {
   initCountryPackRegistry
 } from "../../data/countryPacks/index.js";
 import { useApplicationStore } from "../../app/applicationStore";
-import { CountryCatalogView, type CountryCatalogCountry } from "./CountryCatalogView";
+import type { CountryCatalogCountry } from "./CountryCardMedia";
+import { LandingVariantPreview } from "../landingVariants/LandingVariantPreview";
 
 export function CountryCatalogPage() {
   const { dispatch } = useApplicationStore();
@@ -35,12 +36,12 @@ export function CountryCatalogPage() {
   };
 
   return (
-    <CountryCatalogView
+    <LandingVariantPreview
       countries={worldCountries}
       countryPacks={
         registryQuery.data as Record<
           string,
-          { confidence?: string } | undefined
+          { confidence?: string; registration?: string } | undefined
         > | undefined ?? {}
       }
       onConfigure={configure}
