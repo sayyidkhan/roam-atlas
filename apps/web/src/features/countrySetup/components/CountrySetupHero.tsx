@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { countryPhotoUrl } from "../../landingVariants/cinematic/cinematicCountryPresentation";
 
 import type {
   CountrySetupState
@@ -19,12 +20,12 @@ export function CountrySetupHero({
 
   return (
     <header className="country-config-hero">
+      <img className="setup-country-photo" src={countryPhotoUrl(country.slug)} alt="" onError={(event) => { event.currentTarget.hidden = true; }} />
       <div>
-        <p className="eyebrow">{country.code} country config</p>
+        <p className="eyebrow setup-kicker">Your next chapter <span>{country.code}</span></p>
         <h1>{country.name}</h1>
         <p>
-          Manage {country.name} generated map data and starter
-          information before opening the explorer.
+          Choose your illustration detail, then step into the atlas.
         </p>
       </div>
       <CountryActionGuide

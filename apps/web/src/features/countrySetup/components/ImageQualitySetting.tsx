@@ -33,11 +33,11 @@ export function ImageQualitySetting({
     >
       <div className="country-image-quality-copy">
         <p className="eyebrow">Illustration quality</p>
-        <h2 id="image-quality-title">Generated image detail</h2>
+        <h2 id="image-quality-title">Illustration detail</h2>
         <p>
           {isLocked
-            ? `This country is locked to ${activeValue} quality so every generated illustration stays visually consistent. Reset generated visuals to choose another quality.`
-            : "Choose the quality before generating map illustrations. High is recommended for the clearest atlas artwork."}
+            ? "A consistent finish across your atlas."
+            : "Choose how much detail to bring to your illustrated world."}
         </p>
       </div>
       <div
@@ -77,8 +77,7 @@ export function ImageQualitySetting({
         <div className="image-quality-status" role="status">
           <strong>Locked to {activeValue} quality</strong>
           <span>
-            Generated visuals use one quality. Reset generated visuals to
-            change it.
+            Generated visuals use one quality. Change it under Manage visuals.
           </span>
         </div>
       ) : isLoading ? (

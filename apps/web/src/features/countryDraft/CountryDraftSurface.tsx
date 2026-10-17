@@ -23,6 +23,7 @@ type CountryDraftSurfaceProps = {
   countrySlug: string;
   draft: CountryDraftRenderState;
   isSourceControlled: boolean;
+  compact?: boolean;
 };
 
 /**
@@ -38,7 +39,8 @@ export function CountryDraftSurface({
   countryName,
   countrySlug,
   draft,
-  isSourceControlled
+  isSourceControlled,
+  compact = false
 }: CountryDraftSurfaceProps) {
   const [activeSection, setActiveSection] =
     useState<CountryDraftSection>("regions");
@@ -96,13 +98,14 @@ export function CountryDraftSurface({
   return (
     <section className="country-draft" aria-label="AI starter map">
       <div className="country-draft-header">
-        <h2>AI starter map</h2>
+        <h2>{compact && isSourceControlled ? "Country atlas" : "AI starter map"}</h2>
       </div>
       <p>{draft.draft.summary}</p>
       {draft.draft.unavailableReason ? (
         <p className="muted">{draft.draft.unavailableReason}</p>
       ) : null}
       <CountryDraftReview
+        collapseChecklist={compact && isSourceControlled}
         confirmation={draft.review.confirmation}
         confirmationError={draft.review.error}
         countryName={countryName}

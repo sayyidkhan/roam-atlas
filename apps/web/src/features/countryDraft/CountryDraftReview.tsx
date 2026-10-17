@@ -4,6 +4,7 @@ import type {
 } from "./countryDraftTypes";
 
 type CountryDraftReviewProps = {
+  collapseChecklist?: boolean;
   confirmation: CountryDraftConfirmation | null;
   confirmationError: string | null;
   countryName: string;
@@ -20,6 +21,7 @@ type CountryDraftReviewProps = {
  * review artifact; it never promotes generated content into verified facts.
  */
 export function CountryDraftReview({
+  collapseChecklist = false,
   confirmation,
   confirmationError,
   countryName,
@@ -39,7 +41,10 @@ export function CountryDraftReview({
         isSourceControlled={isSourceControlled}
         onConfirm={onConfirm}
       />
-      <ReviewChecklist items={draft.reviewChecklist ?? []} />
+      {collapseChecklist && (draft.reviewChecklist?.length ?? 0) > 0 ? <details className="setup-review-guidelines">
+        <summary>Source review guidelines</summary>
+        <ReviewChecklist items={draft.reviewChecklist ?? []} />
+      </details> : <ReviewChecklist items={draft.reviewChecklist ?? []} />}
     </>
   );
 }

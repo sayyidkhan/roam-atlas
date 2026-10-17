@@ -46,11 +46,14 @@ export function CountrySetupActions({
       aria-label="Manual country actions"
     >
       <CountryActionButton
-        action="countries"
-        label="Back to countries"
-        info="Return to the full country list."
-        onClick={snapshot.commands.backToCountries}
+        {...mapAction}
+        disabled={isMapLocked}
+        onClick={snapshot.commands.openOrBuildMap}
       />
+      <details className="setup-maintenance">
+        <summary>Manage visuals</summary>
+        <div>
+          <p>Clear generated illustrations to start fresh. Your map data and reference photos stay.</p>
       <CountryActionButton
         action="reset-generated-visuals"
         label={
@@ -62,11 +65,8 @@ export function CountrySetupActions({
         disabled={isCacheFlushing}
         onClick={snapshot.commands.resetGeneratedVisuals}
       />
-      <CountryActionButton
-        {...mapAction}
-        disabled={isMapLocked}
-        onClick={snapshot.commands.openOrBuildMap}
-      />
+        </div>
+      </details>
     </section>
   );
 }
@@ -94,7 +94,7 @@ function CountryActionButton({
       disabled={disabled}
       onClick={onClick}
     >
-      <span>{label}</span>
+      <span>{label}</span>{action === "country-map" || action === "build-starter-map" ? <span aria-hidden="true">↗</span> : null}
     </button>
   );
 }

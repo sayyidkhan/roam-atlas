@@ -93,6 +93,15 @@ It is stored on the current browser and opens on the next homepage visit.
 Browsing and Surprise me do not overwrite it. Clicking the active Home country
 icon clears the preference; unavailable storage reports a save failure.
 
+Country setup continues the Horizon palette, photographic country header, serif
+heading, and pill actions. Opening or building the atlas is the primary action;
+visual resets sit under Manage visuals. Desktop setup uses a 40/60 split with
+country controls on the left and independently scrollable atlas contents and
+source review on the right. Mobile stacks the two sections. Navigation places
+Back to countries on the left and the RoamAtlas brand on the right. Reviewed
+setup packs use a compact source-status note and expandable review guidelines,
+keeping the chapter list prominent. Draft maps retain explicit curation gates. Illustration locks and source-review guardrails remain enforced.
+
 Horizon Atlas 2 is the selected RoamAtlas homepage at `/`, without the design
 comparison toolbar. Explicit `?landing=` links retain the comparison previews.
 Cinematic Travel is an earlier landing direction. It keeps

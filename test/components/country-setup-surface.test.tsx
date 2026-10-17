@@ -116,10 +116,14 @@ describe("CountrySetupSurface", () => {
         .getByRole("radio", { name: /High/ })
         .getAttribute("aria-checked")
     ).toBe("true");
-    expect(screen.getByText("AI starter map")).toBeTruthy();
+    expect(screen.getByText("Country atlas")).toBeTruthy();
     expect(
       container.querySelector(".country-draft")
     ).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Scrollable atlas contents" }).getAttribute("tabindex")).toBe("0");
+    const maintenance = screen.getByText("Manage visuals");
+    fireEvent.click(maintenance);
+    expect(commands.resetGeneratedVisuals).not.toHaveBeenCalled();
     act(() => {
       draftStore.set("singapore", {
         status: "ready",

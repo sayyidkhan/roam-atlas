@@ -1,4 +1,6 @@
 import { useStore } from "zustand";
+import { AtlasMark } from "../landingVariants/AtlasMark";
+import "./countrySetupTheme.css";
 
 import { CountryDraftSurface } from "../countryDraft/CountryDraftSurface";
 import {
@@ -54,7 +56,13 @@ function CountrySetupContent({
     snapshot.canOpenMap && !isCurationConfirmed;
 
   return (
-    <article className="country-shell-panel">
+    <article className="country-shell-panel country-setup-theme">
+      <nav className="setup-brand-bar" aria-label="Atlas navigation">
+        <button type="button" className="ghost-button setup-back" onClick={snapshot.commands.backToCountries}>← Back to countries</button>
+        <a href="/" className="setup-brand" aria-label="RoamAtlas home"><AtlasMark /><span>roam<span>atlas</span></span></a>
+      </nav>
+      <div className="setup-workspace">
+      <div className="setup-country-column">
       <CountrySetupHero
         key={`hero:${snapshot.country.slug}`}
         snapshot={snapshot}
@@ -74,7 +82,12 @@ function CountrySetupContent({
         onChange={snapshot.commands.setImageQuality}
       />
       <CacheFlushNotice state={flushState} />
+      </div>
+      <section className="setup-atlas-column" aria-labelledby="setup-atlas-title">
+        <header className="setup-atlas-heading"><p className="setup-atlas-kicker">Contents &amp; source review</p><h2 id="setup-atlas-title">Inside the atlas</h2></header>
+        <div className="setup-map-content" role="region" aria-label="Scrollable atlas contents" tabIndex={0}>
       <CountryDraftSurface
+        compact
         key={`draft:${snapshot.country.slug}`}
         buildPhotoUrl={snapshot.buildDraftPhotoUrl}
         commands={snapshot.draftCommands}
@@ -83,6 +96,9 @@ function CountrySetupContent({
         draft={draft}
         isSourceControlled={snapshot.isSourceControlled}
       />
+        </div>
+      </section>
+      </div>
     </article>
   );
 }
