@@ -1278,6 +1278,14 @@
   background: #fff8e8;
 }
 
+.horizon .hero-secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
 .country-stage .hero-secondary-action {
   border-color: rgba(239, 225, 194, 0.3);
   background: rgba(255, 248, 232, 0.04);
@@ -2423,4 +2431,21 @@
   margin: 10px 0;
   color: #fff4dc;
   font: 400 12px/1.5 Inter, sans-serif;
+}
+
+
+.horizon .hero-secondary-action[aria-expanded="true"] {
+  border-color: #f2cc83;
+  background: #f2cc83;
+  color: #12302e;
+}
+
+.browse-toggle-icon {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horizon .hero-secondary-action { transition: none; }
 }

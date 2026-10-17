@@ -150,7 +150,7 @@ export function OriginalLanding({ countries, countryPacks, onConfigure, onOpen, 
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3ZM9 20v-7h6v7" /></svg>
                   </button>
                 </div> : null}
-                <button type="button" className={styles["hero-secondary-action"]} aria-expanded={shelfMode !== "closed"} onClick={() => { if (shelfMode === "closed") { setContinent(null); setQuery(""); } setShelfMode((current) => current === "closed" ? "expanded" : "closed"); }}>Browse all countries</button>
+                <button type="button" className={styles["hero-secondary-action"]} aria-expanded={shelfMode !== "closed"} title={shelfMode === "closed" ? "Open country browser" : "Close country browser"} onClick={() => { if (shelfMode === "closed") { setContinent(null); setQuery(""); } setShelfMode((current) => current === "closed" ? "expanded" : "closed"); }}>Browse all countries <span className={styles["browse-toggle-icon"]} aria-hidden="true">{shelfMode === "closed" ? "+" : "−"}</span></button>
               </div>
               <span role="status" aria-label="Home country preference" className={homeMessage.includes("couldn’t") ? styles["home-country-message"] : "visually-hidden"}>{homeMessage}</span>
               <div className={styles["discovery-actions"]}>
