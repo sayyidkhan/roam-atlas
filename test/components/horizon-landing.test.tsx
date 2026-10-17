@@ -22,7 +22,7 @@ vi.mock("../../apps/web/src/features/landingVariants/cinematic/DestinationGlobe"
   </section>
 }));
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 
 function setup() {
   const onOpen = vi.fn();
@@ -99,4 +99,29 @@ it("surprises with a different catalog country and previews without entering the
   expect(screen.getByRole("heading", { name: "Albania." })).toBeTruthy();
   expect(onOpen).not.toHaveBeenCalled();
   random.mockRestore();
+});
+
+
+it("remembers an explicitly saved home country without changing it during browsing", () => {
+  setup();
+  fireEvent.click(screen.getByRole("button", { name: "Select Japan on globe" }));
+  fireEvent.click(screen.getByRole("button", { name: "Set as home country" }));
+  expect(screen.getByRole("button", { name: "Home country ✓" }).getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(screen.getByRole("button", { name: "Browse all countries" }));
+  fireEvent.click(screen.getByRole("button", { name: "Preview France" }));
+  cleanup();
+  setup();
+  expect(screen.getByRole("heading", { name: "Japan." })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Home country ✓" }));
+  cleanup();
+  setup();
+  expect(screen.getByRole("heading", { name: "Norway." })).toBeTruthy();
+});
+
+it("does not report a saved home country if browser storage is blocked", () => {
+  setup();
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("Storage blocked"); });
+  fireEvent.click(screen.getByRole("button", { name: "Set as home country" }));
+  expect(screen.getByRole("button", { name: "Set as home country" }).getAttribute("aria-pressed")).toBe("false");
+  expect(screen.getByRole("status", { name: "Home country preference" }).textContent).toContain("couldn’t save");
 });

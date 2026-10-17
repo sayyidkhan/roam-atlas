@@ -2359,3 +2359,68 @@
   flex-wrap: wrap;
   gap: 8px 24px;
 }
+
+/* Explore and home preference share one compact pill, with separate hit targets. */
+.explore-pill {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  border-radius: 999px;
+  background: #f5e7c7;
+}
+
+.horizon .explore-pill .hero-primary-action {
+  height: auto;
+  min-height: 50px;
+  border-radius: 999px 0 0 999px;
+  box-shadow: none;
+}
+
+.home-country-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 48px;
+  min-height: 50px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-left: 1px solid #12302e24;
+  border-radius: 0 999px 999px 0;
+  color: #12302e;
+  background: transparent;
+  cursor: pointer;
+}
+
+.home-country-action svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.home-country-action:hover {
+  background: #fff8e8;
+}
+
+.home-country-action[aria-pressed="true"] {
+  background: #f2cc83;
+}
+
+.home-country-action[aria-pressed="true"] svg {
+  fill: #12302e26;
+  stroke-width: 2;
+}
+
+.home-country-action:focus-visible {
+  outline: 2px solid #12302e;
+  outline-offset: -5px;
+}
+
+.home-country-message {
+  display: block;
+  margin: 10px 0;
+  color: #fff4dc;
+  font: 400 12px/1.5 Inter, sans-serif;
+}

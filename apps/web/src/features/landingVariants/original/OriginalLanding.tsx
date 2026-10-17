@@ -7,6 +7,7 @@ import {
 } from "../../countryCatalog/CountryCardMedia";
 import { CONTINENTS, countryContinents, type Continent } from "../../countryCatalog/countryContinents";
 import { DestinationGlobe } from "../cinematic/DestinationGlobe";
+import { readHomeCountry, saveHomeCountry } from "../../homeCountry/homeCountryPreference";
 import { CountryEncyclopedia } from "../../countryEncyclopedia/CountryEncyclopedia";
 import { CountryBackdrop } from "../horizon/CountryBackdrop";
 import { AtlasMark } from "../AtlasMark";
@@ -53,7 +54,19 @@ export function OriginalLanding({ countries, countryPacks, onConfigure, onOpen, 
   const refined = presentation === "horizon2";
   const horizon = presentation === "horizon" || refined;
   const [encyclopediaOpen, setEncyclopediaOpen] = useState(false);
-  const [selectedSlug, setSelectedSlug] = useState("norway");
+  const [homeSlug, setHomeSlug] = useState(() => readHomeCountry(countries));
+  const [homeMessage, setHomeMessage] = useState("");
+  const [selectedSlug, setSelectedSlug] = useState(() => homeSlug ?? "norway");
+  const toggleHome = () => {
+    if (!selected) return;
+    const next = homeSlug === selected.slug ? null : selected.slug;
+    if (saveHomeCountry(next)) {
+      setHomeSlug(next);
+      setHomeMessage(next ? `${selected.name} is your home country. Saved on this browser.` : "Home country cleared.");
+    } else {
+      setHomeMessage("This browser couldn’t save your home country. Please allow local storage and try again.");
+    }
+  };
   const [continent, setContinent] = useState<Continent | null>(null);
   const selected = countries.find((country) => country.slug === selectedSlug) ?? countries[0];
   const choose = (country: CountryCatalogCountry) => {
@@ -131,9 +144,15 @@ export function OriginalLanding({ countries, countryPacks, onConfigure, onOpen, 
               {refined ? <p className={styles["horizon-location"]}>{selected ? countryContinents[selected.code] : "The world"} <span className={styles["horizon-code-pill"]}>{selected?.displayCode}</span></p> : null}
               <h1 key={selected?.slug} className={styles["horizon-title"]}>{selected?.name ?? "Somewhere"}<span>.</span></h1>
               <div className={styles["hero-actions"]}>
-                {selected ? <button type="button" className={styles["hero-primary-action"]} onClick={() => onOpen(selected)}>Explore {selected.name} <span aria-hidden="true">↗</span></button> : null}
+                {selected ? <div className={styles["explore-pill"]}>
+                  <button type="button" className={styles["hero-primary-action"]} onClick={() => onOpen(selected)}>Explore {selected.name} <span aria-hidden="true">↗</span></button>
+                  <button type="button" className={styles["home-country-action"]} aria-label={homeSlug === selected.slug ? "Home country ✓" : "Set as home country"} aria-pressed={homeSlug === selected.slug} onClick={toggleHome} title={homeSlug === selected.slug ? "Clear home country" : `Set ${selected.name} as home country`}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3ZM9 20v-7h6v7" /></svg>
+                  </button>
+                </div> : null}
                 <button type="button" className={styles["hero-secondary-action"]} aria-expanded={shelfMode !== "closed"} onClick={() => { if (shelfMode === "closed") { setContinent(null); setQuery(""); } setShelfMode((current) => current === "closed" ? "expanded" : "closed"); }}>Browse all countries</button>
               </div>
+              <span role="status" aria-label="Home country preference" className={homeMessage.includes("couldn’t") ? styles["home-country-message"] : "visually-hidden"}>{homeMessage}</span>
               <div className={styles["discovery-actions"]}>
               <button type="button" className={styles["surprise-action"]} onClick={() => surprise(Math.random())} disabled={countries.length < 2}>
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h3c4 0 8 12 12 12h3M17 14l4 4-4 4M3 18h3c1.5 0 3-1.7 4.5-4M13.5 10C15 7.7 16.5 6 18 6h3M17 2l4 4-4 4" /></svg>

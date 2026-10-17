@@ -87,6 +87,12 @@ RoamAtlas uses separate image prompt builders by page depth:
 
 ### 1. Choose a Destination, Then Add Intent
 
+Horizon users can set the selected destination as their home country using the
+house icon integrated into the Explore button pill.
+It is stored on the current browser and opens on the next homepage visit.
+Browsing and Surprise me do not overwrite it. Clicking the active Home country
+icon clears the preference; unavailable storage reports a save failure.
+
 Horizon Atlas 2 is the selected RoamAtlas homepage at `/`, without the design
 comparison toolbar. Explicit `?landing=` links retain the comparison previews.
 Cinematic Travel is an earlier landing direction. It keeps
