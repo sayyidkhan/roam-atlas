@@ -1,30 +1,43 @@
 import {
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useRef,
   type PropsWithChildren
 } from "react";
 
-type RegisterLoadedPhoto = (url: string) => boolean;
+type PhotoRegistry = {
+  register: (url: string, owner: string) => boolean;
+  release: (owner: string) => void;
+};
 
 const DraftReferencePhotoRegistryContext =
-  createContext<RegisterLoadedPhoto>(() => true);
+  createContext<PhotoRegistry>({ register: () => true, release: () => {} });
 
 export function DraftReferencePhotoRegistry({
   children
 }: PropsWithChildren) {
-  const loadedUrls = useRef(new Set<string>());
+  const loadedUrls = useRef(new Map<string, string>());
 
-  function registerLoadedPhoto(url: string): boolean {
+  const register = useCallback((url: string, owner: string): boolean => {
     const normalizedUrl = normalizeLoadedDraftPhotoUrl(url);
-    if (loadedUrls.current.has(normalizedUrl)) return false;
-    loadedUrls.current.add(normalizedUrl);
+    const existingOwner = loadedUrls.current.get(normalizedUrl);
+    if (existingOwner && existingOwner !== owner) return false;
+    loadedUrls.current.set(normalizedUrl, owner);
     return true;
-  }
+  }, []);
+
+  const release = useCallback((owner: string) => {
+    for (const [url, registeredOwner] of loadedUrls.current) {
+      if (registeredOwner === owner) loadedUrls.current.delete(url);
+    }
+  }, []);
+  const registry = useMemo(() => ({ register, release }), [register, release]);
 
   return (
     <DraftReferencePhotoRegistryContext.Provider
-      value={registerLoadedPhoto}
+      value={registry}
     >
       {children}
     </DraftReferencePhotoRegistryContext.Provider>

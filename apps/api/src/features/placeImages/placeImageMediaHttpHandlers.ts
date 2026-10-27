@@ -66,7 +66,8 @@ export function createPlaceImageMediaHttpHandlers(
           context: imageContext,
           kind,
           tags,
-          feedback
+          feedback,
+          retryMissing: url.searchParams.get("retryMissing") === "1"
         }
       );
       if (!record?.imageUrl) {

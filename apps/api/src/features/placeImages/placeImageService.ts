@@ -59,10 +59,12 @@ export function createPlaceImageService({
       context = "",
       kind = "",
       tags = [],
-      feedback = ""
+      feedback = "",
+      retryMissing = false
     }: {
       context?: string;
       feedback?: string;
+      retryMissing?: boolean;
       kind?: string;
       tags?: string[];
     } = {}
@@ -70,14 +72,14 @@ export function createPlaceImageService({
     const paths = repository.pathsFor(country.slug, place);
     const cacheKey = keyFor(paths);
     const cachedRecord = cache.get(cacheKey);
-    if (cachedRecord) return cachedRecord;
+    if (cachedRecord && (!retryMissing || cachedRecord.imageUrl)) return cachedRecord;
     const activeRequest = requestsInFlight.get(cacheKey);
     if (activeRequest) return activeRequest;
 
     const request = resolveUncached(
       country,
       place,
-      { context, kind, tags, feedback },
+      { context, kind, tags, feedback, retryMissing },
       paths
     )
       .then((record) => {
@@ -96,17 +98,19 @@ export function createPlaceImageService({
       context,
       kind,
       tags,
-      feedback
+      feedback,
+      retryMissing
     }: {
       context: string;
       feedback: string;
+      retryMissing: boolean;
       kind: string;
       tags: string[];
     },
     paths: PlaceImagePaths
   ): Promise<PlaceImageRecord> {
     const storedRecord = await readStoredRecord(paths, place);
-    if (storedRecord) return storedRecord;
+    if (storedRecord && (!retryMissing || storedRecord.imageUrl)) return storedRecord;
     if (!exaProvider.available) {
       return { imageUrl: null, reason: "exa-key-missing" };
     }

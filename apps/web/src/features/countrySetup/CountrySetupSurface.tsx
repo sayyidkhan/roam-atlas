@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { AtlasMark } from "../landingVariants/AtlasMark";
-import "./countrySetupTheme.css";
+import styles from "./CountrySetupSurface.module.css";
 
 import { CountryDraftSurface } from "../countryDraft/CountryDraftSurface";
 import {
@@ -10,8 +10,7 @@ import { useCountryDraftState } from "../countryDraft/useCountryDraftState";
 import { useCountryArtworkQualityLock } from "../artwork/useCountryArtworkQualityLock";
 import { CacheFlushNotice } from "./components/CacheFlushNotice";
 import { CountrySetupActions } from "./components/CountrySetupActions";
-import { CountrySetupHero } from "./components/CountrySetupHero";
-import { ImageQualitySetting } from "./components/ImageQualitySetting";
+import { CountrySetupHeader } from "./components/CountrySetupHeader";
 import {
   countrySetupStore,
   type CountrySetupState
@@ -56,49 +55,50 @@ function CountrySetupContent({
     snapshot.canOpenMap && !isCurationConfirmed;
 
   return (
-    <article className="country-shell-panel country-setup-theme">
-      <nav className="setup-brand-bar" aria-label="Atlas navigation">
-        <button type="button" className="ghost-button setup-back" onClick={snapshot.commands.backToCountries}>← Back to countries</button>
-        <a href="/" className="setup-brand" aria-label="RoamAtlas home"><AtlasMark /><span>roam<span>atlas</span></span></a>
-      </nav>
-      <div className="setup-workspace">
-      <div className="setup-country-column">
-      <CountrySetupHero
-        key={`hero:${snapshot.country.slug}`}
-        snapshot={snapshot}
-        canOpenMap={canOpenMap}
-        isMapLocked={isMapLocked}
-      />
+    <article className={`country-shell-panel country-setup-theme ${styles.surface}`}>
       <CountrySetupActions
         snapshot={snapshot}
         flushState={flushState}
         canOpenMap={canOpenMap}
         isMapLocked={isMapLocked}
       />
-      <ImageQualitySetting
-        selectedValue={snapshot.imageQuality}
-        options={snapshot.imageQualityOptions}
-        lockState={artworkQualityLock}
-        onChange={snapshot.commands.setImageQuality}
-      />
-      <CacheFlushNotice state={flushState} />
+      <div className={styles.workspace}>
+        <CacheFlushNotice state={flushState} />
+        <section className={styles["atlas-panel"]} aria-label="Atlas contents">
+          <div
+            className={`setup-map-content ${styles.contents}`}
+            role="region"
+            aria-label="Scrollable atlas contents"
+            tabIndex={0}
+          >
+            <CountryDraftSurface
+              compact
+              key={`draft:${snapshot.country.slug}`}
+              buildPhotoUrl={snapshot.buildDraftPhotoUrl}
+              commands={snapshot.draftCommands}
+              countryName={snapshot.country.name}
+              countrySlug={snapshot.country.slug}
+              draft={draft}
+              isSourceControlled={snapshot.isSourceControlled}
+              renderHeader={(review) => (
+                <CountrySetupHeader
+                  snapshot={snapshot}
+                  lockState={artworkQualityLock}
+                  review={review}
+                />
+              )}
+            />
+          </div>
+          <p className={styles["fact-note"]}>
+            AI illustrates the atlas. Sources ground the facts.
+          </p>
+        </section>
       </div>
-      <section className="setup-atlas-column" aria-labelledby="setup-atlas-title">
-        <header className="setup-atlas-heading"><p className="setup-atlas-kicker">Contents &amp; source review</p><h2 id="setup-atlas-title">Inside the atlas</h2></header>
-        <div className="setup-map-content" role="region" aria-label="Scrollable atlas contents" tabIndex={0}>
-      <CountryDraftSurface
-        compact
-        key={`draft:${snapshot.country.slug}`}
-        buildPhotoUrl={snapshot.buildDraftPhotoUrl}
-        commands={snapshot.draftCommands}
-        countryName={snapshot.country.name}
-        countrySlug={snapshot.country.slug}
-        draft={draft}
-        isSourceControlled={snapshot.isSourceControlled}
-      />
-        </div>
-      </section>
-      </div>
+      <footer className={styles.footer}>
+        <a href="/" className={styles["footer-brand"]} aria-label="RoamAtlas home">
+          <AtlasMark /><span>roam<span>atlas</span></span>
+        </a>
+      </footer>
     </article>
   );
 }

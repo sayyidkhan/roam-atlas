@@ -479,9 +479,14 @@ test("image quality selection is accessible, persistent, and reaches artwork req
     APP_CONFIG.imageQuality.options.find(({ value }) => value === "high")?.recommended,
     true
   );
-  assert.match(qualitySetting, /role="radiogroup"/);
-  assert.match(qualitySetting, /role="radio"/);
-  assert.match(qualitySetting, /aria-checked/);
+  assert.match(qualitySetting, /<ImageQualityDropdown/);
+  const dropdown = readFileSync(new URL("../apps/web/src/features/countrySetup/components/ImageQualityDropdown.tsx", import.meta.url), "utf8");
+  assert.match(dropdown, /role="combobox"/);
+  assert.match(dropdown, /role="listbox"/);
+  assert.match(dropdown, /aria-selected/);
+  assert.match(qualitySetting, /<label htmlFor=\{controlId\}/);
+  assert.match(qualitySetting, /value=\{activeValue\}/);
+  assert.match(qualitySetting, /disabled=\{isLocked \|\| isLoading \|\| isUnavailable\}/);
   assert.match(sceneRequest, /quality: state\.imageQuality/);
   assert.match(pageRequest, /quality: state\.imageQuality/);
   assert.match(prefetchRequest, /quality: state\.imageQuality/);
@@ -491,7 +496,6 @@ test("image quality selection is accessible, persistent, and reaches artwork req
     imageQualityPreferenceSource,
     /localStorage\.setItem\(storageKey, value\)/
   );
-  assert.match(styleSource, /\.image-quality-option\.is-active/);
 });
 
 test("the artwork poll budget covers high-quality provider generation", () => {

@@ -93,14 +93,51 @@ It is stored on the current browser and opens on the next homepage visit.
 Browsing and Surprise me do not overwrite it. Clicking the active Home country
 icon clears the preference; unavailable storage reports a save failure.
 
-Country setup continues the Horizon palette, photographic country header, serif
-heading, and pill actions. Opening or building the atlas is the primary action;
-visual resets sit under Manage visuals. Desktop setup uses a 40/60 split with
-country controls on the left and independently scrollable atlas contents and
-source review on the right. Mobile stacks the two sections. Navigation places
-Back to countries on the left and the RoamAtlas brand on the right. Reviewed
-setup packs use a compact source-status note and expandable review guidelines,
-keeping the chapter list prominent. Draft maps retain explicit curation gates. Illustration locks and source-review guardrails remain enforced.
+Country setup uses a warm paper canvas with one white, bordered country header.
+The photo, serif country name, code, and travel-information link form one identity
+group. Illustration detail sits alongside it as a styled select-only combobox,
+with option descriptions, a selected checkmark, keyboard navigation, first-letter
+matching, and outside-click/Escape/Tab dismissal. Changes persist through the
+existing preference command. Checking, locked, or unavailable quality states
+remain explicit and cannot be changed through the menu.
+
+The editable contents are the default for every ready country draft, including
+confirmed country packs. There is one full-width nested list with Candidate
+regions and Research themes tabs, reference photos, source labels, reorder and
+approval controls, deletion, and AI edit tools. There is no separate read-only
+card layout or Edit & review / Back to contents switch. Tabs support arrow keys,
+Home, and End; opening and closing a tool or information panel keeps the editor
+in place. The country header stays visible while scrolling on desktop; mobile
+uses a single page scroll without horizontal overflow.
+
+Reference thumbnails retry failed image loads twice with a short backoff. A
+hanging request ends after 30 seconds with a “Photo unavailable” fallback that
+can be clicked to retry. Explicit retry bypasses a cached “no photo found” result
+without resetting a valid saved photo. Ready photos clear all loading timers; leaving a tab
+cancels pending retries and releases duplicate-image ownership so returning to
+the tab can load its photos again. Missing photos never block the editor.
+
+Only confirmed, source-controlled pack snapshots show the plain underlined
+“Where this info comes from” link. It opens a native modal side panel titled
+“About the travel info”. The panel explains where places and descriptions come
+from, that AI draws the pictures, and which details to check before visiting.
+“Confirmed” means official or RoamAtlas backing, not recent verification.
+Maintenance instructions stay collapsed. The panel is not presented as a list of
+source links when the snapshot does not include them. Its body scrolls separately;
+Escape, Close, and Done dismiss it and restore focus to the link. The header and
+editor positions stay unchanged while it is open.
+
+Unverified snapshots and runtime previews keep their warnings, review guidance,
+and curation gates visible outside the header. Editing does not promote generated
+suggestions into confirmed travel facts. Illustration locks and source-review
+guardrails remain enforced.
+
+Back to countries, Reset Generated Visuals, and the adjacent info icon use quiet
+utility controls at the top left; Open or Build remains the green primary action
+at the top right. Action guide expands in normal document flow without covering
+actions. Secondary controls retain readable light hover states. Narrow screens
+stack the controls without horizontal scrolling. A slim footer holds the
+RoamAtlas home link and logo at bottom right.
 
 Horizon Atlas 2 is the selected RoamAtlas homepage at `/`, without the design
 comparison toolbar. Explicit `?landing=` links retain the comparison previews.

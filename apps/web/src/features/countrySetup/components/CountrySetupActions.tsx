@@ -1,3 +1,5 @@
+import { CountryActionGuide } from "./CountryActionGuide";
+import styles from "../CountrySetupSurface.module.css";
 import type {
   CountryRuntimeCacheState
 } from "../../runtimeCache/runtimeCacheTypes";
@@ -41,33 +43,36 @@ export function CountrySetupActions({
       };
 
   return (
-    <section
-      className="country-shell-actions"
-      aria-label="Manual country actions"
-    >
-      <CountryActionButton
-        {...mapAction}
-        disabled={isMapLocked}
-        onClick={snapshot.commands.openOrBuildMap}
-      />
-      <details className="setup-maintenance">
-        <summary>Manage visuals</summary>
-        <div>
-          <p>Clear generated illustrations to start fresh. Your map data and reference photos stay.</p>
-      <CountryActionButton
-        action="reset-generated-visuals"
-        label={
-          isCacheFlushing
-            ? "Resetting visuals"
-            : "Reset Generated Visuals"
-        }
-        info={`Delete generated ${country.name} map illustrations, image jobs, ambience, and AI click-understanding cache. Starter-map builder information and reference photos stay.`}
-        disabled={isCacheFlushing}
-        onClick={snapshot.commands.resetGeneratedVisuals}
-      />
-        </div>
-      </details>
-    </section>
+    <nav className={styles["brand-bar"]} aria-label="Atlas navigation">
+      <div className={styles["navigation-secondary"]}>
+        <button
+          type="button"
+          className={`ghost-button ${styles.back}`}
+          onClick={snapshot.commands.backToCountries}
+        >
+          ← Back to countries
+        </button>
+        <CountryActionButton
+          action="reset-generated-visuals"
+          label={isCacheFlushing ? "Resetting visuals" : "Reset Generated Visuals"}
+          info={`Delete generated ${country.name} map illustrations, image jobs, ambience, and AI click-understanding cache. Starter-map builder information and reference photos stay.`}
+          disabled={isCacheFlushing}
+          onClick={snapshot.commands.resetGeneratedVisuals}
+        />
+        <CountryActionGuide
+          snapshot={snapshot}
+          canOpenMap={canOpenMap}
+          isMapLocked={isMapLocked}
+        />
+      </div>
+      <div className={styles["navigation-primary"]}>
+        <CountryActionButton
+          {...mapAction}
+          disabled={isMapLocked}
+          onClick={snapshot.commands.openOrBuildMap}
+        />
+      </div>
+    </nav>
   );
 }
 

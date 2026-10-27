@@ -1348,7 +1348,7 @@ test("React owns the country setup shell through a feature-owned store", () => {
   );
   const setupHero = readFileSync(
     new URL(
-      "countrySetup/components/CountrySetupHero.tsx",
+      "countrySetup/components/CountryActionGuide.tsx",
       featureRoot
     ),
     "utf8"
@@ -1364,7 +1364,11 @@ test("React owns the country setup shell through a feature-owned store", () => {
   assert.match(shellSource, /<CountrySetupSurface \/>/);
   assert.match(surfaceSource, /useStore/);
   assert.match(surfaceSource, /<CountrySetupActions/);
-  assert.match(surfaceSource, /<ImageQualitySetting/);
+  assert.match(surfaceSource, /<CountrySetupHeader/);
+  const setupHeader = readFileSync(
+    new URL("countrySetup/components/CountrySetupHeader.tsx", featureRoot), "utf8"
+  );
+  assert.match(setupHeader, /<ImageQualitySetting/);
   assert.doesNotMatch(surfaceSource, /function CountrySetupActions/);
   assert.match(setupActions, /function CountrySetupActions/);
   assert.match(imageQualitySetting, /function ImageQualitySetting/);

@@ -8,6 +8,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CountryDraftSurface } from "../../apps/web/src/features/countryDraft/CountryDraftSurface";
+import type { CountryDraft } from "../../apps/web/src/features/countryDraft/countryDraftTypes";
 
 afterEach(cleanup);
 
@@ -178,16 +179,98 @@ describe("CountryDraftSurface", () => {
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("opens confirmed snapshots in the same editable contents with no mode switch", () => {
+    render(
+      <CountryDraftSurface
+        compact
+        buildPhotoUrl={vi.fn(() => "/reference.jpg")}
+        commands={commands}
+        countryName="Singapore"
+        countrySlug="singapore"
+        draft={readyDraft([{ name: "Central", confidence: "confirmed" }], {
+          mode: "curated_pack_snapshot",
+          confidence: "confirmed",
+          reviewChecklist: ["Check current official sources."]
+        })}
+        isSourceControlled
+      />
+    );
+
+    const regions = screen.getByRole("tab", { name: "Candidate regions (1)" });
+    expect(regions.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: "Open starter-map actions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unapprove Central" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit & review" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "← Back to contents" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Where this info comes from" })).toBeTruthy();
+    expect(screen.queryByText("Curated data")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit starter map with GenAI" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close GenAI edit modal" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Unapprove Central" })).toBeTruthy();
+
+    const themes = screen.getByRole("tab", { name: "Research themes (0)" });
+    fireEvent.keyDown(regions, { key: "End" });
+    expect(document.activeElement).toBe(themes);
+    expect(themes.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tabpanel").id).toBe(themes.getAttribute("aria-controls"));
+    fireEvent.keyDown(themes, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(regions);
+    expect(screen.getByRole("button", { name: "Unapprove Central" })).toBeTruthy();
+  });
+
+  it.each([
+    { mode: "curated_pack_snapshot", confidence: "unconfirmed" },
+    { mode: "ai_generated", confidence: "unconfirmed" }
+  ])("keeps review controls visible for compact $mode previews", (metadata) => {
+    render(
+      <CountryDraftSurface
+        compact
+        buildPhotoUrl={vi.fn(() => "/reference.jpg")}
+        commands={commands}
+        countryName="Singapore"
+        countrySlug="singapore"
+        draft={readyDraft([{ name: "Central" }], metadata)}
+        isSourceControlled
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Open starter-map actions" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit & review" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Saved travel information" })).toBeNull();
+  });
+
+  it("retains curation gates and tools for compact unregistered drafts", () => {
+    render(
+      <CountryDraftSurface
+        compact
+        buildPhotoUrl={vi.fn(() => "/reference.jpg")}
+        commands={commands}
+        countryName="Iceland"
+        countrySlug="iceland"
+        draft={readyDraft([{ name: "Central" }])}
+        isSourceControlled={false}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Confirm for curation" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open starter-map actions" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit & review" })).toBeNull();
+  });
 });
 
-function readyDraft(regions: Array<{ name: string }>) {
+function readyDraft(regions: CountryDraft["regions"], overrides: Partial<CountryDraft> = {}) {
   return {
     status: "ready" as const,
     draft: {
       countryName: "Singapore",
       summary: "Review this starter direction.",
       regions,
-      themes: []
+      themes: [],
+      ...overrides
     },
     isBusy: false,
     editor: {

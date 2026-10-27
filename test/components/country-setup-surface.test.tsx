@@ -44,12 +44,15 @@ describe("CountrySetupSurface", () => {
       });
     });
 
-    expect(
-      screen.getByText("Checking existing visuals")
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("radio", { name: /High/ })
-    ).toHaveProperty("disabled", true);
+    const quality = screen.getByRole("combobox", { name: "Illustration detail" });
+    expect(quality).toHaveProperty("value", "high");
+    expect(quality).toHaveProperty("disabled", true);
+    expect(screen.getByText("Checking existing visuals")).toBeTruthy();
+    act(() => artworkQualityLockStore.set("singapore", {
+      status: "failed", message: "Quality service unavailable"
+    }));
+    expect(screen.getByText("Couldn’t verify visuals. Refresh to retry.")).toBeTruthy();
+    expect(quality).toHaveProperty("disabled", true);
   });
 
   it("renders the setup shell from feature-owned store state", () => {
@@ -87,6 +90,7 @@ describe("CountrySetupSurface", () => {
         draftCommands: createDraftCommandMocks(),
         imageQuality: "high",
         imageQualityOptions: [
+          { value: "low", label: "Low", description: "Fastest" },
           {
             value: "high",
             label: "High",
@@ -111,19 +115,27 @@ describe("CountrySetupSurface", () => {
         })
         .getAttribute("data-country-action")
     ).toBe("build-starter-map");
-    expect(
-      screen
-        .getByRole("radio", { name: /High/ })
-        .getAttribute("aria-checked")
-    ).toBe("true");
-    expect(screen.getByText("Country atlas")).toBeTruthy();
+    const quality = screen.getByRole("combobox", { name: "Illustration detail" });
+    expect(quality).toHaveProperty("value", "high");
+    expect(quality).toHaveProperty("disabled", false);
+    fireEvent.click(quality);
+    fireEvent.click(screen.getByRole("option", { name: "Low" }));
+    expect(commands.setImageQuality).toHaveBeenCalledWith("low");
+    expect(screen.queryByRole("heading", { name: "Inside the atlas" })).toBeNull();
     expect(
       container.querySelector(".country-draft")
     ).toBeTruthy();
     expect(screen.getByRole("region", { name: "Scrollable atlas contents" }).getAttribute("tabindex")).toBe("0");
-    const maintenance = screen.getByText("Manage visuals");
-    fireEvent.click(maintenance);
-    expect(commands.resetGeneratedVisuals).not.toHaveBeenCalled();
+    const navigation = screen.getByRole("navigation", { name: "Atlas navigation" });
+    expect(navigation.contains(screen.getByRole("button", { name: /Build Singapore map/ }))).toBe(true);
+    expect(navigation.contains(screen.getByRole("button", { name: /Reset Generated Visuals/ }))).toBe(true);
+    const homeLink = screen.getByRole("link", { name: "RoamAtlas home" });
+    expect(homeLink.closest("footer")).toBeTruthy();
+    expect(navigation.contains(homeLink)).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /Reset Generated Visuals/ }));
+    expect(commands.resetGeneratedVisuals).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /Back to countries/ }));
+    expect(commands.backToCountries).toHaveBeenCalledTimes(1);
     act(() => {
       draftStore.set("singapore", {
         status: "ready",
@@ -166,6 +178,8 @@ describe("CountrySetupSurface", () => {
       })
     );
     expect(commands.openOrBuildMap).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("combobox", { name: "Illustration detail" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Reset Generated Visuals/ })).toBeTruthy();
   });
 
   it("keeps cache failures explicit without hiding the draft", () => {
@@ -227,15 +241,10 @@ describe("CountrySetupSurface", () => {
     expect(
       screen.getByText("Reviewed draft remains available")
     ).toBeTruthy();
-    expect(
-      screen.getByText("Locked to medium quality")
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/Generated visuals use one quality/)
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("radio", { name: /Medium/ })
-    ).toHaveProperty("disabled", true);
+    const quality = screen.getByRole("combobox", { name: "Illustration detail" });
+    expect(quality).toHaveProperty("value", "medium");
+    expect(quality).toHaveProperty("disabled", true);
+    expect(screen.getByText("Locked · reset visuals to change")).toBeTruthy();
   });
 
   it("locks generated maps until curation is confirmed", () => {

@@ -174,6 +174,45 @@ test("place-image dimensions reject badge-sized raster assets", () => {
   );
 });
 
+test("explicit retry bypasses missing-photo cache entries while preserving saved photos", async () => {
+  const writes = [];
+  const repository = createMemoryRepository(writes);
+  let stored = { imageUrl: null, reason: "no-image-found" };
+  repository.readStoredRecord = async () => stored;
+  repository.writeMetadata = async (_paths, record) => { stored = record; };
+  let searches = 0;
+  const service = createPlaceImageService({
+    repository,
+    exaProvider: {
+      available: true,
+      async search() {
+        searches++;
+        return [{ imageUrl: "https://images.example.test/marina.jpg", sourceUrl: "https://example.test/marina", query: "Marina Bay" }];
+      }
+    },
+    wikipediaProvider: async () => null,
+    suggestionProvider: { suggest: async () => ({ suggestions: [], source: "test" }) },
+    getCountryPack: () => ({ nodes: {} }),
+    selectionVersion: "test-v1",
+    fetchFn: async () => new Response(createPngHeaderBuffer(320, 200), {
+      headers: { "Content-Type": "image/png" }
+    })
+  });
+  const country = { slug: "singapore", name: "Singapore" };
+  await service.resolveImage(country, "Marina Bay");
+  await service.resolveImage(country, "Marina Bay");
+  assert.equal(searches, 0, "ordinary loads keep the cached result");
+  const [photo, concurrentPhoto] = await Promise.all([
+    service.resolveImage(country, "Marina Bay", { retryMissing: true }),
+    service.resolveImage(country, "Marina Bay", { retryMissing: true })
+  ]);
+  assert.ok(photo.imageUrl);
+  assert.equal(photo, concurrentPhoto);
+  assert.equal(searches, 1, "concurrent retries share one search");
+  assert.equal(await service.resolveImage(country, "Marina Bay", { retryMissing: true }), photo);
+  assert.equal(searches, 1, "a valid saved photo is retained");
+});
+
 test("place-image media claims ignore tracking parameters without merging paths", () => {
   assert.equal(
     normalizePlaceImageClaimUrl(

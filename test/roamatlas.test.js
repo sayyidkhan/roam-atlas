@@ -1848,7 +1848,7 @@ test("country shell uses starter map wording instead of generated draft wording"
   );
   const countrySetupHeroSource = readFileSync(
     new URL(
-      "../apps/web/src/features/countrySetup/components/CountrySetupHero.tsx",
+      "../apps/web/src/features/countrySetup/components/CountryActionGuide.tsx",
       import.meta.url
     ),
     "utf8"
@@ -1940,7 +1940,7 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(countrySetupViewSource, /CountryDraftSurface/);
   assert.doesNotMatch(appSource, /Starter country pack/);
   assert.doesNotMatch(appSource, /This starter map comes from source-controlled starter data/);
-  assert.match(draftReviewViewSource, /Source-reviewed country pack/);
+  assert.match(draftReviewViewSource, /Saved travel information/);
   assert.doesNotMatch(appSource, /action === "confirm-starter-map"/);
   assert.match(
     countrySetupActionSource,
@@ -2301,7 +2301,7 @@ test("candidate region cards request Exa-backed reference photos through the pla
   assert.match(draftPhotoSource, /data-photo-state=\{view\.state\}/);
   assert.match(draftPhotoSource, /draft-photo-spinner/);
   assert.match(draftPhotoSource, /draft-photo-fallback/);
-  assert.match(draftPhotoSource, /function handleLoad/);
+  assert.match(draftPhotoSource, /const handleLoad = useCallback/);
   assert.match(draftPhotoSource, /const retryPhoto = useCallback/);
   assert.match(draftPhotoRegistrySource, /normalizeLoadedDraftPhotoUrl/);
   assert.match(draftPhotoRegistrySource, /\$\{parsed\.origin\}\$\{parsed\.pathname\}\$\{parsed\.search\}/);
@@ -2625,7 +2625,7 @@ test("config thumbnails stream cached place images directly and cannot stay pend
   assert.match(placeImageHandler, /"Cache-Control": "no-store"/);
   assert.match(draftPhotoSource, /const retryPhoto = useCallback/);
   assert.match(draftPhotoSource, /attempt >= lifecycle\.maxRetries/);
-  assert.match(appConfigSource, /timeoutMs: 90_000/);
+  assert.match(appConfigSource, /timeoutMs: 30_000/);
   assert.match(
     draftPhotoSource,
     /label: "Still searching",[\s\S]*progress: 0\.82/

@@ -51,7 +51,7 @@ export const APP_CONFIG = Object.freeze({
       selectingDelayMs: 650,
       cachingDelayMs: 1_500,
       slowSearchDelayMs: 15_000,
-      timeoutMs: 90_000,
+      timeoutMs: 30_000,
       retryBaseDelayMs: 900,
       maxRetries: 2
     })

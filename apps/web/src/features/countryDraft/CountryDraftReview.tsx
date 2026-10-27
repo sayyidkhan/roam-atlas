@@ -1,3 +1,4 @@
+import { SourceReviewPanel } from "./SourceReviewPanel";
 import type {
   CountryDraft,
   CountryDraftConfirmation
@@ -30,6 +31,15 @@ export function CountryDraftReview({
   isSourceControlled,
   onConfirm
 }: CountryDraftReviewProps) {
+  const isReviewedSnapshot =
+    isSourceControlled &&
+    draft.mode === "curated_pack_snapshot" &&
+    draft.confidence === "confirmed";
+
+  if (collapseChecklist && isReviewedSnapshot) {
+    return <SourceReviewPanel countryName={countryName} draft={draft} />;
+  }
+
   return (
     <>
       <DraftConfirmation
@@ -58,8 +68,7 @@ function ReviewChecklist({ items }: { items: string[] }) {
       <header className="draft-review-header">
         <h3 className="draft-review-title">Before promotion</h3>
         <p className="draft-review-lead">
-          Keep starter facts unconfirmed until each item is
-          source-reviewed.
+          Keep starter facts unconfirmed until each item is source-reviewed.
         </p>
       </header>
       <ol className="draft-review-list">
@@ -94,13 +103,23 @@ function DraftConfirmation({
   onConfirm: () => void;
 }) {
   if (draft.mode === "curated_pack_snapshot") {
-    if (draft.confidence === "unconfirmed") return null;
+    if (!isSourceControlled || draft.confidence !== "confirmed") {
+      return (
+        <section className="draft-confirmation draft-confirmation--unverified">
+          <h3>Needs source review</h3>
+          <p>
+            This atlas snapshot is not a source-reviewed country pack.
+            Keep its travel claims unconfirmed until sources are reviewed.
+          </p>
+        </section>
+      );
+    }
     return (
       <section className="draft-confirmation">
-        <h3>Source-reviewed country pack</h3>
+        <h3>Saved travel information</h3>
         <p>
-          This starter map is already derived from
-          source-controlled curated data.
+          Places and descriptions come from travel information saved in RoamAtlas.
+          Opening hours, ticket prices and closures may have changed.
         </p>
       </section>
     );

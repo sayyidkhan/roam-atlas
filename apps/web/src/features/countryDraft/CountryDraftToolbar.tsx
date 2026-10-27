@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import type {
   CountryDraftCommands,
@@ -14,6 +14,7 @@ type CountryDraftToolbarProps = {
   onToggleGenAi: (target: string) => void;
   regionCount: number;
   themeCount: number;
+  tabsId: string;
 };
 
 export function CountryDraftToolbar({
@@ -24,7 +25,8 @@ export function CountryDraftToolbar({
   onSelectSection,
   onToggleGenAi,
   regionCount,
-  themeCount
+  themeCount,
+  tabsId
 }: CountryDraftToolbarProps) {
   const [isToolMenuOpen, setToolMenuOpen] =
     useState(false);
@@ -36,6 +38,7 @@ export function CountryDraftToolbar({
         regionCount={regionCount}
         themeCount={themeCount}
         onSelect={onSelectSection}
+        id={tabsId}
       />
       <div
         className="draft-section-actions"
@@ -62,15 +65,31 @@ export function CountryDraftToolbar({
 
 function DraftSectionTabs({
   activeSection,
+  id,
   onSelect,
   regionCount,
   themeCount
 }: {
   activeSection: CountryDraftSection;
+  id: string;
   onSelect: (section: CountryDraftSection) => void;
   regionCount: number;
   themeCount: number;
 }) {
+  const tabRefs = useRef<Partial<Record<CountryDraftSection, HTMLButtonElement | null>>>({});
+
+  function moveTab(event: KeyboardEvent<HTMLButtonElement>) {
+    const next = event.key === "Home" ? "regions"
+      : event.key === "End" ? "themes"
+      : event.key === "ArrowLeft" || event.key === "ArrowRight"
+        ? activeSection === "regions" ? "themes" : "regions"
+        : null;
+    if (next === null) return;
+    event.preventDefault();
+    onSelect(next);
+    tabRefs.current[next]?.focus();
+  }
+
   return (
     <div className="draft-section-tabs">
       <div
@@ -82,11 +101,19 @@ function DraftSectionTabs({
           active={activeSection === "regions"}
           label={`Candidate regions (${regionCount})`}
           onClick={() => onSelect("regions")}
+          id={`${id}-tab-regions`}
+          panelId={`${id}-panel`}
+          onKeyDown={moveTab}
+          buttonRef={(element) => { tabRefs.current.regions = element; }}
         />
         <DraftSectionTab
           active={activeSection === "themes"}
           label={`Research themes (${themeCount})`}
           onClick={() => onSelect("themes")}
+          id={`${id}-tab-themes`}
+          panelId={`${id}-panel`}
+          onKeyDown={moveTab}
+          buttonRef={(element) => { tabRefs.current.themes = element; }}
         />
       </div>
     </div>
@@ -95,12 +122,20 @@ function DraftSectionTabs({
 
 function DraftSectionTab({
   active,
+  buttonRef,
+  id,
   label,
-  onClick
+  onClick,
+  onKeyDown,
+  panelId
 }: {
   active: boolean;
+  buttonRef: (element: HTMLButtonElement | null) => void;
+  id: string;
   label: string;
   onClick: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  panelId: string;
 }) {
   return (
     <button
@@ -108,7 +143,12 @@ function DraftSectionTab({
       role="tab"
       className={active ? "is-active" : undefined}
       aria-selected={active}
+      aria-controls={panelId}
+      id={id}
+      ref={buttonRef}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
+      onKeyDown={onKeyDown}
     >
       {label}
     </button>

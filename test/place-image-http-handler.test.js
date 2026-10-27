@@ -11,7 +11,7 @@ function createJsonRequest(body) {
   });
 }
 
-function createHandlers() {
+function createHandlers(overrides = {}) {
   return createPlaceImageHttpHandlers({
     getCountryBySlug: (slug) => slug === "singapore" ? { slug, name: "Singapore" } : null,
     normalizeFeedback: (value) => String(value ?? "").trim(),
@@ -28,9 +28,25 @@ function createHandlers() {
     toHistoryItem: (item) => item,
     selectHistoryEntry: async () => ({ selected: true }),
     deleteHistoryEntry: async () => ({ deleted: true }),
-    factBoundary: "Reference photos are not travel facts."
+    factBoundary: "Reference photos are not travel facts.",
+    ...overrides
   });
 }
+
+test("reference photo retry is forwarded only when explicitly requested", async () => {
+  const options = [];
+  const handlers = createHandlers({
+    resolveImage: async (_country, _place, input) => {
+      options.push(input);
+      return { imageUrl: null, reason: "no-image-found" };
+    },
+    respondNotFound: () => new Response(null, { status: 404 })
+  });
+  for (const suffix of ["", "&retryMissing=1", "&retryMissing=0"]) {
+    await handlers.handleImageRequest(new URL(`http://localhost/api/place-image?countrySlug=singapore&place=Marina+Bay${suffix}`));
+  }
+  assert.deepEqual(options.map(option => option.retryMissing), [false, true, false]);
+});
 
 test("place-image feedback requires a country, place, and normalized feedback", async () => {
   const response = await createHandlers().handleFeedbackRequest(createJsonRequest({
