@@ -9,6 +9,7 @@ import { CONTINENTS, countryContinents, type Continent } from "../../countryCata
 import { DestinationGlobe } from "../cinematic/DestinationGlobe";
 import { readHomeCountry, saveHomeCountry } from "../../homeCountry/homeCountryPreference";
 import { CountryEncyclopedia } from "../../countryEncyclopedia/CountryEncyclopedia";
+import { AppVersion } from "../../appVersion/AppVersion";
 import { CountryBackdrop } from "../horizon/CountryBackdrop";
 import { AtlasMark } from "../AtlasMark";
 import { CountryAtlasGlobe } from "./CountryAtlasGlobe";
@@ -128,7 +129,7 @@ export function OriginalLanding({ countries, countryPacks, onConfigure, onOpen, 
           <div className={styles["horizon-shade"]} aria-hidden="true" />
         </> : null}
         {refined ? <div className={styles["horizon-topbar"]}>
-          <div className={styles["intro-brand-lockup"]}><a href="/" className={styles["horizon-brand"]} aria-label="RoamAtlas home"><AtlasMark /><span>roam<span>atlas</span></span></a><span className={styles["intro-tagline"]}>The atlas of<br />possible adventures</span></div>
+          <div className={styles["intro-brand-lockup"]}><a href="/" className={styles["horizon-brand"]} aria-label="RoamAtlas home"><AtlasMark /><span>roam<span>atlas</span></span></a><AppVersion className={styles["brand-version"]} /><span className={styles["intro-tagline"]}>The atlas of<br />possible adventures</span></div>
           <button type="button" className={styles["horizon-destinations"]} aria-expanded={shelfMode !== "closed"} onClick={() => { setQuery(""); setShelfMode(shelfMode === "closed" ? "expanded" : "closed"); }}>Destinations <span>{countries.length}</span><span aria-hidden="true">↗</span></button>
         </div> : null}
         <header className={styles["country-hero"]}>

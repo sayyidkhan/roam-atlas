@@ -2256,6 +2256,18 @@
   gap: 24px;
 }
 
+.brand-version {
+  color: #fff4dc;
+}
+
+@media (max-width: 480px) {
+  .intro-brand-lockup {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+  }
+}
+
 .intro-tagline {
   padding-left: 24px;
   border-left: 1px solid #fff4dc66;

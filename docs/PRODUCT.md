@@ -172,6 +172,11 @@ horizontal scrolling. A slim footer holds the RoamAtlas home link and logo at
 bottom right, with “AI illustrates the atlas. Sources ground the facts.” on the
 left in the same compact footer.
 
+The homepage brand and country-settings footer display the current app version.
+Vite reads it from the root package.json at startup/build time, so version labels
+stay consistent without copying a version literal into the UI. The homepage badge
+sits beside the logo, moving below it on narrow phones to keep navigation usable.
+
 Horizon Atlas 2 is the selected RoamAtlas homepage at `/`, without the design
 comparison toolbar. Explicit `?landing=` links retain the comparison previews.
 Cinematic Travel is an earlier landing direction. It keeps

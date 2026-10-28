@@ -1,5 +1,6 @@
 import { useStore } from "zustand";
 import { AtlasMark } from "../landingVariants/AtlasMark";
+import { AppVersion } from "../appVersion/AppVersion";
 import styles from "./CountrySetupSurface.module.css";
 
 import { CountryDraftSurface } from "../countryDraft/CountryDraftSurface";
@@ -102,6 +103,7 @@ function CountrySetupContent({
         <a href="/" className={styles["footer-brand"]} aria-label="RoamAtlas home">
           <AtlasMark /><span>roam<span>atlas</span></span>
         </a>
+        <AppVersion />
       </footer>
     </article>
   );

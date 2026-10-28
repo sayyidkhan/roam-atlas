@@ -1,0 +1,13 @@
+.version {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid currentcolor;
+  border-radius: 4px;
+  padding: 3px 6px;
+  color: inherit;
+  font: 500 10px/1.2 Inter, sans-serif;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  opacity: 0.8;
+}

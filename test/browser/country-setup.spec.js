@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createCountryPackStarterMap } from "../../libs/domain/src/countryPackDraftProjection.ts";
 
 const artworkPath = fileURLToPath(new URL("../../public/art/country-card-atlas.jpg", import.meta.url));
+const { version: appVersion } = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const countryPack = JSON.parse(readFileSync(new URL("../../apps/api/src/data/countryPacks/singapore.json", import.meta.url), "utf8"));
 const draft = createCountryPackStarterMap(countryPack, { generatedAt: "2026-10-22T00:00:00.000Z" });
 const firstChapter = draft.regions[0];
@@ -473,6 +474,7 @@ test("uses one mobile scroll surface with accessible navigation and no horizonta
   await footerLogo.scrollIntoViewIfNeeded();
   await expect(footerLogo).toBeInViewport();
   const footer = footerLogo.locator("..");
+  await expect(footer.getByLabel(`App version ${appVersion}`, { exact: true })).toBeInViewport();
   await expect(footer.getByText("AI illustrates the atlas. Sources ground the facts.", { exact: true })).toBeInViewport();
   const footerBounds = await footer.boundingBox();
   await page.screenshot({ path: test.info().outputPath("config-footer.png"), clip: footerBounds });
