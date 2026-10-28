@@ -92,6 +92,9 @@ OPENAI_API_KEY="..." npm run dev
 The development command starts Vite on `127.0.0.1:4150` and the local API on
 `127.0.0.1:4151`; Vite proxies `/api` and `/runtime-cache` to the API process.
 The browser therefore always receives transformed React/TypeScript modules.
+Vite reloads frontend changes, and Node watch mode restarts the API when its
+source files change. Restart `npm run dev` after changing local environment
+variables or development scripts.
 
 The `/usage` dashboard records completed provider-call token counts, model,
 feature, latency, and estimated USD cost in the API runtime cache. It never

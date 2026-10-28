@@ -1,6 +1,7 @@
 import type { DragEvent } from "react";
 
 import { DraftTooltip } from "./CountryDraftMetadata";
+import { useDraftTooltip } from "./useDraftTooltip";
 import type { CountryDraftList } from "./countryDraftViewModel";
 
 export function DraftSortHandle({
@@ -48,13 +49,15 @@ export function DraftGenAiButton({
   onToggle: (target: string) => void;
   target: string;
 }) {
+  const help = useDraftTooltip();
   const tooltip =
     `Suggest edits for ${label}. Changes stay unconfirmed ` +
     "until source review.";
   return (
     <button
+      {...help.triggerProps}
       type="button"
-      className={`draft-genai-button${isOpen ? " is-active" : ""}`}
+      className={`draft-genai-button ${help.className}${isOpen ? " is-active" : ""}`}
       aria-label={`Edit ${label} with GenAI`}
       aria-haspopup="dialog"
       aria-expanded={isOpen}
@@ -67,7 +70,7 @@ export function DraftGenAiButton({
       <span className="visually-hidden">
         Edit {label} with GenAI
       </span>
-      <DraftTooltip copy={tooltip} title="GenAI edit" />
+      <DraftTooltip id={help.id} copy={tooltip} title="GenAI edit" />
     </button>
   );
 }

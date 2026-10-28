@@ -130,7 +130,7 @@ export function CountryDraftSurface({
           <h2>{compact && isSourceControlled ? "Inside the atlas" : "AI starter map"}</h2>
         </div>
       )}
-      <p className={compact ? styles.summary : undefined}>{draft.draft.summary}</p>
+      {!isReviewedSnapshot ? <p className={compact ? styles.summary : undefined}>{draft.draft.summary}</p> : null}
       {draft.draft.unavailableReason ? (
         <p className="muted">{draft.draft.unavailableReason}</p>
       ) : null}

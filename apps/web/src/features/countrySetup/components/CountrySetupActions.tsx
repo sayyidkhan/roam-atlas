@@ -1,4 +1,6 @@
-import { CountryActionGuide } from "./CountryActionGuide";
+import type { ReactNode } from "react";
+import { DraftTooltip } from "../../countryDraft/CountryDraftMetadata";
+import { useDraftTooltip } from "../../countryDraft/useDraftTooltip";
 import styles from "../CountrySetupSurface.module.css";
 import type {
   CountryRuntimeCacheState
@@ -8,11 +10,15 @@ import type {
 } from "../countrySetupStore";
 
 export function CountrySetupActions({
+  identity,
+  settings,
   snapshot,
   flushState,
   canOpenMap,
   isMapLocked
 }: {
+  identity: ReactNode;
+  settings: ReactNode;
   snapshot: CountrySetupState;
   flushState: CountryRuntimeCacheState | null;
   canOpenMap: boolean;
@@ -24,6 +30,7 @@ export function CountrySetupActions({
     ? {
         action: "country-map-locked",
         label: "Confirm curation first",
+        shortLabel: "Confirm first",
         info:
           `Confirm the ${country.name} starter-map direction ` +
           "before opening the explorer."
@@ -32,11 +39,13 @@ export function CountrySetupActions({
     ? {
         action: "country-map",
         label: `Open ${country.name} map`,
-        info: `Open the current ${country.name} explorer.`
+        shortLabel: "Open map",
+        info: `Explore the ${country.name} map with your current places and illustration settings.`
       }
     : {
         action: "build-starter-map",
         label: `Build ${country.name} map`,
+        shortLabel: "Build map",
         info: snapshot.isSourceControlled
           ? `Load the original source-controlled ${country.name} map.`
           : `Create an unconfirmed starter map for ${country.name}.`
@@ -44,34 +53,30 @@ export function CountrySetupActions({
 
   return (
     <nav className={styles["brand-bar"]} aria-label="Atlas navigation">
-      <div className={styles["navigation-secondary"]}>
-        <button
-          type="button"
-          className={`ghost-button ${styles.back}`}
-          onClick={snapshot.commands.backToCountries}
-        >
-          ← Back to countries
-        </button>
-        <CountryActionButton
-          action="reset-generated-visuals"
-          label={isCacheFlushing ? "Resetting visuals" : "Reset Generated Visuals"}
-          info={`Delete generated ${country.name} map illustrations, image jobs, ambience, and AI click-understanding cache. Starter-map builder information and reference photos stay.`}
-          disabled={isCacheFlushing}
-          onClick={snapshot.commands.resetGeneratedVisuals}
-        />
-        <CountryActionGuide
-          snapshot={snapshot}
-          canOpenMap={canOpenMap}
-          isMapLocked={isMapLocked}
-        />
-      </div>
-      <div className={styles["navigation-primary"]}>
-        <CountryActionButton
-          {...mapAction}
-          disabled={isMapLocked}
-          onClick={snapshot.commands.openOrBuildMap}
-        />
-      </div>
+      <button
+        type="button"
+        className={`ghost-button ${styles.back}`}
+        aria-label="Back to countries"
+        onClick={snapshot.commands.backToCountries}
+      >
+        <span aria-hidden="true">←</span>
+        <span className={styles["back-label"]} aria-hidden="true">Countries</span>
+      </button>
+      {identity}
+      {settings}
+      <CountryActionButton
+        action="reset-generated-visuals"
+        label={isCacheFlushing ? "Resetting visuals" : "Reset Generated Visuals"}
+        shortLabel={isCacheFlushing ? "Resetting…" : "Reset visuals"}
+        info={`Remove generated illustrations and ambience for ${country.name} to start fresh. Your places, descriptions, and reference photos stay.`}
+        disabled={isCacheFlushing}
+        onClick={snapshot.commands.resetGeneratedVisuals}
+      />
+      <CountryActionButton
+        {...mapAction}
+        disabled={isMapLocked}
+        onClick={snapshot.commands.openOrBuildMap}
+      />
     </nav>
   );
 }
@@ -79,27 +84,33 @@ export function CountrySetupActions({
 function CountryActionButton({
   action,
   label,
+  shortLabel,
   info,
   disabled = false,
   onClick
 }: {
   action: string;
   label: string;
+  shortLabel: string;
   info: string;
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const help = useDraftTooltip();
   return (
     <button
+      {...help.triggerProps}
       type="button"
-      className="ghost-button country-action-button"
+      className={`ghost-button country-action-button ${styles["header-action"]} ${help.className}`}
       data-country-action={action}
-      title={info}
-      aria-label={`${label}. ${info}`}
+      aria-label={label}
       disabled={disabled}
       onClick={onClick}
     >
-      <span>{label}</span>{action === "country-map" || action === "build-starter-map" ? <span aria-hidden="true">↗</span> : null}
+      <span className={styles["action-full-label"]} aria-hidden="true">{label}</span>
+      <span className={styles["action-short-label"]} aria-hidden="true">{shortLabel}</span>
+      {action === "country-map" || action === "build-starter-map" ? <span aria-hidden="true">↗</span> : null}
+      <DraftTooltip id={help.id} title={label} copy={info} />
     </button>
   );
 }

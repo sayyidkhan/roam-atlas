@@ -76,11 +76,6 @@
   bottom: calc(100% + 8px);
 }
 
-.menu[data-align="right"] {
-  right: 0;
-  left: auto;
-}
-
 .menu-heading {
   padding: 7px 10px 9px;
   color: var(--muted);
@@ -168,23 +163,25 @@
 }
 
 .inline .field {
-  grid-template-columns: auto 92px;
+  grid-template-columns: auto 82px;
   align-items: center;
-  gap: 0;
+  gap: 4px;
   border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
 }
 
 .inline label {
-  padding-left: 8px;
+  padding-left: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .inline .select {
-  border-color: transparent;
-  background: transparent;
+  border-color: var(--line);
+  background: #fffdf7;
+  gap: 4px;
+  padding-inline: 8px;
   font-size: 12px;
 }
 
@@ -199,13 +196,30 @@
 
 .inline .status {
   grid-column: 1 / -1;
-  max-width: 190px;
+  max-width: 142px;
   padding: 0 8px 4px;
 }
 
 .select:hover:not(:disabled) {
   background: #edf0e7;
   color: var(--ink);
+}
+
+@media (min-width: 641px) and (max-width: 680px) {
+  .setting.inline {
+    max-width: 84px;
+  }
+
+  .inline .field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .inline .status {
+    max-width: 100%;
+    padding-inline: 0;
+    font-size: 9px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -232,7 +246,7 @@
   }
 
   .inline .field {
-    grid-template-columns: auto 92px;
+    grid-template-columns: auto 82px;
   }
 
   .inline .status {

@@ -1,0 +1,1 @@
+export const VISITOR_COPY_RULES = "Write for travellers about the subject. Never echo demo, testing, MVP, prototype, hackathon, placeholder, first-slice, or internal graph/dataset commentary from context. Omit it without inventing facts. Preserve separate source/uncertainty metadata.";

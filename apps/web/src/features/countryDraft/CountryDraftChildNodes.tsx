@@ -27,7 +27,7 @@ export function CountryDraftChildNodes({
         const name = String(child.name ?? "Unnamed candidate");
         return (
           <li className="draft-child-item" key={`${path}:${name}`}>
-            <div className="draft-item-heading">
+            <div className="draft-item-heading draft-child-heading">
               <DraftItemCounter indexPath={indexPath} />
               <strong>{name}</strong>
               <CountryDraftMetadata

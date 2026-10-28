@@ -22,15 +22,50 @@
 
 .draft-edit-modal header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
 .draft-edit-modal h3 {
-  margin: 2px 0 0;
+  margin: 0;
   font-size: 20px;
   line-height: 1.15;
+}
+
+.draft-edit-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.draft-edit-close svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.draft-edit-close:hover {
+  background: rgba(36, 95, 82, 0.08);
+}
+
+.draft-edit-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .draft-genai-form {

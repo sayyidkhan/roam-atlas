@@ -1,6 +1,7 @@
 import { createStore } from "zustand/vanilla";
 
 export type ExplorerFact = {
+  id?: string;
   confidence?: string;
   sourceUrl?: string;
   text?: string;

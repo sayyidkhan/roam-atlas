@@ -1,4 +1,5 @@
 import type { DraftNode } from "./countryDraftTypes";
+import { useDraftTooltip } from "./useDraftTooltip";
 
 type CountryDraftMetadataProps = {
   approveTarget: string;
@@ -15,6 +16,8 @@ export function CountryDraftMetadata({
   kindLabel = kind,
   onApprovalChange
 }: CountryDraftMetadataProps) {
+  const kindTooltip = useDraftTooltip();
+  const trustTooltip = useDraftTooltip();
   const approved = isDraftItemApproved(item);
   const approveLabel = approveTarget.split(":")[1] ?? "item";
   const kindValue = formatDraftKind(kindLabel);
@@ -30,21 +33,24 @@ export function CountryDraftMetadata({
       className="draft-meta"
       aria-label={`${kindDescription} ${describeDraftConfidence(confidence)}`}
     >
-      <span className="draft-meta-chip">
+      <span className={`draft-meta-chip ${kindTooltip.className}`} tabIndex={0} {...kindTooltip.triggerProps}>
         <span className="draft-meta-label">Type</span>
         <span>{kindValue}</span>
         <DraftTooltip
+          id={kindTooltip.id}
           copy={kindDescription}
           title={`Type: ${kindValue}`}
         />
       </span>
       <button
+        {...trustTooltip.triggerProps}
         type="button"
         className={[
           "draft-meta-chip",
           "draft-meta-chip--trust",
           `draft-meta-chip--${confidence}`,
           "draft-meta-chip--action",
+          trustTooltip.className,
           approved ? "is-approved" : ""
         ]
           .filter(Boolean)
@@ -63,6 +69,7 @@ export function CountryDraftMetadata({
         <span className="draft-meta-value">{confidenceValue}</span>
         <DraftTrustTick approved={approved} />
         <DraftTooltip
+          id={trustTooltip.id}
           copy={trustDescription}
           title={`Trust: ${confidenceValue}`}
         />
@@ -73,13 +80,15 @@ export function CountryDraftMetadata({
 
 export function DraftTooltip({
   copy,
-  title
+  title,
+  id
 }: {
   copy: string;
   title: string;
+  id?: string;
 }) {
   return (
-    <span className="draft-button-tooltip" role="tooltip">
+    <span className="draft-button-tooltip" role="tooltip" id={id}>
       <span className="draft-button-tooltip-title">{title}</span>
       <span className="draft-button-tooltip-copy">{copy}</span>
     </span>

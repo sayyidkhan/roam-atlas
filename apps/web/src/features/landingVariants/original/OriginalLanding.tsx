@@ -162,6 +162,10 @@ export function OriginalLanding({ countries, countryPacks, onConfigure, onOpen, 
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v15M12 5C9 3 5 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Z" /></svg>
                 Encyclopedia
               </button>
+              <button type="button" className={styles["surprise-action"]} disabled={!selected} onClick={() => { if (selected) onConfigure(selected); }}>
+                <SettingsIcon />
+                Settings
+              </button>
               </div>
             </> : <>
             <p className={styles.eyebrow}>RoamAtlas · illustrated travel intelligence</p>

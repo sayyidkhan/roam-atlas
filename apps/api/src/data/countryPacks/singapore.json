@@ -50,7 +50,7 @@
     },
     "curated": {
       "id": "roamatlas-curated",
-      "title": "RoamAtlas curated MVP dataset",
+      "title": "RoamAtlas Singapore travel information",
       "type": "curated",
       "url": "docs/PRODUCT.md"
     },
@@ -73,7 +73,7 @@
       "facts": [
         {
           "id": "sg-curated",
-          "text": "Singapore is a confirmed RoamAtlas country pack in the current source-controlled dataset.",
+          "text": "Explore Singapore through chapters on its waterfront, neighbourhoods, gardens, islands, and wildlife.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -132,7 +132,7 @@
       "facts": [
         {
           "id": "west-campus-curated",
-          "text": "This MVP groups NUS, NTU, and Jurong Lake Gardens as west-side curated exploration nodes.",
+          "text": "Explore NUS, NTU, and Jurong Lake Gardens in western Singapore.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -166,7 +166,7 @@
       "facts": [
         {
           "id": "heritage-curated",
-          "text": "This MVP groups Chinatown, Kampong Glam, and Little India as a culture-focused exploration belt.",
+          "text": "Explore Chinatown, Kampong Glam, and Little India through this culture-focused chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -233,7 +233,7 @@
       "facts": [
         {
           "id": "changi-east-curated",
-          "text": "This MVP groups Changi Airport, Jewel Changi, and East Coast Park as east-side curated exploration nodes.",
+          "text": "Explore Changi Airport, Jewel Changi, and East Coast Park in eastern Singapore.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -267,7 +267,7 @@
       "facts": [
         {
           "id": "nature-curated",
-          "text": "This MVP uses Mandai as the confirmed wildlife deep-dive path.",
+          "text": "Explore Mandai through the Nature and Wildlife chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -375,7 +375,7 @@
       "facts": [
         {
           "id": "supertree-curated",
-          "text": "Supertree Grove is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.",
+          "text": "Explore Supertree Grove in the Gardens by the Bay chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -400,7 +400,7 @@
       "facts": [
         {
           "id": "flower-dome-curated",
-          "text": "Flower Dome is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.",
+          "text": "Explore Flower Dome in the Gardens by the Bay chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -423,7 +423,7 @@
       "facts": [
         {
           "id": "cloud-forest-curated",
-          "text": "Cloud Forest is included as a curated Gardens by the Bay drill-down node for the RoamAtlas demo path.",
+          "text": "Explore Cloud Forest in the Gardens by the Bay chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -469,7 +469,7 @@
       "facts": [
         {
           "id": "merlion-curated",
-          "text": "Merlion Park is included as a curated photo stop in the Marina Bay demo path.",
+          "text": "Merlion Park is a photo stop in Marina Bay.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -497,7 +497,7 @@
       "facts": [
         {
           "id": "chinatown-curated",
-          "text": "Chinatown is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Chinatown in the Heritage Belt chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -525,7 +525,7 @@
       "facts": [
         {
           "id": "kampong-glam-curated",
-          "text": "Kampong Glam is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Kampong Glam in the Heritage Belt chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -553,7 +553,7 @@
       "facts": [
         {
           "id": "little-india-curated",
-          "text": "Little India is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Little India in the Heritage Belt chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -581,7 +581,7 @@
       "facts": [
         {
           "id": "sentosa-island-curated",
-          "text": "Sentosa Island is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Sentosa Island in the Sentosa and Southern Waterfront chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -609,7 +609,7 @@
       "facts": [
         {
           "id": "southern-ridges-curated",
-          "text": "Southern Ridges is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Southern Ridges in the Sentosa and Southern Waterfront chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -637,7 +637,7 @@
       "facts": [
         {
           "id": "nus-curated",
-          "text": "NUS is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore NUS in the West Campus and Gardens chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -666,7 +666,7 @@
       "facts": [
         {
           "id": "ntu-curated",
-          "text": "NTU is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore NTU in the West Campus and Gardens chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -695,7 +695,7 @@
       "facts": [
         {
           "id": "jurong-lake-gardens-curated",
-          "text": "Jurong Lake Gardens is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Jurong Lake Gardens in the West Campus and Gardens chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -724,7 +724,7 @@
       "facts": [
         {
           "id": "changi-airport-curated",
-          "text": "Changi Airport is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Changi Airport in the Changi and East Coast chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -753,7 +753,7 @@
       "facts": [
         {
           "id": "jewel-changi-curated",
-          "text": "Jewel Changi is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Jewel Changi in the Changi and East Coast chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -782,7 +782,7 @@
       "facts": [
         {
           "id": "botanic-gardens-curated",
-          "text": "Singapore Botanic Gardens is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore Singapore Botanic Gardens in the Nature and Wildlife chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -810,7 +810,7 @@
       "facts": [
         {
           "id": "east-coast-park-curated",
-          "text": "East Coast Park is included as a curated RoamAtlas first-slice point of interest.",
+          "text": "Explore East Coast Park in the Changi and East Coast chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -943,7 +943,7 @@
       "facts": [
         {
           "id": "primate-kingdom-curated",
-          "text": "Primate Kingdom is included as a zoo-zone node for the RoamAtlas demo path.",
+          "text": "Explore Primate Kingdom in the Singapore Zoo chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -966,7 +966,7 @@
       "facts": [
         {
           "id": "fragile-forest-curated",
-          "text": "Fragile Forest is included as a zoo-zone node for the RoamAtlas demo path.",
+          "text": "Explore Fragile Forest in the Singapore Zoo chapter.",
           "sourceType": "curated",
           "confidence": "confirmed",
           "sourceUrl": "docs/PRODUCT.md"
@@ -988,7 +988,7 @@
       "facts": [
         {
           "id": "giraffe-exhibit",
-          "text": "Giraffe is confirmed in the current Singapore Zoo Wild Africa demo path from Mandai's official feeding listing.",
+          "text": "Mandai's feeding listing links giraffes to Wild Africa at Singapore Zoo.",
           "sourceType": "official",
           "confidence": "confirmed",
           "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",
@@ -1015,7 +1015,7 @@
       "facts": [
         {
           "id": "rhino-exhibit",
-          "text": "White rhino is confirmed in the current Wild Africa demo path from Mandai's official feeding listing.",
+          "text": "Mandai's feeding listing links white rhinos to Wild Africa at Singapore Zoo.",
           "sourceType": "official",
           "confidence": "confirmed",
           "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",
@@ -1036,7 +1036,7 @@
       "facts": [
         {
           "id": "zebra-exhibit",
-          "text": "Zebra is confirmed in the current Wild Africa demo path from Mandai's official feeding listing.",
+          "text": "Mandai's feeding listing links zebras to Wild Africa at Singapore Zoo.",
           "sourceType": "official",
           "confidence": "confirmed",
           "sourceUrl": "https://buy.mandai.com/web-storefront/en/products/singapore-zoo-adm",

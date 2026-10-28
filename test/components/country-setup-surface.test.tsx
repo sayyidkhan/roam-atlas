@@ -127,10 +127,15 @@ describe("CountrySetupSurface", () => {
     ).toBeTruthy();
     expect(screen.getByRole("region", { name: "Scrollable atlas contents" }).getAttribute("tabindex")).toBe("0");
     const navigation = screen.getByRole("navigation", { name: "Atlas navigation" });
+    const header = screen.getByRole("region", { name: "Country setup" });
+    expect(header.contains(navigation)).toBe(true);
+    expect(header.contains(screen.getByRole("heading", { name: "Singapore", level: 1 }))).toBe(true);
+    expect(header.contains(quality)).toBe(true);
     expect(navigation.contains(screen.getByRole("button", { name: /Build Singapore map/ }))).toBe(true);
     expect(navigation.contains(screen.getByRole("button", { name: /Reset Generated Visuals/ }))).toBe(true);
     const homeLink = screen.getByRole("link", { name: "RoamAtlas home" });
     expect(homeLink.closest("footer")).toBeTruthy();
+    expect(homeLink.closest("footer")?.contains(screen.getByText("AI illustrates the atlas. Sources ground the facts."))).toBe(true);
     expect(navigation.contains(homeLink)).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: /Reset Generated Visuals/ }));
     expect(commands.resetGeneratedVisuals).toHaveBeenCalledTimes(1);
@@ -151,27 +156,9 @@ describe("CountrySetupSurface", () => {
     expect(
       screen.getByText("Updated directly from the draft store")
     ).toBeTruthy();
-    const actionGuide = screen.getByRole("button", {
-      name: "Action guide"
-    });
-    expect(actionGuide.getAttribute("aria-expanded")).toBe(
-      "false"
-    );
-    fireEvent.click(actionGuide);
-    expect(actionGuide.getAttribute("aria-expanded")).toBe(
-      "true"
-    );
-    expect(
-      screen.getByRole("region", {
-        name: "Country action legend"
-      })
-    ).toBeTruthy();
-    fireEvent.click(actionGuide);
-    expect(
-      screen.queryByRole("region", {
-        name: "Country action legend"
-      })
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Action guide" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Reset Generated Visuals/ }).getAttribute("aria-describedby")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Back to countries/ }).getAttribute("aria-describedby")).toBeNull();
     fireEvent.click(
       screen.getByRole("button", {
         name: /Build Singapore map/

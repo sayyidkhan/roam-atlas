@@ -52,6 +52,7 @@ export function SourceReviewPanel({ countryName, draft }: {
             <section>
               <h3>The places and descriptions</h3>
               <p>These come from travel information saved in RoamAtlas. They do not update live.</p>
+              {draft.summary ? <p>{draft.summary}</p> : null}
             </section>
             <section>
               <h3>The pictures</h3>

@@ -84,7 +84,7 @@ export type RuntimePack = {
 
 export function apiPath(path: string): string {
   if (!window.location.origin.startsWith("http")) {
-    throw new Error("RoamAtlas must be opened through the dev server, not as a local file.");
+    throw new Error("Open RoamAtlas using its website address.");
   }
   return path;
 }

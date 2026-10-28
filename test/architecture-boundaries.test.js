@@ -1346,13 +1346,6 @@ test("React owns the country setup shell through a feature-owned store", () => {
     ),
     "utf8"
   );
-  const setupHero = readFileSync(
-    new URL(
-      "countrySetup/components/CountryActionGuide.tsx",
-      featureRoot
-    ),
-    "utf8"
-  );
   const imageQualitySetting = readFileSync(
     new URL(
       "countrySetup/components/ImageQualitySetting.tsx",
@@ -1372,7 +1365,8 @@ test("React owns the country setup shell through a feature-owned store", () => {
   assert.doesNotMatch(surfaceSource, /function CountrySetupActions/);
   assert.match(setupActions, /function CountrySetupActions/);
   assert.match(imageQualitySetting, /function ImageQualitySetting/);
-  assert.match(setupHero, /useState\(false\)/);
+  assert.match(setupActions, /useDraftTooltip/);
+  assert.doesNotMatch(setupActions, /CountryActionGuide/);
   assert.match(
     countryExperienceController,
     /countrySetupStore\.getState\(\)\.setSetup/

@@ -69,6 +69,7 @@ async function openSetup(page) {
   await review.click();
   const dialog = page.getByRole("dialog", { name: "About the travel info", exact: true });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(draft.summary, { exact: true })).toBeVisible();
   await expect(dialog.getByText(/They do not update live/)).toBeVisible();
   await expect(dialog.getByText(/A picture can contain imagined details/)).toBeVisible();
   await expect(dialog.getByText(/It does not mean the details were checked recently/)).toBeVisible();
@@ -108,7 +109,6 @@ test("keeps secondary controls readable on hover and explains curated status", a
   const controls = [
     page.getByRole("button", { name: /Back to countries/ }),
     page.getByRole("button", { name: /Reset Generated Visuals/ }),
-    page.getByRole("button", { name: "Action guide", exact: true }),
     about,
     page.getByRole("tab", { name: /^Research themes/ }),
     page.getByRole("combobox", { name: "Illustration detail", exact: true })
@@ -155,30 +155,45 @@ async function checkCountryActions(page) {
     await button.click({ trial: true });
   }
   const navigation = page.getByRole("navigation", { name: "Atlas navigation" });
-  await expect(navigation.getByRole("button")).toHaveCount(4);
-  await expect(navigation.getByRole("link", { name: "RoamAtlas home" })).toHaveCount(0);
+  const header = page.getByRole("region", { name: "Country setup", exact: true });
+  await expect(header.getByRole("navigation", { name: "Atlas navigation" })).toHaveCount(1);
+  await expect(header.getByRole("heading", { name: "Singapore", level: 1 })).toBeVisible();
+  await expect(header.getByRole("combobox", { name: "Illustration detail", exact: true })).toBeVisible();
+  const headerBounds = await header.boundingBox();
+  const navigationBounds = await navigation.boundingBox();
+  const countryBounds = await header.locator(".country-config-hero").boundingBox();
+  expect(navigationBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
+  expect(countryBounds.y).toBeGreaterThanOrEqual(navigationBounds.y);
+  expect(countryBounds.y + countryBounds.height).toBeLessThanOrEqual(headerBounds.y + headerBounds.height);
+  await expect(navigation.getByRole("button")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Action guide", exact: true })).toHaveCount(0);
+  await expect(back).not.toHaveAttribute("title");
+  await expect(back).not.toHaveAttribute("aria-describedby");
   await expect(page.locator("footer").getByRole("link", { name: "RoamAtlas home" })).toHaveCount(1);
-  const backBounds = await back.boundingBox();
-  const resetPosition = await reset.boundingBox();
-  expect(Math.abs(backBounds.y - resetPosition.y)).toBeLessThan(2);
-  expect(resetPosition.x).toBeGreaterThanOrEqual(backBounds.x + backBounds.width);
-  const guide = page.getByRole("button", { name: "Action guide", exact: true });
-  await expect(guide).toHaveText("i");
-  const guideBounds = await guide.boundingBox();
-  expect(Math.abs(guideBounds.y - resetPosition.y)).toBeLessThan(2);
-  expect(guideBounds.x).toBeGreaterThanOrEqual(resetPosition.x + resetPosition.width);
-  await guide.click();
-  const help = page.getByRole("region", { name: "Country action legend" });
-  await expect(help).toBeVisible();
-  const resetBounds = await reset.boundingBox();
-  const helpBounds = await help.boundingBox();
-  expect(helpBounds.y).toBeGreaterThanOrEqual(resetBounds.y + resetBounds.height);
-  // Visibility alone misses an overlay. Trial clicks assert actual hit targets.
-  for (const button of [back, openMap, reset]) {
-    await button.click({ trial: true });
+  if (page.viewportSize().width > 640) {
+    const controls = [back, reset, openMap, header.locator(".country-config-hero"), header.locator(".country-config-hero + div")];
+    const backBounds = await back.boundingBox();
+    const center = backBounds.y + backBounds.height / 2;
+    // All five groups share a single row, even with the quality lock note.
+    for (const control of controls) {
+      const box = await control.boundingBox();
+      expect(Math.abs(box.y + box.height / 2 - center)).toBeLessThan(2);
+    }
+    expect(headerBounds.height).toBeLessThan(125);
   }
-  await page.screenshot({ path: test.info().outputPath("config-actions-help.png"), fullPage: true });
-  await guide.click();
+  for (const button of [reset, openMap]) {
+    await button.hover();
+    const tooltip = button.getByRole("tooltip");
+    await expect(tooltip).toHaveCSS("opacity", "1");
+    await expect(button).toHaveAttribute("aria-describedby", await tooltip.getAttribute("id"));
+    const box = await tooltip.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(7);
+    expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize().width - 7);
+    await button.press("Escape");
+    await expect(tooltip).toBeHidden();
+  }
+  await page.mouse.move(0, 0);
+  await back.focus();
   await back.scrollIntoViewIfNeeded();
 }
 
@@ -258,7 +273,16 @@ test("opens the editable contents directly and keeps one layout while reviewing"
   await contents.getByRole("button", { name: "Edit starter map with GenAI", exact: true }).click();
   const editDialog = page.getByRole("dialog", { name: "Edit starter map with GenAI", exact: true });
   await expect(editDialog).toBeVisible();
-  await editDialog.getByRole("button", { name: "Close GenAI edit modal", exact: true }).click();
+  await expect(editDialog.getByText("GenAI edit", { exact: true })).toHaveCount(0);
+  const closeEdit = editDialog.getByRole("button", { name: "Close GenAI edit modal", exact: true });
+  const dialogBounds = await editDialog.boundingBox();
+  const closeBounds = await closeEdit.boundingBox();
+  expect(closeBounds.x).toBeGreaterThan(dialogBounds.x + dialogBounds.width / 2);
+  expect(closeBounds.x + closeBounds.width).toBeLessThanOrEqual(dialogBounds.x + dialogBounds.width - 8);
+  expect(closeBounds.y).toBeGreaterThanOrEqual(dialogBounds.y + 8);
+  expect(closeBounds.y + closeBounds.height).toBeLessThanOrEqual(dialogBounds.y + 64);
+  await page.screenshot({ path: test.info().outputPath("config-edit-dialog.png") });
+  await closeEdit.click();
   await expect(editDialog).toBeHidden();
   await expect(approval).toBeVisible();
 
@@ -293,6 +317,137 @@ test("opens the editable contents directly and keeps one layout while reviewing"
   expect(unexpectedRequests).toEqual([]);
 });
 
+for (const width of [320, 390, 641, 650, 680, 690, 850, 1440]) {
+  test(`does not let hidden editor help create sideways scrolling at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 789 });
+    const unexpectedRequests = await isolateSetupRequests(page);
+    await page.goto("/singapore/config");
+    await expect(page.getByRole("tab", { name: /^Candidate regions/ })).toBeVisible();
+    const shell = page.locator("#country-shell");
+    const checkWidth = async () => {
+      const dimensions = await shell.evaluate((element) => {
+        element.scrollLeft = 10000;
+        return {
+          width: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          scrollLeft: element.scrollLeft,
+          documentWidth: document.documentElement.scrollWidth
+        };
+      });
+      expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.width);
+      expect(dimensions.documentWidth).toBeLessThanOrEqual(width);
+      expect(dimensions.scrollLeft).toBe(0);
+    };
+    await checkWidth();
+    await page.getByText("Two-toed Sloth", { exact: true }).scrollIntoViewIfNeeded();
+    await checkWidth();
+    const edit = page.getByRole("button", { name: "Edit starter map with GenAI", exact: true });
+    await edit.hover();
+    await checkWidth();
+    await page.mouse.move(0, 0);
+    await checkWidth();
+    expect(unexpectedRequests).toEqual([]);
+  });
+}
+
+test("repositions focused metadata help when the layout changes", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 789 });
+  const unexpectedRequests = await isolateSetupRequests(page);
+  await page.goto("/singapore/config");
+  const trust = page.getByRole("button", { name: "Unapprove 1.1", exact: true });
+  await trust.focus();
+  await page.setViewportSize({ width: 320, height: 789 });
+  const tooltip = trust.getByRole("tooltip");
+  await expect(tooltip).toHaveCSS("opacity", "1");
+  await expect.poll(async () => (await tooltip.boundingBox()).x).toBeGreaterThanOrEqual(7);
+  const resizedBounds = await tooltip.boundingBox();
+  expect(resizedBounds.x + resizedBounds.width).toBeLessThanOrEqual(313);
+
+  // Keyboard help must also follow a focused label while its scroll surface moves.
+  const type = page.locator(".draft-list > li > .draft-item-heading .draft-meta-chip:not(.draft-meta-chip--trust)").last();
+  await type.evaluate((element) => element.scrollIntoView({ block: "end" }));
+  await type.focus();
+  await expect(type).toHaveAttribute("data-tooltip-side", "top");
+  await type.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect(type).toHaveAttribute("data-tooltip-side", "bottom");
+  await type.press("Escape");
+  await expect(type.getByRole("tooltip")).toBeHidden();
+  await expect(type).toBeFocused();
+  expect(unexpectedRequests).toEqual([]);
+});
+
+for (const width of [320, 690, 1440]) {
+  test(`keeps Type and Trust help inside the visible page at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 789 });
+    const unexpectedRequests = await isolateSetupRequests(page);
+    await page.goto("/singapore/config");
+    const first = page.locator(".draft-list > li").first();
+    const triggers = [
+      first.locator(":scope > .draft-item-heading .draft-meta-chip").first(),
+      first.locator(".draft-child-item .draft-meta-chip").first(),
+      first.getByRole("button", { name: `Unapprove ${firstChapter.name}`, exact: true }),
+      first.getByRole("button", { name: "Unapprove 1.1", exact: true })
+    ];
+    for (const trigger of triggers) {
+      await trigger.hover();
+      const tooltip = trigger.getByRole("tooltip");
+      await expect(tooltip).toHaveCSS("opacity", "1");
+      const bounds = await tooltip.boundingBox();
+      expect(bounds.x).toBeGreaterThanOrEqual(7);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 7);
+      expect(bounds.y).toBeGreaterThanOrEqual(7);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(789 - 7);
+    }
+    if (width === 690) await page.screenshot({ path: test.info().outputPath("config-metadata-tooltip.png"), fullPage: true });
+    expect(unexpectedRequests).toEqual([]);
+  });
+
+  test(`keeps editor tooltips clear of the header and screen edges at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 789 });
+    const unexpectedRequests = await isolateSetupRequests(page);
+    await page.goto("/singapore/config");
+    const edit = page.getByRole("button", { name: "Edit starter map with GenAI", exact: true });
+    const tooltip = edit.getByRole("tooltip");
+    await edit.hover();
+    await expect(tooltip).toHaveCSS("opacity", "1");
+    const header = await page.locator(".country-draft-header").boundingBox();
+    const trigger = await edit.boundingBox();
+    const bounds = await tooltip.boundingBox();
+    expect(bounds.y).toBeGreaterThanOrEqual(header.y + header.height);
+    expect(bounds.y).toBeGreaterThanOrEqual(trigger.y + trigger.height + 8);
+    expect(bounds.x).toBeGreaterThanOrEqual(7);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 7);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(789 - 7);
+    await expect(edit).toHaveAttribute("aria-describedby", await tooltip.getAttribute("id"));
+    if (width === 690) await page.screenshot({ path: test.info().outputPath("config-tooltip.png"), fullPage: true });
+    await page.mouse.move(0, 0);
+    await edit.focus();
+    await expect(tooltip).toHaveCSS("opacity", "1");
+    await edit.press("Escape");
+    await expect(tooltip).toBeHidden();
+    await expect(edit).toBeFocused();
+    await edit.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(edit).toBeFocused();
+    await expect(tooltip).toHaveCSS("visibility", "visible");
+
+    // The same help on a row near the bottom must flip upward and stay in view.
+    await edit.press("Tab");
+    const lastEdit = page.locator(".draft-list > li > .draft-item-heading > .draft-genai-button").last();
+    await lastEdit.evaluate((element) => element.scrollIntoView({ block: "end" }));
+    await lastEdit.hover();
+    const lastTooltip = lastEdit.getByRole("tooltip");
+    await expect(lastTooltip).toHaveCSS("opacity", "1");
+    await expect(lastEdit).toHaveAttribute("data-tooltip-side", "top");
+    const lastBounds = await lastTooltip.boundingBox();
+    expect(lastBounds.x).toBeGreaterThanOrEqual(7);
+    expect(lastBounds.x + lastBounds.width).toBeLessThanOrEqual(width - 7);
+    expect(lastBounds.y).toBeGreaterThanOrEqual(7);
+    expect(lastBounds.y + lastBounds.height).toBeLessThanOrEqual(789 - 7);
+    expect(unexpectedRequests).toEqual([]);
+  });
+}
+
 test("uses one mobile scroll surface with accessible navigation and no horizontal overflow", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const unexpectedRequests = await isolateSetupRequests(page);
@@ -317,6 +472,10 @@ test("uses one mobile scroll surface with accessible navigation and no horizonta
   const footerLogo = page.locator("footer").getByRole("link", { name: "RoamAtlas home" });
   await footerLogo.scrollIntoViewIfNeeded();
   await expect(footerLogo).toBeInViewport();
+  const footer = footerLogo.locator("..");
+  await expect(footer.getByText("AI illustrates the atlas. Sources ground the facts.", { exact: true })).toBeInViewport();
+  const footerBounds = await footer.boundingBox();
+  await page.screenshot({ path: test.info().outputPath("config-footer.png"), clip: footerBounds });
 
   const geometry = await page.locator("#country-shell").evaluate((shell) => {
     const scrollable = [...shell.querySelectorAll("*")].filter((element) => {
@@ -362,7 +521,7 @@ for (const width of [690, 850]) {
   expect(horizontalOverflow).toBe(false);
   const openMap = await page.getByRole("button", { name: /Open Singapore map/ }).boundingBox();
   const back = await page.getByRole("button", { name: /Back to countries/ }).boundingBox();
-  expect(Math.abs(openMap.y - back.y)).toBeLessThan(2);
+  expect(Math.abs(openMap.y + openMap.height / 2 - back.y - back.height / 2)).toBeLessThan(2);
   expect(back.width).toBeLessThan(width / 3);
   const hero = await page.locator(".country-config-hero").boundingBox();
   const quality = await page.getByRole("combobox", { name: "Illustration detail" }).boundingBox();
@@ -373,10 +532,20 @@ for (const width of [690, 850]) {
   const chapters = page.locator(".draft-list").first().locator(":scope > li");
   const first = await chapters.nth(0).boundingBox();
   const second = await chapters.nth(1).boundingBox();
+  const childHeading = chapters.first().locator(".draft-child-heading").first();
+  const childBounds = await childHeading.boundingBox();
+  expect(childBounds.height).toBeLessThan(50);
+  const childName = await childHeading.locator("strong").boundingBox();
+  const childMetadata = await childHeading.locator(".draft-meta").boundingBox();
+  expect(Math.abs(childName.y + childName.height / 2 - childMetadata.y - childMetadata.height / 2)).toBeLessThan(2);
+  const deepName = page.getByText("Supertree Structure Plate", { exact: true });
+  const deepCounter = await deepName.locator("..").locator(".draft-item-counter").boundingBox();
+  expect((await deepName.boundingBox()).x).toBeGreaterThanOrEqual(deepCounter.x + deepCounter.width + 4);
   expect(first.y).toBeLessThan(789 * 0.6);
   expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
   expect(first.width).toBeGreaterThanOrEqual(panelBounds.width - 4);
   if (width === 690) {
+    await page.getByRole("heading", { name: "Singapore", level: 1 }).click();
     const header = await page.locator(".country-draft-header").boundingBox();
     await page.screenshot({
       path: test.info().outputPath("config-header.png"),
@@ -427,6 +596,9 @@ for (const width of [320, 390, 690]) {
     await quality.press("m");
     await quality.press("Enter");
     await expect(quality).toHaveText("Medium");
+    const selectedBounds = await quality.boundingBox();
+    const chevronBounds = await quality.locator("svg").boundingBox();
+    expect(chevronBounds.x + chevronBounds.width).toBeLessThanOrEqual(selectedBounds.x + selectedBounds.width - 4);
     await expect(menu).toBeHidden();
     await expect(quality).toBeFocused();
     await quality.press("ArrowDown");
@@ -441,6 +613,10 @@ for (const width of [320, 390, 690]) {
     await quality.press("ArrowDown");
     await quality.press("Tab");
     await expect(menu).toBeHidden();
+    await expect(page.getByRole("button", { name: "Reset Generated Visuals", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Open Singapore map", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("tab", { name: /^Candidate regions/ })).toBeFocused();
     await page.reload();
     await expect(quality).toHaveText("Medium");

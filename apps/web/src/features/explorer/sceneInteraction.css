@@ -73,12 +73,6 @@
   width: 52px;
   height: 52px;
   transform: translate(-50%, -50%) scale(0.729);
-  opacity: 0;
-  transition: opacity 160ms ease;
-}
-
-.scene-target-ripple.is-active,
-.scene-target-ripple.is-highlighted {
   opacity: 1;
 }
 
@@ -91,6 +85,7 @@
 }
 
 .scene-target-ripple-ring {
+  opacity: 0;
   width: 38px;
   height: 38px;
   border: 2px solid rgba(20, 91, 75, 0.82);
@@ -98,6 +93,7 @@
   box-shadow:
     0 0 0 5px rgba(252, 248, 232, 0.58),
     0 2px 8px rgba(26, 62, 55, 0.12);
+  transition: opacity 160ms ease;
 }
 
 .scene-target-ripple-dot {
@@ -110,6 +106,7 @@
 
 .scene-target-ripple.is-active .scene-target-ripple-ring,
 .scene-target-ripple.is-highlighted .scene-target-ripple-ring {
+  opacity: 1;
   animation: scene-target-ripple 1.9s ease-in-out infinite;
 }
 

@@ -1,3 +1,5 @@
+import { VISITOR_COPY_RULES } from "@roamatlas/prompts/visitorCopyRules.js";
+
 import {
   formatGroundingSnippets,
   getUsableGroundingSnippets
@@ -28,6 +30,7 @@ export function buildCountryDraftPrompt(
       `Route slug: ${country.slug}`,
       "",
       "Rules:",
+      `- ${VISITOR_COPY_RULES}`,
       "- Return JSON only.",
       '- Mark every candidate with confidence "unconfirmed".',
       "- Suggest broad cities, states, regions, or themes worth researching next.",
@@ -121,6 +124,7 @@ export function buildCountryDraftInfluencePrompt({
         ]
       : []),
     "- Use the user instruction only to steer prioritization, scope, tone, or emphasis.",
+    `- ${VISITOR_COPY_RULES}`,
     "- Do not treat the user instruction as evidence for factual claims.",
     snippets.length
       ? '- Mark each candidate with confidence "likely" (sourced) or "unconfirmed" (not sourced), as instructed above.'
@@ -178,6 +182,7 @@ function buildGroundedCountryDraftPrompt(
     formatGroundingSnippets(snippets),
     "",
     "Rules:",
+    `- ${VISITOR_COPY_RULES}`,
     "- Return JSON only.",
     "- Base every candidate strictly on the research snippets above. Do not add places or claims from your own memory.",
     "- Return 4 to 6 traveller-facing destination chapters and 12 to 20 total child destinations across those chapters.",

@@ -1,3 +1,5 @@
+import { containsInternalVisitorCopy } from "./visitorCopyPolicy.ts";
+
 export type LeafStudyFact = {
   confidence?: unknown;
   id?: unknown;
@@ -52,7 +54,10 @@ function hasChildren(childIds: readonly unknown[] | null | undefined): boolean {
 
 function readFacts(value: readonly LeafStudyFact[] | null | undefined): LeafStudyFact[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((fact) => readText(fact.text).length > 0);
+  return value.filter((fact) => {
+    const text = readText(fact.text);
+    return text.length > 0 && !containsInternalVisitorCopy(text);
+  });
 }
 
 function uniqueFacts(facts: LeafStudyFact[]): LeafStudyFact[] {

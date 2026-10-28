@@ -11,12 +11,12 @@
     grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
   }
 
-  .draft-item-heading > span:not(.draft-item-counter):not(.visually-hidden) {
+  .draft-item-heading:where(:not(.draft-region-heading, .draft-child-heading)) > span:not(.draft-item-counter):not(.visually-hidden) {
     grid-column: 3;
     justify-self: start;
   }
 
-  .draft-item-heading .draft-meta {
+  .draft-item-heading:where(:not(.draft-region-heading, .draft-child-heading)) .draft-meta {
     grid-column: 3 / -1;
     justify-content: start;
     flex-wrap: wrap;

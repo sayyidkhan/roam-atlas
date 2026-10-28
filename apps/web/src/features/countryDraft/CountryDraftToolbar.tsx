@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from "react";
+import { useDraftTooltip } from "./useDraftTooltip";
 
 import type {
   CountryDraftCommands,
@@ -252,12 +253,14 @@ function GenAiButton({
   isOpen: boolean;
   onClick: () => void;
 }) {
+  const help = useDraftTooltip();
   const tooltip =
     "Suggest starter-map edits without changing verified facts. Changes stay unconfirmed until source review.";
   return (
     <button
+      {...help.triggerProps}
       type="button"
-      className={`draft-genai-button${isOpen ? " is-active" : ""}`}
+      className={`draft-genai-button ${help.className}${isOpen ? " is-active" : ""}`}
       data-genai-target="starter-map"
       data-tooltip-title="GenAI edit"
       data-tooltip={tooltip}
@@ -270,7 +273,7 @@ function GenAiButton({
       <span className="visually-hidden">
         Edit starter map with GenAI
       </span>
-      <span className="draft-button-tooltip" role="tooltip">
+      <span className="draft-button-tooltip" role="tooltip" id={help.id}>
         <span className="draft-button-tooltip-title">
           GenAI edit
         </span>

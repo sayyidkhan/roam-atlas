@@ -1,0 +1,38 @@
+.trigger:is(:hover, :focus-within) {
+  z-index: 6;
+}
+
+.trigger :global(.draft-button-tooltip) {
+  display: none;
+  left: var(--draft-tooltip-shift, 0);
+  right: auto;
+  max-width: calc(100vw - 32px);
+  transform-origin: bottom left;
+}
+
+.trigger:is(:hover, :focus-within) :global(.draft-button-tooltip) {
+  display: block;
+}
+
+.trigger[data-tooltip-side]::before {
+  left: 11px;
+  right: auto;
+}
+
+.trigger[data-tooltip-side="bottom"] :global(.draft-button-tooltip) {
+  top: calc(100% + 10px);
+  bottom: auto;
+  transform-origin: top left;
+}
+
+.trigger[data-tooltip-side="bottom"]::before {
+  top: calc(100% - 1px);
+  bottom: auto;
+  border-top-color: transparent;
+  border-bottom-color: #fffaf0;
+}
+
+.trigger[data-tooltip-dismissed="true"]::before,
+.trigger[data-tooltip-dismissed="true"] :global(.draft-button-tooltip) {
+  visibility: hidden;
+}

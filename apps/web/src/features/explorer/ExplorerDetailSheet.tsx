@@ -4,6 +4,7 @@ import {
   factConfidenceLabel,
   hasUnconfirmedNodeFacts
 } from "@roamatlas/domain/guardrails.js";
+import { containsInternalVisitorCopy } from "@roamatlas/domain/visitorCopyPolicy.js";
 
 import {
   explorerDetailStore,
@@ -104,10 +105,10 @@ function ExplorerPrimaryFact({
 }: {
   node: ExplorerDetailNode;
 }) {
-  const fact = node.facts?.[0];
+  const fact = node.facts?.find((item) => item.text && !containsInternalVisitorCopy(item.text));
   if (!fact) {
     return (
-      <p className="detail-sheet-empty">No curated facts yet.</p>
+      <p className="detail-sheet-empty">No place details available yet.</p>
     );
   }
   const sourceUrl = safeExternalSourceUrl(fact.sourceUrl);

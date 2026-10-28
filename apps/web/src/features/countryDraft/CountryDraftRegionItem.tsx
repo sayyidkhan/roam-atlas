@@ -60,7 +60,7 @@ export function CountryDraftRegionItem({
         drag.finishDrop(event, "regions", index)
       }
     >
-      <div className="draft-item-heading">
+      <div className="draft-item-heading draft-region-heading">
         <DraftSortHandle
           index={index}
           label={name}
@@ -106,7 +106,7 @@ export function CountryDraftRegionItem({
               )
             }
           >
-            {allDescendantsApproved ? "Clear all" : "Curate all"}
+            {allDescendantsApproved ? "Unapprove all" : "Approve all"}
           </button>
         ) : null}
         <DraftGenAiButton

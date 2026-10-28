@@ -2,6 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createLeafStudyTopics } from "../libs/domain/src/leafStudyPlate.ts";
+import { containsInternalVisitorCopy } from "../libs/domain/src/visitorCopyPolicy.ts";
+import { countryPacks } from "../apps/api/src/data/countryPacks/serverRegistry.ts";
+
+test("published place facts and source titles contain no development commentary", () => {
+  for (const pack of Object.values(countryPacks)) {
+    for (const source of Object.values(pack.sourceRegistry ?? {})) {
+      assert.equal(containsInternalVisitorCopy(source.title ?? ""), false, source.title);
+    }
+    for (const node of Object.values(pack.nodes)) {
+      for (const fact of node.facts ?? []) {
+        assert.equal(containsInternalVisitorCopy(fact.text), false, `${node.id}: ${fact.text}`);
+      }
+    }
+  }
+  assert.match(countryPacks.singapore.nodes["merlion-park"].facts[0].text, /photo stop/);
+});
+
+test("old internal descriptions cannot become study captions", () => {
+  const topics = createLeafStudyTopics({
+    title: "Merlion Park", childIds: [], facts: [
+      { id: "old", text: "Merlion Park is included in the Marina Bay demo path." },
+      { id: "current", text: "Merlion Park is a photo stop in the Marina Bay chapter.", confidence: "confirmed" }
+    ]
+  });
+  assert.deepEqual(topics.map((topic) => topic.id), ["current"]);
+  assert.equal(topics[0].confidence, "confirmed");
+});
 
 test("leaf topics keep a distinct curated fact for each section", () => {
   const topics = createLeafStudyTopics({

@@ -16,6 +16,7 @@
     "./index.js": "./src/index.ts",
     "./promptContext.js": "./src/promptContext.ts",
     "./roamAtlasPromptStyle.js": "./src/roamAtlasPromptStyle.ts",
-    "./roamAtlasPromptTypes.js": "./src/roamAtlasPromptTypes.ts"
+    "./roamAtlasPromptTypes.js": "./src/roamAtlasPromptTypes.ts",
+    "./visitorCopyRules.js": "./src/visitorCopyRules.ts"
   }
 }

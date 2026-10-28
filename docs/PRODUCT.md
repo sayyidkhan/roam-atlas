@@ -20,6 +20,15 @@ The core product rule:
 The visual layer can be generated. The factual layer must be grounded in
 curated records, official pages, or clearly labeled general knowledge.
 
+Visitor-facing descriptions and generated captions describe places and subjects,
+not development milestones. They must not mention demo paths, testing, MVPs,
+prototypes, hackathons, placeholders, first slices, or internal dataset/graph
+status. Prompts enforce this across captions, artwork, page planning, and country
+drafts. Caption validation rejects this wording in both provider responses and
+the browser, falling back to the current curated description. Caption caches
+include the source text so an editorial correction cannot keep an older note.
+Source links, confidence, and unverified-content labels remain visible.
+
 ## Target User
 
 Primary user for the first version:
@@ -94,6 +103,11 @@ Browsing and Surprise me do not overwrite it. Clicking the active Home country
 icon clears the preference; unavailable storage reports a save failure.
 
 Country setup uses a warm paper canvas with one white, bordered country header.
+The navigation actions and country settings share this single card, separated by
+a thin divider. Back, Reset, and Help sit on the top left, with Open or Build on
+the right. The country identity and illustration dropdown form the row below.
+On phones both rows stack within the same border. The whole card remains visible
+while scrolling on desktop.
 The photo, serif country name, code, and travel-information link form one identity
 group. Illustration detail sits alongside it as a styled select-only combobox,
 with option descriptions, a selected checkmark, keyboard navigation, first-letter
@@ -109,6 +123,21 @@ card layout or Edit & review / Back to contents switch. Tabs support arrow keys,
 Home, and End; opening and closing a tool or information panel keeps the editor
 in place. The country header stays visible while scrolling on desktop; mobile
 uses a single page scroll without horizontal overflow.
+Editor help opens below its control when space permits, flips above near the
+bottom of the screen, and stays within the viewport edges. AI and source-label
+tooltips avoid the sticky setup header, appear on hover or keyboard focus, and
+can be dismissed with Escape without moving focus.
+Type help is keyboard-focusable. Tooltip placement follows scrolling, resizing,
+and label size changes so nested Type and Trust help stays readable at the edges.
+Inactive tooltip boxes do not participate in layout or extend the page's scroll width.
+
+The setup editor uses compact chapter cards and plain, indented place rows.
+Names take priority over type and confidence labels; those labels retain their
+tooltips and approval actions. Chapter actions stay aligned at the right, and
+the bulk approval action says “Approve all” or “Unapprove all”. Children remain
+visible and editable. For confirmed source-controlled snapshots, the technical
+pack summary lives in the travel-info panel; unverified summaries and review
+warnings stay visible in the editor.
 
 Reference thumbnails retry failed image loads twice with a short backoff. A
 hanging request ends after 30 seconds with a “Photo unavailable” fallback that
@@ -132,12 +161,16 @@ and curation gates visible outside the header. Editing does not promote generate
 suggestions into confirmed travel facts. Illustration locks and source-review
 guardrails remain enforced.
 
-Back to countries, Reset Generated Visuals, and the adjacent info icon use quiet
-utility controls at the top left; Open or Build remains the green primary action
-at the top right. Action guide expands in normal document flow without covering
-actions. Secondary controls retain readable light hover states. Narrow screens
-stack the controls without horizontal scrolling. A slim footer holds the
-RoamAtlas home link and logo at bottom right.
+The country setup header uses one compact row on tablet and desktop: country
+navigation, country identity with the source-info link, illustration detail,
+Reset Generated Visuals, and the green Open or Build action. Shorter visible
+labels keep the row readable; accessible action names retain the country name.
+Reset and Open/Build explain their effects with hover and keyboard tooltips.
+Back to countries has no tooltip, and there is no separate info icon or action
+guide. Phone layouts use two compact rows to keep controls usable without
+horizontal scrolling. A slim footer holds the RoamAtlas home link and logo at
+bottom right, with “AI illustrates the atlas. Sources ground the facts.” on the
+left in the same compact footer.
 
 Horizon Atlas 2 is the selected RoamAtlas homepage at `/`, without the design
 comparison toolbar. Explicit `?landing=` links retain the comparison previews.
@@ -455,6 +488,12 @@ Use a multi-layer scroll instead of a single flat image:
 
 ### Interaction Rules
 
+- Once an illustration's destination targets are resolved, show a small static
+  dot for each known destination. Highlight the dot with a larger ring on hover,
+  keyboard focus, or selection so clickable areas remain discoverable without
+  constant animation. Keep the illustrated hit areas interactive at every viewport
+  width so hovering or tapping a dot works on narrow layouts too. Artwork
+  readiness alone does not establish target positions.
 - Pan and zoom should work on the main scroll.
 - Clicking a known region should zoom or glide into that region.
 - Clicking a known detail should open a node detail or deep-dive scene.

@@ -1,3 +1,5 @@
+import { containsInternalVisitorCopy } from "@roamatlas/domain/visitorCopyPolicy.js";
+
 export type LeafStudyCuratedTopic = {
   id: string;
   text: string;
@@ -33,6 +35,7 @@ export function normalizeLeafStudyNotes(
     if (text.length < 40 || text.length > 320) continue;
     if (text.toLowerCase() === curated.get(id)) continue;
     if (FORBIDDEN_CLAIM.test(text)) continue;
+    if (containsInternalVisitorCopy(text)) continue;
     used.add(id);
     accepted.push({ id, text });
   }

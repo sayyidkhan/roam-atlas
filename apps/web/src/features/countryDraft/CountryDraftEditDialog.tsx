@@ -66,17 +66,16 @@ export function CountryDraftEditDialog({
         aria-label={`Edit ${context.label} with GenAI`}
       >
         <header>
-          <div>
-            <p className="eyebrow">GenAI edit</p>
-            <h3>{context.title}</h3>
-          </div>
+          <h3>{context.title}</h3>
           <button
             type="button"
-            className="sheet-close"
+            className="draft-edit-close"
             aria-label="Close GenAI edit modal"
             onClick={onClose}
           >
-            ×
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
           </button>
         </header>
         <form className="draft-genai-form" onSubmit={submit}>

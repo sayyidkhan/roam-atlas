@@ -17,6 +17,21 @@ afterEach(() => {
 });
 
 describe("ExplorerDetailSheet", () => {
+  it("does not expose development commentary from an older country snapshot", () => {
+    explorerDetailStore.getState().setSnapshot({
+      commands: { close: vi.fn(), collapse: vi.fn(), expand: vi.fn() },
+      detailOverride: null, mode: "expanded",
+      node: { title: "Merlion Park", facts: [
+        { text: "Merlion Park is in the demo path.", confidence: "confirmed" },
+        { text: "Merlion Park is a photo stop in Marina Bay.", confidence: "confirmed", sourceUrl: "https://example.test/merlion" }
+      ] }
+    });
+    render(<ExplorerDetailSheet />);
+    expect(screen.queryByText(/demo path/)).toBeNull();
+    expect(screen.getByText("Merlion Park is a photo stop in Marina Bay.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Source" })).toBeTruthy();
+  });
+
   it("renders structured facts and direct detail commands", () => {
     const commands = {
       close: vi.fn(),

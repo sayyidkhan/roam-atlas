@@ -1579,7 +1579,7 @@ test("homepage prompt is a sparse flipbook visual table of contents", () => {
     knownChildNodeTitles: ["Marina Bay", "Heritage Belt", "Sentosa", "Mandai"]
   });
 
-  assert.equal(output.promptVersion, "roamatlas-flipbook-v8-architectural-detail");
+  assert.equal(output.promptVersion, "roamatlas-flipbook-v9-visitor-copy");
   assert.match(output.prompt, /visual table of contents/);
   assert.match(output.prompt, /5 to 7 major anchor clusters/);
   assert.match(output.prompt, /35% of the image visually open/);
@@ -1846,13 +1846,6 @@ test("country shell uses starter map wording instead of generated draft wording"
     ),
     "utf8"
   );
-  const countrySetupHeroSource = readFileSync(
-    new URL(
-      "../apps/web/src/features/countrySetup/components/CountryActionGuide.tsx",
-      import.meta.url
-    ),
-    "utf8"
-  );
   const countrySetupActionSource = readFileSync(
     new URL(
       "../apps/web/src/features/countrySetup/countrySetupActionController.ts",
@@ -1898,13 +1891,9 @@ test("country shell uses starter map wording instead of generated draft wording"
   assert.match(countryDraftToolbarSource, /useState\(false\)/);
   assert.match(countryDraftToolbarSource, /<strong>\{label\}<\/strong>/);
   assert.match(countryDraftToolbarSource, /draft-button-tooltip-title/);
-  assert.match(countrySetupHeroSource, /Action guide/);
-  assert.match(countrySetupHeroSource, /toggle-action-guide/);
-  assert.doesNotMatch(appSource, /countryActionLegendOpen/);
-  assert.match(countrySetupHeroSource, /useState\(false\)/);
-  assert.match(countrySetupHeroSource, /aria-expanded/);
-  assert.match(countrySetupHeroSource, /function CountryActionGuide/);
-  assert.match(countrySetupHeroSource, /className="country-action-legend"/);
+  assert.doesNotMatch(countrySetupActionsSource, /CountryActionGuide/);
+  assert.match(countrySetupActionsSource, /useDraftTooltip/);
+  assert.match(countrySetupActionsSource, /aria-describedby|triggerProps/);
   assert.match(countryDraftToolbarSource, /Refresh regions, summary, and themes/);
   assert.match(countryDraftToolbarSource, /Clear cached thumbnails and search again/);
   assert.match(countryDraftViewControllerSource, /preserveScroll: true/);

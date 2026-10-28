@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 
 import { factConfidenceLabel } from "@roamatlas/domain/guardrails.js";
 import { createLeafStudyTopics } from "@roamatlas/domain/leafStudyPlate.js";
+import { containsInternalVisitorCopy } from "@roamatlas/domain/visitorCopyPolicy.js";
 
 import { explorerDetailStore } from "./explorerDetailStore";
 import {
@@ -21,7 +22,9 @@ export function ExplorerLeafStudyPlate() {
   const topics = snapshot?.detailOverride
     ? []
     : createLeafStudyTopics(node);
-  const topicKey = topics.map((topic) => topic.id).join("|");
+  const topicKey = topics.length
+    ? JSON.stringify([node?.id, topics.map((topic) => [topic.id, topic.text])])
+    : "";
   const [selection, setSelection] = useState<{
     id: string;
     key: string;
@@ -70,7 +73,10 @@ export function ExplorerLeafStudyPlate() {
   const selected =
     topics.find((topic) => topic.id === selectedId) ?? topics[0];
   if (!selected) return null;
-  const enrichedText = activeNotes?.[selected.id];
+  const candidateText = activeNotes?.[selected.id];
+  const enrichedText = candidateText && !containsInternalVisitorCopy(candidateText)
+    ? candidateText
+    : null;
   const text = enrichedText || selected.text;
 
   return (

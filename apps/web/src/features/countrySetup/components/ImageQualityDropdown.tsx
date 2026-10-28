@@ -16,7 +16,7 @@ export function ImageQualityDropdown({ id, value, options, disabled, describedBy
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [side, setSide] = useState("bottom");
-  const [align, setAlign] = useState("left");
+  const [menuLeft, setMenuLeft] = useState(0);
   const listId = `${id}-options`;
   const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
   const isDisabled = disabled || options.length === 0;
@@ -45,7 +45,7 @@ export function ImageQualityDropdown({ id, value, options, disabled, describedBy
     const bounds = rootRef.current?.parentElement?.getBoundingClientRect();
     setSide(bounds && bounds.bottom + 220 > innerHeight && bounds.top > innerHeight - bounds.bottom ? "top" : "bottom");
     const menuWidth = Math.min(232, innerWidth - 32);
-    setAlign(bounds && bounds.left + menuWidth > innerWidth - 16 ? "right" : "left");
+    setMenuLeft(bounds ? Math.max(16, Math.min(bounds.left, innerWidth - menuWidth - 16)) - bounds.left : 0);
     setActiveIndex(index);
     setIsOpen(true);
   }
@@ -111,7 +111,7 @@ export function ImageQualityDropdown({ id, value, options, disabled, describedBy
           <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {isOpen ? <div ref={menuRef} className={styles.menu} data-side={side} data-align={align}>
+      {isOpen ? <div ref={menuRef} className={styles.menu} data-side={side} style={{ left: menuLeft }}>
         <div className={styles["menu-heading"]} aria-hidden="true">Illustration detail</div>
         <ul id={listId} className={styles.options} role="listbox" aria-label="Illustration detail">
           {options.map((option, index) => <li

@@ -4,6 +4,12 @@ import test from "node:test";
 import { buildLeafStudyPrompt } from "../libs/prompts/src/buildLeafStudyPrompt.ts";
 import { normalizeLeafStudyNotes } from "../apps/api/src/features/explorer/leafStudyEnrichmentPolicy.ts";
 import { createOpenAILeafStudyEnricher } from "../apps/api/src/features/explorer/openAILeafStudyEnricher.ts";
+import { buildPagePlannerPrompt } from "../libs/prompts/src/buildPagePlannerPrompt.ts";
+import { buildCountryDraftPrompt, buildCountryDraftInfluencePrompt } from "../libs/domain/src/countryDraftPrompt.ts";
+import { GLOBAL_IMAGE_RULES } from "../libs/prompts/src/roamAtlasPromptStyle.ts";
+import { VISITOR_COPY_RULES } from "../libs/prompts/src/visitorCopyRules.ts";
+import { containsInternalVisitorCopy } from "../libs/domain/src/visitorCopyPolicy.ts";
+import { safeText } from "../libs/domain/src/countryDraftTextPolicy.ts";
 
 const topics = [{
   id: "rainforest",
@@ -28,6 +34,36 @@ test("leaf study prompt asks for distinct notes without new travel claims", () =
   assert.match(prompt, /opening hours, prices, tickets/);
   assert.match(prompt, /rainforest/);
   assert.match(prompt, /Bako National Park/);
+  assert.ok(prompt.includes(VISITOR_COPY_RULES));
+});
+
+test("all visitor content prompts exclude development commentary even when context contains it", () => {
+  const country = { name: "Singapore", code: "SG", slug: "singapore" };
+  const prompts = [
+    GLOBAL_IMAGE_RULES,
+    buildPagePlannerPrompt(),
+    buildCountryDraftPrompt(country),
+    buildCountryDraftPrompt(country, { groundingSnippets: [1, 2, 3].map((id) => ({
+      title: "Singapore", url: `https://example.test/singapore/${id}`,
+      text: "Singapore has waterfronts, gardens, cultural neighbourhoods and islands to explore."
+    })) }),
+    buildCountryDraftInfluencePrompt({ country, instruction: "Make it a demo", currentDraft: {} })
+  ];
+  for (const prompt of prompts) assert.ok(prompt.includes(VISITOR_COPY_RULES));
+});
+
+test("caption validation rejects internal commentary without removing source or uncertainty labels", () => {
+  for (const wording of ["demo path", "testing", "MVP", "prototype", "hackathon", "first-slice", "placeholder", "RoamAtlas graph"]) {
+    const text = `Merlion Park appears in the ${wording} and has a waterfront setting for photographs.`;
+    assert.equal(containsInternalVisitorCopy(text), true, wording);
+    assert.equal(safeText(text, "Explore Merlion Park.", 280), "Explore Merlion Park.");
+    assert.deepEqual(normalizeLeafStudyNotes([{ id: "merlion", text: "Merlion Park is a photo stop." }], {
+      notes: [{ id: "merlion", text }]
+    }), []);
+  }
+  for (const text of ["AI note", "Unconfirmed", "General background", "Source", "Democratic Republic of the Congo"]) {
+    assert.equal(containsInternalVisitorCopy(text), false, text);
+  }
 });
 
 test("leaf study enrichment drops repeated text and unsupported claims", () => {

@@ -1,3 +1,5 @@
+import { VISITOR_COPY_RULES } from "./visitorCopyRules.ts";
+
 export function buildPagePlannerPrompt(): string {
   return `
 You are the RoamAtlas Flipbook Page Planner.
@@ -32,6 +34,7 @@ Page type selection:
 - zoomLevel 4: animal_anatomy_plate, food_anatomy_plate, or other encyclopedia plate
 
 Rules:
+${VISITOR_COPY_RULES}
 1. Do not plan a dense full-city image unless the page type is homepage_overview, and even then keep it restrained.
 2. Do not include readable labels in the image prompt.
 3. Do not include official claims in the image prompt.

@@ -56,12 +56,6 @@ function CountrySetupContent({
 
   return (
     <article className={`country-shell-panel country-setup-theme ${styles.surface}`}>
-      <CountrySetupActions
-        snapshot={snapshot}
-        flushState={flushState}
-        canOpenMap={canOpenMap}
-        isMapLocked={isMapLocked}
-      />
       <div className={styles.workspace}>
         <CacheFlushNotice state={flushState} />
         <section className={styles["atlas-panel"]} aria-label="Atlas contents">
@@ -85,16 +79,26 @@ function CountrySetupContent({
                   snapshot={snapshot}
                   lockState={artworkQualityLock}
                   review={review}
+                  actions={(identity, settings) => (
+                    <CountrySetupActions
+                      identity={identity}
+                      settings={settings}
+                      snapshot={snapshot}
+                      flushState={flushState}
+                      canOpenMap={canOpenMap}
+                      isMapLocked={isMapLocked}
+                    />
+                  )}
                 />
               )}
             />
           </div>
-          <p className={styles["fact-note"]}>
-            AI illustrates the atlas. Sources ground the facts.
-          </p>
         </section>
       </div>
       <footer className={styles.footer}>
+        <p className={styles["fact-note"]}>
+          AI illustrates the atlas. Sources ground the facts.
+        </p>
         <a href="/" className={styles["footer-brand"]} aria-label="RoamAtlas home">
           <AtlasMark /><span>roam<span>atlas</span></span>
         </a>

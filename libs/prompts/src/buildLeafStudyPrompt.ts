@@ -1,3 +1,5 @@
+import { VISITOR_COPY_RULES } from "./visitorCopyRules.ts";
+
 export type LeafStudyPromptTopic = {
   id: string;
   label: string;
@@ -28,6 +30,7 @@ export function buildLeafStudyPrompt({
     '{"notes":[{"id":"the supplied id","text":"two distinct sentences"}]}',
     "",
     "Rules:",
+    `- ${VISITOR_COPY_RULES}`,
     "- Write exactly one note for every supplied id.",
     "- Each note is two sentences and stays under 280 characters.",
     "- Each note is about that topic only. Do not repeat another note's opening, shape, or wording.",

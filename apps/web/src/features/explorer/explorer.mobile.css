@@ -1,14 +1,4 @@
 @media (max-width: 720px) {
-  .image-target-hotspot--visual {
-    display: none;
-    pointer-events: none;
-  }
-
-  .image-target-hotspot--label {
-    display: block;
-    pointer-events: auto;
-  }
-
   .region-rail {
     padding: 12px 10px 10px;
   }

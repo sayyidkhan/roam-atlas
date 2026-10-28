@@ -8,24 +8,28 @@ import styles from "../CountrySetupSurface.module.css";
 export function CountrySetupHeader({
   snapshot,
   lockState,
-  review
+  review,
+  actions
 }: {
   snapshot: CountrySetupState;
   lockState: CountryArtworkQualityLockState;
   review: ReactNode;
+  actions: (identity: ReactNode, settings: ReactNode) => ReactNode;
 }) {
   return (
-    <div className={`country-draft-header ${styles["setup-header"]}`}>
-      <CountrySetupHero snapshot={snapshot}>{review}</CountrySetupHero>
-      <div className={styles["header-controls"]}>
-        <ImageQualitySetting
-          inline
-          selectedValue={snapshot.imageQuality}
-          options={snapshot.imageQualityOptions}
-          lockState={lockState}
-          onChange={snapshot.commands.setImageQuality}
-        />
-      </div>
-    </div>
+    <section className={`country-draft-header ${styles["setup-header"]}`} aria-label="Country setup">
+      {actions(
+        <CountrySetupHero snapshot={snapshot}>{review}</CountrySetupHero>,
+        <div className={styles["header-controls"]}>
+          <ImageQualitySetting
+            inline
+            selectedValue={snapshot.imageQuality}
+            options={snapshot.imageQualityOptions}
+            lockState={lockState}
+            onChange={snapshot.commands.setImageQuality}
+          />
+        </div>
+      )}
+    </section>
   );
 }

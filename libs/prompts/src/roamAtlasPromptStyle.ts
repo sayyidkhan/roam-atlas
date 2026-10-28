@@ -1,4 +1,6 @@
-export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v8-architectural-detail";
+import { VISITOR_COPY_RULES } from "./visitorCopyRules.ts";
+
+export const ROAMATLAS_PROMPT_VERSION = "roamatlas-flipbook-v9-visitor-copy";
 
 export const CORE_VISUAL_STYLE = `
 Core visual style:
@@ -26,6 +28,7 @@ Global image rules:
 5. For study plates, use supplied short callout headings when present. Without supplied headings, avoid empty callout boxes and use leader lines or small inset diagrams instead; never factual image captions.
 6. Keep all important subjects and supplied labels inside the central 3:2 safe area, with generous top and side padding for page titles. Use simple visual bleed at the edges.
 7. Never render app names, product logos, old product names, or brand-like decorative titles.
+8. ${VISITOR_COPY_RULES}
 `;
 
 export const NEGATIVE_STYLE_TERMS: string[] = [

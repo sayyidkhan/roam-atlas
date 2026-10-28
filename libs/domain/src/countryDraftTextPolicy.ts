@@ -1,3 +1,5 @@
+import { containsInternalVisitorCopy } from "./visitorCopyPolicy.ts";
+
 const FORBIDDEN_DETAIL_PATTERNS = [
   /\bopening hours?\b/i,
   /\bhours?\b/i,
@@ -37,7 +39,7 @@ export function safeText(
   const text = String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text || containsForbiddenTravelDetail(text)) {
+  if (!text || containsForbiddenTravelDetail(text) || containsInternalVisitorCopy(text)) {
     return fallback;
   }
   return text.length > maxLength

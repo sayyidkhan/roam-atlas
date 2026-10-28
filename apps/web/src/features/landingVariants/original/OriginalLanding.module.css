@@ -2340,6 +2340,12 @@
   }
 }
 
+@media (max-width: 760px) and (max-height: 700px) {
+  .horizon-two .country-hero {
+    padding-top: 100px;
+  }
+}
+
 .horizon-two .country-hero .hero-actions {
   margin-top: 0;
 }

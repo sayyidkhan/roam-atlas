@@ -18,7 +18,8 @@
     "./placeImageSelection.js": "./src/placeImageSelection.ts",
     "./routes.js": "./src/routes.ts",
     "./savedDiscoveries.js": "./src/savedDiscoveries.ts",
-    "./scrollScene.js": "./src/scrollScene.ts"
+    "./scrollScene.js": "./src/scrollScene.ts",
+    "./visitorCopyPolicy.js": "./src/visitorCopyPolicy.ts"
   },
   "dependencies": {
     "@roamatlas/prompts": "*"

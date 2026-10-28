@@ -1,4 +1,5 @@
 import { apiPath } from "../../app/browserRuntime";
+import { containsInternalVisitorCopy } from "@roamatlas/domain/visitorCopyPolicy.js";
 
 export type LeafStudyNoteResponse = {
   id: string;
@@ -24,7 +25,7 @@ export async function requestLeafStudyNotes({
     if (!note || typeof note !== "object") return [];
     const id = String((note as { id?: unknown }).id ?? "").trim();
     const text = String((note as { text?: unknown }).text ?? "").trim();
-    return id && text ? [{ id, text }] : [];
+    return id && text && !containsInternalVisitorCopy(text) ? [{ id, text }] : [];
   });
 }
 

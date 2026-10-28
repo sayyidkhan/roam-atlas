@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/main.ts",
+    "dev": "node --watch src/main.ts",
     "check": "node --check src/main.ts",
     "start": "node src/main.ts"
   },

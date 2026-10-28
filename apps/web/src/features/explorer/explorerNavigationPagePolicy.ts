@@ -81,7 +81,7 @@ export function explainExplorerRequestError(
     message === "Failed to fetch" ||
     (error instanceof Error && error.name === "TypeError")
   ) {
-    return "The browser could not reach the RoamAtlas dev server. Open the app through npm run dev, not as a file, and make sure the server is still running.";
+    return "Could not connect to RoamAtlas. Check your connection and try again.";
   }
   return message;
 }

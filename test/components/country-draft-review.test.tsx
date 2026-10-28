@@ -133,7 +133,7 @@ describe("CountryDraftReview", () => {
     fireEvent.click(trigger);
     expect(dialog.showModal).toHaveBeenCalledTimes(1);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.queryByText("Country pack overview")).toBeNull();
+    expect(screen.getByText("Country pack overview")).toBeTruthy();
     expect(screen.getByText(/These come from travel information saved in RoamAtlas/)).toBeTruthy();
     expect(screen.getByText(/A picture can contain imagined details/)).toBeTruthy();
     expect(screen.getByText(/“Confirmed” means backed by an official source or a RoamAtlas reference/)).toBeTruthy();

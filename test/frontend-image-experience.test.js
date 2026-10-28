@@ -339,8 +339,8 @@ test("responsive image overlays use the rendered artwork bounds", () => {
     /target\.nodeId === selectedNodeId/
   );
   assert.match(styleSource, /\.image-target-hotspot--label\s*\{[^}]*display: none;[^}]*pointer-events: none;/s);
-  assert.match(styleSource, /@media \(max-width: 720px\)[\s\S]*\.image-target-hotspot--visual\s*\{[^}]*display: none;[^}]*pointer-events: none;/s);
-  assert.match(styleSource, /@media \(max-width: 720px\)[\s\S]*\.image-target-hotspot--label\s*\{[^}]*display: block;[^}]*pointer-events: auto;/s);
+  assert.doesNotMatch(styleSource, /\.image-target-hotspot--visual\s*\{[^}]*display: none;/s);
+  assert.doesNotMatch(styleSource, /\.image-target-hotspot--label\s*\{[^}]*display: block;/s);
 });
 
 test("missing artwork keeps an accessible, honest, low-motion blueprint", () => {
