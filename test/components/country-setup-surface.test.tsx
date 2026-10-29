@@ -231,7 +231,9 @@ describe("CountrySetupSurface", () => {
     const quality = screen.getByRole("combobox", { name: "Illustration detail" });
     expect(quality).toHaveProperty("value", "medium");
     expect(quality).toHaveProperty("disabled", true);
-    expect(screen.getByText("Locked · reset visuals to change")).toBeTruthy();
+    const lockHelp = screen.getByRole("button", { name: "Why illustration detail is locked" });
+    fireEvent.focus(lockHelp);
+    expect(lockHelp.querySelector('[role="tooltip"]')?.textContent).toContain("Reset visuals to choose a different detail level.");
   });
 
   it("locks generated maps until curation is confirmed", () => {

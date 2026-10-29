@@ -103,11 +103,11 @@ Browsing and Surprise me do not overwrite it. Clicking the active Home country
 icon clears the preference; unavailable storage reports a save failure.
 
 Country setup uses a warm paper canvas with one white, bordered country header.
-The navigation actions and country settings share this single card, separated by
-a thin divider. Back, Reset, and Help sit on the top left, with Open or Build on
-the right. The country identity and illustration dropdown form the row below.
-On phones both rows stack within the same border. The whole card remains visible
-while scrolling on desktop.
+A compact back icon, country identity, illustration setting, Reset, and Open or
+Build share one toolbar. Illustration label, value, and lock help sit inside one
+subtle bordered control, with matching action heights. On phones the toolbar
+uses two rows within the same border. The whole card remains visible while
+scrolling on desktop.
 The photo, serif country name, code, and travel-information link form one identity
 group. Illustration detail sits alongside it as a styled select-only combobox,
 with option descriptions, a selected checkmark, keyboard navigation, first-letter
@@ -165,7 +165,11 @@ The country setup header uses one compact row on tablet and desktop: country
 navigation, country identity with the source-info link, illustration detail,
 Reset Generated Visuals, and the green Open or Build action. Shorter visible
 labels keep the row readable; accessible action names retain the country name.
-Reset and Open/Build explain their effects with hover and keyboard tooltips.
+The source-info link sits beside the country code when space permits and wraps
+below the country title when the identity area is narrower.
+Reset and Open/Build explain their effects with hover and keyboard tooltips. When
+visuals already exist, the illustration control stays locked and offers the same
+explanation through an adjacent lock tooltip instead of adding a second status line.
 Back to countries has no tooltip, and there is no separate info icon or action
 guide. Phone layouts use two compact rows to keep controls usable without
 horizontal scrolling. A slim footer holds the RoamAtlas home link and logo at

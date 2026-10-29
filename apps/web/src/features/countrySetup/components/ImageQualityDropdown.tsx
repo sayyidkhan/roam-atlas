@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { ImageQualityOption } from "../countrySetupStore";
 import styles from "./ImageQualitySetting.module.css";
 
-export function ImageQualityDropdown({ id, value, options, disabled, describedBy, onChange }: {
+export function ImageQualityDropdown({ id, value, options, disabled, locked = false, describedBy, onChange }: {
   id: string;
   value: string;
   options: readonly ImageQualityOption[];
   disabled: boolean;
+  locked?: boolean;
   describedBy?: string;
   onChange: (value: string) => void;
 }) {
@@ -107,9 +108,9 @@ export function ImageQualityDropdown({ id, value, options, disabled, describedBy
         onClick={() => isOpen ? setIsOpen(false) : open()}
       >
         <span>{options.find((option) => option.value === value)?.label ?? value}</span>
-        <svg className={styles.chevron} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+        {!locked ? <svg className={styles.chevron} viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
           <path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        </svg> : null}
       </button>
       {isOpen ? <div ref={menuRef} className={styles.menu} data-side={side} style={{ left: menuLeft }}>
         <div className={styles["menu-heading"]} aria-hidden="true">Illustration detail</div>

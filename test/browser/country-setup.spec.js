@@ -62,7 +62,17 @@ async function openSetup(page) {
   const quality = page.getByRole("combobox", { name: "Illustration detail", exact: true });
   await expect(quality).toHaveText("High");
   await expect(quality).toBeDisabled();
-  await expect(page.getByRole("status").filter({ hasText: "Locked · reset visuals to change" })).toBeVisible();
+  const lockHelp = page.getByRole("button", { name: "Why illustration detail is locked", exact: true });
+  const lockTooltip = lockHelp.getByRole("tooltip");
+  await lockHelp.hover();
+  await expect(lockTooltip).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(lockTooltip).toBeHidden();
+  await lockHelp.focus();
+  await expect(lockTooltip).toBeVisible();
+  await expect(lockTooltip).toContainText("Reset visuals to choose a different detail level.");
+  await lockHelp.press("Escape");
+  await expect(lockTooltip).toBeHidden();
   const review = page.getByRole("link", { name: "Where this info comes from", exact: true });
   const header = page.locator(".country-draft-header");
   const before = await header.boundingBox();
@@ -166,7 +176,7 @@ async function checkCountryActions(page) {
   expect(navigationBounds.y).toBeGreaterThanOrEqual(headerBounds.y);
   expect(countryBounds.y).toBeGreaterThanOrEqual(navigationBounds.y);
   expect(countryBounds.y + countryBounds.height).toBeLessThanOrEqual(headerBounds.y + headerBounds.height);
-  await expect(navigation.getByRole("button")).toHaveCount(3);
+  await expect(navigation.getByRole("button")).toHaveCount(4);
   await expect(page.getByRole("button", { name: "Action guide", exact: true })).toHaveCount(0);
   await expect(back).not.toHaveAttribute("title");
   await expect(back).not.toHaveAttribute("aria-describedby");
@@ -175,12 +185,20 @@ async function checkCountryActions(page) {
     const controls = [back, reset, openMap, header.locator(".country-config-hero"), header.locator(".country-config-hero + div")];
     const backBounds = await back.boundingBox();
     const center = backBounds.y + backBounds.height / 2;
-    // All five groups share a single row, even with the quality lock note.
+    // All groups share a single row; lock guidance is available from its icon.
     for (const control of controls) {
       const box = await control.boundingBox();
       expect(Math.abs(box.y + box.height / 2 - center)).toBeLessThan(2);
     }
-    expect(headerBounds.height).toBeLessThan(125);
+    expect(headerBounds.height).toBeLessThan(84);
+    const sourceLink = await header.getByRole("link", { name: "Where this info comes from", exact: true }).boundingBox();
+    const countryTitle = await header.locator(".setup-country-title").boundingBox();
+    if (page.viewportSize().width >= 1100) {
+      expect(sourceLink.x).toBeGreaterThan(countryTitle.x + countryTitle.width);
+      expect(Math.abs(sourceLink.y + sourceLink.height / 2 - countryTitle.y - countryTitle.height / 2)).toBeLessThan(2);
+    } else if (page.viewportSize().width === 690) {
+      expect(sourceLink.y).toBeGreaterThanOrEqual(countryTitle.y + countryTitle.height);
+    }
   }
   for (const button of [reset, openMap]) {
     await button.hover();
@@ -245,6 +263,9 @@ test("opens the editable contents directly and keeps one layout while reviewing"
   const unexpectedRequests = await isolateSetupRequests(page);
   await openSetup(page);
   await checkCountryActions(page);
+
+  await page.getByRole("heading", { name: "Singapore", level: 1 }).click();
+  await page.screenshot({ path: test.info().outputPath("config-header-desktop.png"), clip: { x: 0, y: 0, width: 1440, height: 240 } });
 
   const contents = page.getByRole("region", { name: "Scrollable atlas contents" });
   await expect(page.getByRole("button", { name: "Edit & review", exact: true })).toHaveCount(0);

@@ -163,12 +163,17 @@
 }
 
 .inline .field {
-  grid-template-columns: auto 82px;
+  grid-template-columns: auto 76px;
   align-items: center;
   gap: 4px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 8px 0 12px;
+  background: #f4f5ee;
+}
+
+.inline .field[data-locked="true"] {
+  grid-template-columns: auto 42px 28px;
 }
 
 .inline label {
@@ -178,14 +183,85 @@
 }
 
 .inline .select {
-  border-color: var(--line);
-  background: #fffdf7;
+  border: 0;
+  background: transparent;
   gap: 4px;
   padding-inline: 8px;
   font-size: 12px;
 }
 
-.inline .field:focus-within {
+.inline .select:disabled {
+  color: var(--ink);
+}
+
+.lock-help {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: help;
+}
+
+.lock-help svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lock-help:hover {
+  background: #e9eddf;
+  color: var(--ink);
+}
+
+.lock-help:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.lock-help::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  bottom: calc(100% + 5px);
+  z-index: 46;
+  border: 6px solid transparent;
+  border-top-color: #fffaf0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.98);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.lock-help:is(:hover, :focus-visible) :global(.draft-button-tooltip),
+.lock-help:is(:hover, :focus-visible)::before {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.lock-help[data-tooltip-side="bottom"]::before {
+  top: calc(100% - 1px);
+  bottom: auto;
+  border-top-color: transparent;
+  border-bottom-color: #fffaf0;
+}
+
+.hidden-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.inline .field:has(:where(.select:focus-visible)) {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
@@ -207,12 +283,21 @@
 
 @media (min-width: 641px) and (max-width: 680px) {
   .setting.inline {
-    max-width: 84px;
+    max-width: 104px;
   }
 
   .inline .field {
     grid-template-columns: minmax(0, 1fr);
     gap: 2px;
+    padding-left: 4px;
+  }
+
+  .inline .field[data-locked="true"] {
+    grid-template-columns: minmax(0, 1fr) 28px;
+  }
+
+  .inline label {
+    display: none;
   }
 
   .inline .status {
@@ -246,7 +331,7 @@
   }
 
   .inline .field {
-    grid-template-columns: auto 82px;
+    grid-template-columns: auto 76px;
   }
 
   .inline .status {

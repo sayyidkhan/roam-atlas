@@ -107,6 +107,9 @@ function CountryActionButton({
       disabled={disabled}
       onClick={onClick}
     >
+      {action === "reset-generated-visuals" ? <svg className={styles["reset-icon"]} viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4 6a7 7 0 1 1-1 7M4 2v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg> : null}
       <span className={styles["action-full-label"]} aria-hidden="true">{label}</span>
       <span className={styles["action-short-label"]} aria-hidden="true">{shortLabel}</span>
       {action === "country-map" || action === "build-starter-map" ? <span aria-hidden="true">↗</span> : null}
