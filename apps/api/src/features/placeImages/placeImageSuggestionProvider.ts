@@ -92,8 +92,7 @@ export function createPlaceImageSuggestionProvider({
                     }
                   ]
                 }
-              ],
-              temperature: 0.1
+              ]
             })
           }
         );

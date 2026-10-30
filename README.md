@@ -15,6 +15,8 @@ AI-generated, while factual claims are grounded in curated and official data.
 
 ## Project Docs
 
+- [CHANGELOG.md](CHANGELOG.md) records notable app changes and version history.
+- [RELEASING.md](docs/RELEASING.md) defines version bumps and the release workflow.
 - [PRODUCT.md](docs/PRODUCT.md) is the product source of truth.
 - [AGENTS.md](AGENTS.md) is the operating guide for coding, research, image,
   fact-check, and itinerary agents.
@@ -72,12 +74,13 @@ OPENAI_API_KEY="..."
 ```
 
 Non-secret server/model defaults live in
-`apps/api/src/config/roamAtlasConfig.js`. Browser-safe interaction policy lives
+`apps/api/src/config/roamAtlasConfig.ts`. Browser-safe interaction policy lives
 in `apps/web/src/config/appConfig.js`.
 
-- Text, VLM, and environment models must stay on GPT-5-family or newer models.
+- Text and click understanding use `gpt-6.1-terra`; positioning scene targets and
+  ambient layers uses `gpt-6.1-sol`. Both use the existing Fast service tier.
 - Interactive image generation uses the pinned
-  `gpt-image-2.5-flare-2026-09-08` snapshot with a compressed JPEG profile
+  `gpt-image-2.5-sunburst-2026-09-08` snapshot with a compressed JPEG profile
   and a streamed partial preview. The country config screen offers Low,
   Medium, and High output; High is the recommended and default tier.
 - Do not add model env overrides for normal local development; edit the config

@@ -123,6 +123,34 @@ test("place-image suggestion provider falls back without making an API request",
   assert.match(result.suggestions[0], /Gardens by the Bay/);
 });
 
+test("place-image suggestions use Responses without unsupported reasoning sampling parameters", async () => {
+  let request;
+  const provider = createPlaceImageSuggestionProvider({
+    apiKey: "test-key",
+    model: "gpt-6.1-terra",
+    serviceTier: "fast",
+    extractText: () => JSON.stringify({ suggestions: ["Show Gardens by the Bay from the waterfront"] }),
+    parseJson: JSON.parse,
+    fetchFn: async (url, options) => {
+      assert.equal(url, "https://api.openai.com/v1/responses");
+      request = JSON.parse(options.body);
+      return new Response(JSON.stringify({}));
+    }
+  });
+
+  const result = await provider.suggest(
+    { name: "Singapore" },
+    { place: "Marina Bay", context: ["Gardens by the Bay"] }
+  );
+
+  assert.equal(request.model, "gpt-6.1-terra");
+  assert.equal(request.service_tier, "fast");
+  for (const parameter of ["temperature", "top_p", "top_logprobs"]) {
+    assert.equal(Object.hasOwn(request, parameter), false);
+  }
+  assert.deepEqual(result.suggestions, ["Show Gardens by the Bay from the waterfront"]);
+});
+
 test("place-image service persists downloaded media through its repository boundary", async () => {
   const writes = [];
   const repository = createMemoryRepository(writes);

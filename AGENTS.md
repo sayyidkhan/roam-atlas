@@ -136,7 +136,7 @@ Rules:
 
 Owns:
 
-- `gpt-image-2.5-flare-2026-09-08` image generation through the configured
+- `gpt-image-2.5-sunburst-2026-09-08` image generation through the configured
   image provider.
 - Scene prompts.
 - Style consistency.
@@ -147,7 +147,7 @@ Owns:
 
 Rules:
 
-- Use the pinned `gpt-image-2.5-flare-2026-09-08` snapshot as the preferred
+- Use the pinned `gpt-image-2.5-sunburst-2026-09-08` snapshot as the preferred
   target model for image generation. If the runtime does not support it, use
   only an explicitly configured fallback and surface that fallback in logs or
   metadata.
@@ -398,7 +398,7 @@ The image agent should generate tiles through a queue.
 ```text
 Scene plan
   -> tile prompts
- -> gpt-image-2.5-flare-2026-09-08 provider adapter
+ -> gpt-image-2.5-sunburst-2026-09-08 provider adapter
   -> image artifact storage
   -> tile cache record
   -> frontend loads ready tiles
@@ -747,6 +747,19 @@ A change is done when:
 - It does not invent unsupported claims.
 - It has updated docs or data contracts if behavior changed.
 - It has focused tests for risky logic.
+
+## Changelog and Versioning
+
+- Maintain [CHANGELOG.md](CHANGELOG.md) alongside user-visible features, fixes,
+  and behavior changes. Add concise outcome-based entries under `Unreleased`;
+  combine follow-up refinements rather than listing every commit.
+- Follow [docs/RELEASING.md](docs/RELEASING.md) when preparing a release. Keep
+  the root and workspace package versions, lockfile, and changelog aligned.
+- Ordinary commits do not bump the app version. Prepare version bumps when a
+  release is requested; choose patch for nonbreaking fixes/UI refinements,
+  minor for compatible features, and major for breaking changes.
+- Use Asia/Singapore dates for releases. Do not invent historical releases,
+  imply that a changelog entry was deployed, or move existing release tags.
 
 ## AI-Native Architecture
 

@@ -576,12 +576,18 @@ limits, the agent must ask the user before using them.
 
 ## Image Generation Strategy
 
-Use the pinned `gpt-image-2.5-flare-2026-09-08` snapshot as the preferred
+Use the pinned `gpt-image-2.5-sunburst-2026-09-08` snapshot as the preferred
 target image model for RoamAtlas image generation. Because image model
 availability can vary by environment, implement this through a configurable
 image provider adapter instead of scattering the model string through product
 code. If the runtime cannot access the preferred model, the app must fail
 clearly or use an explicitly configured fallback model.
+
+Country drafts, edits, encyclopedia enrichment, photo suggestions, and visual
+click understanding use `gpt-6.1-terra`. Scene target positioning and ambient-layer
+planning use `gpt-6.1-sol`. These text/vision requests retain Fast processing.
+Model defaults live in the central API configuration; curated facts and click
+matching guardrails remain independent of model output.
 
 Use a hybrid strategy.
 

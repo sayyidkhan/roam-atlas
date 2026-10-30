@@ -31,14 +31,14 @@ export type RoamAtlasConfigEnvironment =
 
 export const ROAMATLAS_CONFIG = {
   ai: {
-    textModel: "gpt-5.6-terra",
-    vlmModel: "gpt-5.6-terra",
-    environmentModel: "gpt-5.6-sol",
+    textModel: "gpt-6.1-terra",
+    vlmModel: "gpt-6.1-terra",
+    environmentModel: "gpt-6.1-sol",
     serviceTier: "fast"
   },
   image: {
     provider: "openai",
-    model: "gpt-image-2.5-flare-2026-09-08",
+    model: "gpt-image-2.5-sunburst-2026-09-08",
     fallbackModel: null,
     // Use the widest landscape size supported by the Images API. The browser
     // preserves this 3:2 composition so generated pixels are not cropped.

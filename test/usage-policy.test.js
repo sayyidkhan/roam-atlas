@@ -27,34 +27,59 @@ test("normalizes Responses API usage and estimates Fast-mode cost", () => {
   assert.equal(record.durationMs, 1234);
 });
 
-test("separates image tokens and summarizes usage records", () => {
-  const record = createUsageRecord({
-    feature: "image_generation",
-    model: "gpt-image-2.5-flare-2026-09-08",
-    durationMs: 12_000,
-    usage: {
-      input_tokens: 1000,
-      input_tokens_details: {
-        cached_tokens: 100,
-        image_tokens: 400
-      },
-      output_tokens: 2000,
-      output_tokens_details: { image_tokens: 2000 }
-    }
+for (const [model, expectedCost] of [
+  ["gpt-6.1-terra", 0.00681],
+  ["gpt-6.1-sol", 0.01362]
+]) {
+  test(`estimates ${model} Fast usage with cached input`, () => {
+    const record = createUsageRecord({
+      feature: "environment_plan",
+      model,
+      serviceTier: "fast",
+      durationMs: 100,
+      usage: {
+        input_tokens: 1000,
+        input_tokens_details: { cached_tokens: 100 },
+        output_tokens: 500
+      }
+    });
+    assert.equal(record.estimatedCostUsd, expectedCost);
   });
+}
 
-  assert.equal(record.inputTokens, 600);
-  assert.equal(record.imageInputTokens, 400);
-  assert.equal(record.outputTokens, 0);
-  assert.equal(record.imageOutputTokens, 2000);
-  assert.equal(record.estimatedCostUsd, 0.065825);
-  assert.deepEqual(summarizeUsage([record]), {
-    requests: 1,
-    inputTokens: 600,
-    cachedInputTokens: 100,
-    outputTokens: 0,
-    imageInputTokens: 400,
-    imageOutputTokens: 2000,
-    estimatedCostUsd: 0.065825
+for (const model of [
+  "gpt-image-2.5-flare-2026-09-08",
+  "gpt-image-2.5-sunburst-2026-09-08"
+]) {
+  test(`separates ${model} image tokens and summarizes usage records`, () => {
+    const record = createUsageRecord({
+      feature: "image_generation",
+      model,
+      durationMs: 12_000,
+      usage: {
+        input_tokens: 1000,
+        input_tokens_details: {
+          cached_tokens: 100,
+          image_tokens: 400
+        },
+        output_tokens: 2000,
+        output_tokens_details: { image_tokens: 2000 }
+      }
+    });
+
+    assert.equal(record.inputTokens, 600);
+    assert.equal(record.imageInputTokens, 400);
+    assert.equal(record.outputTokens, 0);
+    assert.equal(record.imageOutputTokens, 2000);
+    assert.equal(record.estimatedCostUsd, 0.065825);
+    assert.deepEqual(summarizeUsage([record]), {
+      requests: 1,
+      inputTokens: 600,
+      cachedInputTokens: 100,
+      outputTokens: 0,
+      imageInputTokens: 400,
+      imageOutputTokens: 2000,
+      estimatedCostUsd: 0.065825
+    });
   });
-});
+}

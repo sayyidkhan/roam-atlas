@@ -15,6 +15,17 @@ type UsagePricing = {
 };
 
 const PRICE_PER_MILLION_TOKENS: Record<string, UsagePricing> = {
+  // Short-context Fast rates: https://developers.openai.com/api/docs/pricing
+  "gpt-6.1-sol:fast": {
+    input: 4,
+    cachedInput: 0.2,
+    output: 20
+  },
+  "gpt-6.1-terra:fast": {
+    input: 2,
+    cachedInput: 0.1,
+    output: 10
+  },
   "gpt-5.6-sol:fast": {
     input: 8,
     cachedInput: 0.8,
@@ -49,7 +60,7 @@ const PRICE_PER_MILLION_TOKENS: Record<string, UsagePricing> = {
 };
 
 export const USAGE_PRICING_NOTE =
-  "Estimated from OpenAI token rates configured on 2026-09-22; excludes taxes, account discounts, and requests that return no usage.";
+  "Estimated from OpenAI short-context token rates configured on 2026-10-30; excludes cache writes, long-context surcharges, taxes, account discounts, and requests that return no usage.";
 
 export function createUsageRecord({
   feature,
