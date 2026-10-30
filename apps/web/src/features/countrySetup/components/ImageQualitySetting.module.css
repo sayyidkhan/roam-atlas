@@ -21,6 +21,11 @@
   color: var(--ink);
 }
 
+.inline .control {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 .chevron {
   flex: 0 0 auto;
   width: 14px;
@@ -163,31 +168,43 @@
 }
 
 .inline .field {
-  grid-template-columns: auto 76px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
   align-items: center;
-  gap: 4px;
+  gap: 0 8px;
+  width: 140px;
+  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 0 8px 0 12px;
+  padding: 0 10px 0 12px;
   background: #f4f5ee;
 }
 
 .inline .field[data-locked="true"] {
-  grid-template-columns: auto 42px 28px;
+  grid-template-columns: minmax(0, 1fr) 28px;
 }
 
 .inline label {
+  position: absolute;
+  top: 6px;
+  left: 12px;
   padding-left: 0;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
+  line-height: 12px;
+  pointer-events: none;
 }
 
 .inline .select {
   border: 0;
   background: transparent;
   gap: 4px;
-  padding-inline: 8px;
+  min-height: 44px;
+  align-items: flex-end;
+  border-radius: 2px;
+  padding: 0 4px 5px 0;
   font-size: 12px;
+  line-height: 18px;
 }
 
 .inline .select:disabled {
@@ -207,6 +224,11 @@
   background: transparent;
   color: var(--muted);
   cursor: help;
+}
+
+.inline .lock-help {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .lock-help svg {
@@ -281,29 +303,19 @@
   color: var(--ink);
 }
 
-@media (min-width: 641px) and (max-width: 680px) {
+@media (max-width: 640px) {
   .setting.inline {
-    max-width: 104px;
+    width: 100%;
   }
 
   .inline .field {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
-    padding-left: 4px;
-  }
-
-  .inline .field[data-locked="true"] {
-    grid-template-columns: minmax(0, 1fr) 28px;
+    width: 100%;
+    padding-inline: 8px;
+    column-gap: 4px;
   }
 
   .inline label {
-    display: none;
-  }
-
-  .inline .status {
-    max-width: 100%;
-    padding-inline: 0;
-    font-size: 9px;
+    left: 8px;
   }
 }
 
@@ -328,10 +340,6 @@
 
   .setting.inline {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .inline .field {
-    grid-template-columns: auto 76px;
   }
 
   .inline .status {

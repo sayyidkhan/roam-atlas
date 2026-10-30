@@ -196,8 +196,6 @@ async function checkCountryActions(page) {
     if (page.viewportSize().width >= 1100) {
       expect(sourceLink.x).toBeGreaterThan(countryTitle.x + countryTitle.width);
       expect(Math.abs(sourceLink.y + sourceLink.height / 2 - countryTitle.y - countryTitle.height / 2)).toBeLessThan(2);
-    } else if (page.viewportSize().width === 690) {
-      expect(sourceLink.y).toBeGreaterThanOrEqual(countryTitle.y + countryTitle.height);
     }
   }
   for (const button of [reset, openMap]) {

@@ -103,13 +103,13 @@ Browsing and Surprise me do not overwrite it. Clicking the active Home country
 icon clears the preference; unavailable storage reports a save failure.
 
 Country setup uses a warm paper canvas with one white, bordered country header.
-A compact back icon, country identity, illustration setting, Reset, and Open or
-Build share one toolbar. Illustration label, value, and lock help sit inside one
-subtle bordered control, with matching action heights. On phones the toolbar
-uses two rows within the same border. The whole card remains visible while
-scrolling on desktop.
-The photo, serif country name, code, and travel-information link form one identity
-group. Illustration detail sits alongside it as a styled select-only combobox,
+A quiet back arrow, country identity, illustration setting, Reset icon, and Open
+or Build share one toolbar. The illustration control stacks its small label above
+the value, with lock help alongside. Reset uses its existing tooltip and accessible
+name. On phones the identity occupies the first row, and settings and actions
+share the second row. The whole card remains visible while scrolling on desktop.
+The serif country name, code, and travel-information link form one identity group.
+Illustration detail sits alongside it as a styled select-only combobox,
 with option descriptions, a selected checkmark, keyboard navigation, first-letter
 matching, and outside-click/Escape/Tab dismissal. Changes persist through the
 existing preference command. Checking, locked, or unavailable quality states

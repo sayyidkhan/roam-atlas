@@ -68,8 +68,8 @@
   display: grid;
   grid-template-columns: auto minmax(140px, 1fr) auto auto auto;
   align-items: center;
-  gap: 16px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 10px 16px 10px 8px;
 }
 
 .surface .back {
@@ -77,12 +77,12 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 36px;
+  width: 44px;
   min-height: 44px;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 8px;
   padding: 0;
-  background: #f8f7f0;
+  background: transparent;
   color: var(--muted);
   font-size: 18px;
   white-space: nowrap;
@@ -139,13 +139,7 @@
 }
 
 .surface :global(.setup-country-photo) {
-  position: static;
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 6px;
-  object-fit: cover;
+  display: none;
 }
 
 .surface :global(.setup-country-heading) {
@@ -201,14 +195,19 @@
 }
 
 .surface .header-action[data-country-action="reset-generated-visuals"] {
-  padding-inline: 8px;
+  width: 44px;
+  padding: 0;
   background: transparent;
   color: var(--muted);
 }
 
+.header-action[data-country-action="reset-generated-visuals"] .action-short-label {
+  display: none;
+}
+
 .reset-icon {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
 }
 
@@ -702,7 +701,7 @@
   }
 
   .brand-bar {
-    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) 44px auto;
     gap: 8px;
     padding: 12px;
   }
@@ -712,19 +711,32 @@
   }
 
   .header-controls {
-    grid-column: 1 / 3;
+    grid-column: 1;
     grid-row: 2;
-    justify-self: start;
+    justify-self: stretch;
+    max-width: 160px;
   }
 
   .surface .header-action[data-country-action="reset-generated-visuals"] {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 2;
   }
 
   .surface .header-action:not([data-country-action="reset-generated-visuals"]) {
     grid-column: 3;
+    grid-row: 2;
+  }
+
+  .surface .back {
+    grid-column: 1;
     grid-row: 1;
+    justify-self: start;
+  }
+
+  .surface :global(.country-config-hero) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    margin-left: 40px;
   }
 }
 
